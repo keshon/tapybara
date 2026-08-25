@@ -25,10 +25,12 @@ string defaultSample = Path.Combine(repoRoot, "sample.wav");
 // Флаги, после которых идёт значение. Знать их обязательно: без этого списка
 // текст промпта («Разговор о…») выглядит как обычный аргумент и уезжает в
 // позиционные — на этом разбор `run <модель> [файл]` и ломается.
-string[] valueFlags = ["--prompt"];
+string[] valueFlags = ["--prompt", "--vad-threshold", "--lang"];
 
 List<string> positionalArgs = [];
 string? promptOption = null;
+float vadThreshold = 0.5f;
+string language = "ru";
 for (int i = 0; i < args.Length; i++)
 {
     string arg = args[i];
@@ -43,6 +45,14 @@ for (int i = 0; i < args.Length; i++)
         if (arg == "--prompt")
         {
             promptOption = args[i + 1];
+        }
+        else if (arg == "--vad-threshold")
+        {
+            vadThreshold = float.Parse(args[i + 1], CultureInfo.InvariantCulture);
+        }
+        else if (arg == "--lang")
+        {
+            language = args[i + 1];
         }
 
         i++; // значение уже забрали — позиционным оно не является
@@ -121,6 +131,7 @@ switch (command)
 
             Флаги:
               --prompt "текст"   подсказка словаря (по умолчанию промпта нет)
+              --no-vad           не искать речь детектором перед распознаванием
               --verbose          нативный лог ggml: какой бэкенд загрузился
             """);
         break;
@@ -239,20 +250,47 @@ async Task TranscribeCallAsync(string callDirectory)
     await using var engine = new WhisperEngine(new WhisperEngineOptions
     {
         ModelPath = modelPath,
-        Language = "ru",
+        Language = language,
         Prompt = promptOption,
     });
 
-    Console.WriteLine($"Модель: {Path.GetFileName(modelPath)}");
+    Console.WriteLine($"Модель: {Path.GetFileName(modelPath)}, язык: {language}");
     Console.Write("Прогреваю движок… ");
     await engine.LoadAsync();
     Console.WriteLine(WhisperEngine.LoadedRuntime);
 
-    var transcriber = new CallTranscriber(engine, () => new AppSettings
+    // --no-vad позволяет сравнить с детектором и без него на одной записи.
+    SpeechDetector? detector = null;
+    if (!args.Contains("--no-vad"))
     {
-        MyName = "Я",
-        OtherSideName = "Собеседник",
-    });
+        string? vadPath = ModelLocator.ResolveVadModel("ggml-silero-v6.2.0.bin");
+        if (vadPath is null)
+        {
+            Console.WriteLine("Модель детектора речи не найдена — иду без неё.");
+        }
+        else
+        {
+            Console.WriteLine($"Детектор речи: {Path.GetFileName(vadPath)}");
+            Console.WriteLine($"Порог детектора: {vadThreshold:F2}");
+            detector = new SpeechDetector(new SpeechDetectorOptions
+            {
+                ModelPath = vadPath,
+                Threshold = vadThreshold,
+            });
+        }
+    }
+    else
+    {
+        Console.WriteLine("Детектор речи выключен (--no-vad)");
+    }
+
+    var transcriber = new CallTranscriber(
+        new SpeechTranscriber(engine, detector),
+        () => new AppSettings
+        {
+            MyName = "Я",
+            OtherSideName = "Собеседник",
+        });
 
     var timer = Stopwatch.StartNew();
     var progress = new Progress<string>(step => Console.WriteLine($"  {step}"));
@@ -263,6 +301,11 @@ async Task TranscribeCallAsync(string callDirectory)
     Console.WriteLine($"Транскрипт: {path}  ({timer.Elapsed.TotalSeconds:F1} с)");
     Console.WriteLine();
     Console.WriteLine(await File.ReadAllTextAsync(path));
+
+    if (detector is not null)
+    {
+        await detector.DisposeAsync();
+    }
 }
 
 /// <summary>

@@ -84,6 +84,11 @@ public sealed record UiStrings
     public required string FieldPortable { get; init; }
     public required string FieldPortableHint { get; init; }
     public required string FieldIdleUnload { get; init; }
+    public required string FieldUseVad { get; init; }
+    public required string FieldUseVadHint { get; init; }
+    public required string FieldVadModel { get; init; }
+    public required string FieldVadThreshold { get; init; }
+    public required string FieldVadThresholdHint { get; init; }
 
     public required string ButtonChange { get; init; }
     public required string ButtonReset { get; init; }
@@ -171,6 +176,11 @@ public sealed record UiStrings
         FieldPortable = "Portable mode",
         FieldPortableHint = "Keep settings and models next to the program instead of in AppData. Existing files are not moved.",
         FieldIdleUnload = "Unload the model after",
+        FieldUseVad = "Detect speech before transcribing",
+        FieldUseVadHint = "Used for call recordings. Finds where speech actually is, so a line gets the position it was measured at instead of one the model guessed. Also removes silence hallucinations and speeds transcription up.",
+        FieldVadModel = "Speech detector model",
+        FieldVadThreshold = "Detector sensitivity",
+        FieldVadThresholdHint = "Lower catches quieter speech but also more noise",
 
         ButtonChange = "Change",
         ButtonReset = "Reset",
@@ -259,6 +269,11 @@ public sealed record UiStrings
         FieldPortable = "Портативный режим",
         FieldPortableHint = "Хранить настройки и модели рядом с программой, а не в AppData. Уже имеющиеся файлы не переносятся.",
         FieldIdleUnload = "Выгружать модель через",
+        FieldUseVad = "Искать речь перед распознаванием",
+        FieldUseVadHint = "Используется для записей звонков. Находит, где речь есть на самом деле, и реплика получает измеренное положение вместо предсказанного моделью. Заодно убирает галлюцинации на тишине и ускоряет распознавание.",
+        FieldVadModel = "Модель детектора речи",
+        FieldVadThreshold = "Чувствительность детектора",
+        FieldVadThresholdHint = "Ниже — ловит более тихую речь, но и больше шума",
 
         ButtonChange = "Изменить",
         ButtonReset = "Сбросить",

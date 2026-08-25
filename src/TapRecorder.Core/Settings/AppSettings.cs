@@ -57,6 +57,31 @@ public sealed record AppSettings
         ? TimeSpan.FromSeconds(Math.Max(0.2, ParagraphPauseSeconds))
         : TimeSpan.Zero;
 
+    /// <summary>
+    /// Искать речь детектором перед распознаванием.
+    /// </summary>
+    /// <remarks>
+    /// Главное, что это даёт, — правильные тайминги: положение реплики
+    /// измеряется, а не предсказывается моделью вместе с текстом. Побочно
+    /// исчезают галлюцинации на тишине и падает время работы.
+    /// </remarks>
+    public bool UseVoiceActivityDetection { get; init; } = true;
+
+    /// <summary>Имя файла модели детектора речи в папке моделей.</summary>
+    public string VadModelFileName { get; init; } = "ggml-silero-v6.2.0.bin";
+
+    /// <summary>Порог уверенности детектора речи, 0..1.</summary>
+    public double VadThreshold { get; init; } = 0.35;
+
+    /// <summary>
+    /// Приводить громкость записи к рабочему уровню перед распознаванием.
+    /// </summary>
+    /// <remarks>
+    /// Микрофон, отодвинутый от лица, даёт запись в разы тише нормальной, и
+    /// детектор речи такую просто не слышит.
+    /// </remarks>
+    public bool NormalizeAudio { get; init; } = true;
+
     /// <summary>Как подписывать свои реплики в транскрипте звонка.</summary>
     public string MyName { get; init; } = "Me";
 
@@ -64,6 +89,18 @@ public sealed record AppSettings
     /// Как подписывать реплики из системного канала, когда участники не указаны.
     /// </summary>
     public string OtherSideName { get; init; } = "Them";
+
+    /// <summary>
+    /// Язык собеседников в звонке.
+    /// </summary>
+    /// <remarks>
+    /// По умолчанию <c>auto</c>, и это не лень. Свой язык известен заранее,
+    /// а язык собеседника — нет. Навязанный не тому каналу язык не «слегка
+    /// ухудшает» распознавание, а превращает речь в бессмыслицу: английское
+    /// «permit denied», распознанное с принудительным русским, дало
+    /// «Хермит отказал».
+    /// </remarks>
+    public string OtherSideLanguage { get; init; } = "auto";
 
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;

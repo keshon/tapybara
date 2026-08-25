@@ -15,7 +15,7 @@ namespace TapRecorder.Core.Calls;
 /// нужна только чтобы разделить нескольких собеседников между собой, и для
 /// разговора один на один не требуется вовсе.
 /// </remarks>
-public sealed class CallTranscriber(WhisperEngine engine, Func<AppSettings> settings)
+public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSettings> settings)
 {
     /// <summary>Одна реплика в общей хронологии.</summary>
     private sealed record Utterance(TimeSpan Start, string Speaker, string Text);
@@ -34,12 +34,18 @@ public sealed class CallTranscriber(WhisperEngine engine, Func<AppSettings> sett
         float[] systemSamples = AudioFile.ReadMono16k(session.SystemPath);
 
         progress?.Report("Распознаю микрофон");
-        IReadOnlyList<TranscriptSegment> micSegments =
-            await engine.TranscribeAsync(micSamples, cancellationToken: cancellationToken).ConfigureAwait(false);
+        // Свой канал распознаём заданным языком: что говорит владелец
+        // микрофона, известно заранее.
+        IReadOnlyList<TranscriptSegment> micSegments = await transcriber
+            .TranscribeAsync(micSamples, language: current.Language, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
 
         progress?.Report("Распознаю собеседников");
-        IReadOnlyList<TranscriptSegment> systemSegments =
-            await engine.TranscribeAsync(systemSamples, cancellationToken: cancellationToken).ConfigureAwait(false);
+        // Чужой канал — определением языка. Навязанный не тому каналу язык
+        // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
+        IReadOnlyList<TranscriptSegment> systemSegments = await transcriber
+            .TranscribeAsync(systemSamples, language: current.OtherSideLanguage, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
 
         progress?.Report("Отсеиваю чужую речь из своего канала");
         BleedFilter.Result filtered = BleedFilter.Apply(
