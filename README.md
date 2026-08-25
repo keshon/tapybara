@@ -51,7 +51,18 @@ driver, so there is nothing extra to install.
 
 ## Getting started
 
-Build the application:
+On Windows, `build.cmd` does the whole thing:
+
+```bash
+build.cmd run
+```
+
+It stops a running instance first, which matters because the app lives in the
+tray and is easy to forget about while it holds the output files locked.
+Other modes: `build` (compile only), `debug`, `publish` (self-contained build
+into `dist\`, no .NET needed on the target machine), `stop`.
+
+Or build it by hand:
 
 ```bash
 dotnet build -c Release
