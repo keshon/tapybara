@@ -1,6 +1,16 @@
+using System.Text.Json.Serialization;
 using Tapybara.Core.Windows;
 
 namespace Tapybara.Core.Settings;
+
+/// <summary>Какую тему интерфейса показывать.</summary>
+public enum AppTheme
+{
+    /// <summary>Как в Windows.</summary>
+    System,
+    Light,
+    Dark,
+}
 
 /// <summary>Настройки приложения. Сохраняются в JSON, правятся из окна настроек.</summary>
 public sealed record AppSettings
@@ -10,15 +20,26 @@ public sealed record AppSettings
     /// Хранится имя, а не полный путь: папка моделей может переехать вместе с
     /// приложением, а привязка к абсолютному пути это ломает.
     /// </remarks>
-    public string ModelFileName { get; init; } = "ggml-podlodka-turbo-q8_0.bin";
+    public string ModelFileName { get; init; } = "ggml-large-v3-turbo-q5_0.bin";
 
-    /// <summary>Язык распознавания. Не ограничен двумя — whisper знает 99.</summary>
-    public string Language { get; init; } = "ru";
+    /// <summary>
+    /// Язык распознавания. Не ограничен двумя — whisper знает 99.
+    /// </summary>
+    /// <remarks>
+    /// По умолчанию <c>auto</c>, а не язык автора. Навязанный не тому человеку
+    /// язык не «слегка ухудшает» распознавание, а превращает речь в
+    /// бессмыслицу, и выглядит это как сломанная модель, а не как неверная
+    /// настройка.
+    /// </remarks>
+    public string Language { get; init; } = "auto";
 
     /// <summary>
     /// Язык интерфейса: <c>"en"</c>, <c>"ru"</c> или <c>null</c> — по системной локали.
     /// </summary>
     public string? UiLanguage { get; init; }
+
+    /// <summary>Тема интерфейса.</summary>
+    public AppTheme Theme { get; init; } = AppTheme.System;
 
     /// <summary>
     /// Папка с моделями, заданная пользователем. <c>null</c> — папка по умолчанию
@@ -39,6 +60,28 @@ public sealed record AppSettings
     public HotkeyCombo Hotkey { get; init; } = HotkeyCombo.Default;
 
     /// <summary>
+    /// Устройство записи для диктовки и своего канала звонка.
+    /// <c>null</c> — устройство по умолчанию.
+    /// </summary>
+    /// <remarks>
+    /// Хранится идентификатор устройства, а не имя: имена повторяются («Микрофон»
+    /// на трёх разных картах), а идентификатор уникален и переживает
+    /// переподключение.
+    /// </remarks>
+    public string? MicrophoneDeviceId { get; init; }
+
+    /// <summary>
+    /// Устройство вывода, с которого пишется чужой канал звонка.
+    /// <c>null</c> — устройство по умолчанию.
+    /// </summary>
+    /// <remarks>
+    /// Отдельная настройка, потому что типичная схема — гарнитура для звонка
+    /// при колонках как устройстве по умолчанию. Записывая «то, что по
+    /// умолчанию», мы записали бы тишину.
+    /// </remarks>
+    public string? SystemAudioDeviceId { get; init; }
+
+    /// <summary>
     /// Разбивать текст на абзацы по паузам в речи.
     /// </summary>
     /// <remarks>
@@ -53,6 +96,14 @@ public sealed record AppSettings
     public double ParagraphPauseSeconds { get; init; } = 1.5;
 
     /// <summary>Пауза для разбивки с учётом переключателя.</summary>
+    /// <remarks>
+    /// <c>JsonIgnore</c> обязателен. Без него вычисляемое свойство уезжает в
+    /// settings.json как настоящая настройка: файл читает и правит человек, а
+    /// поле, которое ничего не задаёт и молча игнорируется при чтении, —
+    /// прямое приглашение потратить вечер на выяснение, почему его правка ни
+    /// на что не влияет.
+    /// </remarks>
+    [JsonIgnore]
     public TimeSpan EffectiveParagraphPause => SplitParagraphsByPauses
         ? TimeSpan.FromSeconds(Math.Max(0.2, ParagraphPauseSeconds))
         : TimeSpan.Zero;
@@ -61,9 +112,10 @@ public sealed record AppSettings
     /// Искать речь детектором перед распознаванием.
     /// </summary>
     /// <remarks>
-    /// Главное, что это даёт, — правильные тайминги: положение реплики
-    /// измеряется, а не предсказывается моделью вместе с текстом. Побочно
-    /// исчезают галлюцинации на тишине и падает время работы.
+    /// Работает и в диктовке, и в звонках. Главное, что это даёт, — правильные
+    /// тайминги: положение реплики измеряется, а не предсказывается моделью
+    /// вместе с текстом. Побочно исчезают галлюцинации на тишине и падает
+    /// время работы.
     /// </remarks>
     public bool UseVoiceActivityDetection { get; init; } = true;
 
@@ -105,11 +157,42 @@ public sealed record AppSettings
     /// </remarks>
     public string OtherSideLanguage { get; init; } = "auto";
 
+    /// <summary>
+    /// Пользователь видел предупреждение о записи звонков.
+    /// </summary>
+    /// <remarks>
+    /// Запись разговора пишет и собеседника тоже, а согласие на это во многих
+    /// юрисдикциях обязательно. Показать это один раз — минимум, который
+    /// приложение обязано сделать.
+    /// </remarks>
+    public bool CallRecordingAcknowledged { get; init; }
+
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;
 
     /// <summary>Прятать вставляемый текст из истории буфера обмена (Win+V).</summary>
     public bool ExcludeFromClipboardHistory { get; init; } = true;
+
+    /// <summary>Показывать плавающий индикатор диктовки.</summary>
+    public bool ShowOverlay { get; init; } = true;
+
+    /// <summary>
+    /// Куда пользователь перетащил индикатор, в логических единицах.
+    /// <c>null</c> — сверху по центру активного экрана.
+    /// </summary>
+    public double? OverlayLeft { get; init; }
+
+    /// <summary>См. <see cref="OverlayLeft"/>.</summary>
+    public double? OverlayTop { get; init; }
+
+    /// <summary>
+    /// Показывать начало распознанного текста в подсказке трея.
+    /// </summary>
+    /// <remarks>
+    /// По умолчанию выключено. Это единственное место, где надиктованное
+    /// остаётся на экране надолго, а диктуют в том числе пароли и переписку.
+    /// </remarks>
+    public bool ShowTextPreviewInTray { get; init; }
 
     /// <summary>Через сколько минут простоя выгружать модель из памяти.</summary>
     public int IdleUnloadMinutes { get; init; } = 10;
@@ -118,6 +201,16 @@ public sealed record AppSettings
     /// Предохранитель от забытой диктовки: запись обрывается через столько минут.
     /// </summary>
     public int MaxDictationMinutes { get; init; } = 15;
+
+    /// <summary>
+    /// Предохранитель от забытой записи звонка, в минутах.
+    /// </summary>
+    /// <remarks>
+    /// Два канала стоят около 230 МБ в час. Запись, забытая на ночь, забивает
+    /// диск, а обнаруживается это уже как отказ записи посреди следующего
+    /// разговора.
+    /// </remarks>
+    public int MaxCallMinutes { get; init; } = 240;
 
     /// <summary>
     /// Замены в распознанном тексте: «как услышала модель» → «как надо».

@@ -1,0 +1,92 @@
+<ui:FluentWindow x:Class="Tapybara.App.ConfirmWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Width="580"
+                 SizeToContent="Height"
+                 ResizeMode="NoResize"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 FontFamily="{StaticResource AppFontFamily}"
+                 FontSize="{StaticResource AppFontSize}">
+    <!--
+        Вопрос с двумя-тремя ответами.
+
+        Не системный MessageBox, и причина не в красоте. У MessageBox кнопки
+        называются «Да», «Нет» и «Отмена» — переименовать их нельзя. Для
+        вопроса «перенести модели или оставить» это никуда не годится: «Да» и
+        «Нет» на таком вопросе означают почти одно и то же, а разница — в
+        полутора гигабайтах, которые сейчас куда-то поедут. Кнопка должна
+        говорить, что она сделает.
+
+        Заодно появляется место для путей: человек, меняющий папку моделей,
+        обязан видеть, откуда и куда.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" x:Name="WindowTitleBar" ShowMaximize="False" ShowMinimize="False" />
+
+        <StackPanel Grid.Row="1" Margin="28,8,28,20">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                <ui:SymbolIcon x:Name="HeadingIcon"
+                               Symbol="QuestionCircle24"
+                               FontSize="28"
+                               Margin="0,0,16,0"
+                               VerticalAlignment="Top"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <TextBlock x:Name="HeadingText"
+                           FontFamily="{StaticResource AppDisplayFontFamily}"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           MaxWidth="440"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <TextBlock x:Name="BodyText"
+                       TextWrapping="Wrap"
+                       Opacity="0.85"
+                       Margin="0,0,0,14" />
+
+            <Border x:Name="DetailCard"
+                    Visibility="Collapsed"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16,14">
+                <StackPanel x:Name="DetailRows" />
+            </Border>
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button x:Name="CancelButton"
+                           MinWidth="110"
+                           Margin="0,0,8,0"
+                           IsCancel="True"
+                           Click="OnCancelClick" />
+                <ui:Button x:Name="SecondaryButton"
+                           MinWidth="130"
+                           Margin="0,0,8,0"
+                           Visibility="Collapsed"
+                           Click="OnSecondaryClick" />
+                <ui:Button x:Name="PrimaryButton"
+                           MinWidth="150"
+                           Appearance="Primary"
+                           IsDefault="True"
+                           Click="OnPrimaryClick" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

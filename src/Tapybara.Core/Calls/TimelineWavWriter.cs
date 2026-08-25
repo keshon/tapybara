@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using NAudio.Wave;
 using Tapybara.Core.Audio;
+using Tapybara.Core.Diagnostics;
 
 namespace Tapybara.Core.Calls;
 
@@ -18,7 +20,7 @@ namespace Tapybara.Core.Calls;
 /// хронология поедет. Реплики в транскрипте перемешались бы.
 /// </para>
 /// <para>
-/// Поэтому пропуски добиваются тишиной по часам: перед записью порции
+/// Поэтому пропуски добиваются тишиной по опорным часам: перед записью порции
 /// сравниваем, сколько сэмплов уже лежит в файле, с тем, сколько их должно
 /// было бы быть к этому моменту.
 /// </para>
@@ -35,10 +37,28 @@ internal sealed class TimelineWavWriter : IDisposable
     /// </remarks>
     private static readonly TimeSpan Tolerance = TimeSpan.FromMilliseconds(150);
 
+    /// <summary>
+    /// Как часто переписывать заголовок файла.
+    /// </summary>
+    /// <remarks>
+    /// Длины областей RIFF записываются при закрытии файла. Любой конец, кроме
+    /// штатного — падение, выход из системы, диспетчер задач, <c>taskkill /f</c>
+    /// из собственного скрипта сборки, — оставлял часовую запись с нулём в
+    /// заголовке: проигрыватели её не открывают, и приложение тоже. Регулярное
+    /// обновление заголовка означает, что в худшем случае теряются последние
+    /// несколько секунд, а не весь разговор.
+    /// </remarks>
+    private static readonly TimeSpan HeaderRefresh = TimeSpan.FromSeconds(5);
+
+    /// <summary>Предел разовой добивки — защита от испорченных опорных часов.</summary>
+    private static readonly TimeSpan MaxSinglePad = TimeSpan.FromMinutes(10);
+
     private readonly Lock _gate = new();
     private readonly WaveFileWriter _writer;
     private readonly float[] _silence = new float[AudioCapture.TargetSampleRate / 10];
+    private readonly Stopwatch _sinceHeaderRefresh = Stopwatch.StartNew();
 
+    private float[] _scratch = [];
     private long _written;
     private bool _disposed;
 
@@ -62,10 +82,10 @@ internal sealed class TimelineWavWriter : IDisposable
         }
     }
 
-    /// <summary>Дописать порцию, выровняв её по общим часам записи.</summary>
+    /// <summary>Дописать порцию, выровняв её по опорным часам записи.</summary>
     /// <param name="samples">Сэмплы 16 кГц моно.</param>
-    /// <param name="elapsed">Сколько прошло с начала записи по общим часам.</param>
-    public void Write(ReadOnlySpan<float> samples, TimeSpan elapsed)
+    /// <param name="reference">Сколько должно было пройти по опорным часам.</param>
+    public void Write(ReadOnlySpan<float> samples, TimeSpan reference)
     {
         lock (_gate)
         {
@@ -74,7 +94,7 @@ internal sealed class TimelineWavWriter : IDisposable
                 return;
             }
 
-            long expected = (long)(elapsed.TotalSeconds * AudioCapture.TargetSampleRate);
+            long expected = (long)(reference.TotalSeconds * AudioCapture.TargetSampleRate);
             long missing = expected - samples.Length - _written;
             long toleranceSamples = (long)(Tolerance.TotalSeconds * AudioCapture.TargetSampleRate);
 
@@ -83,18 +103,17 @@ internal sealed class TimelineWavWriter : IDisposable
                 PadLocked(missing);
             }
 
-            foreach (float sample in samples)
-            {
-                // Клиппинг обязателен: float за пределами [-1, 1] при приведении
-                // к short переполняется и превращается в громкий щелчок.
-                _writer.WriteSample(Math.Clamp(sample, -1f, 1f));
-            }
-
+            WriteClampedLocked(samples);
             _written += samples.Length;
+
+            if (_sinceHeaderRefresh.Elapsed >= HeaderRefresh)
+            {
+                RefreshHeaderLocked();
+            }
         }
     }
 
-    /// <summary>Довести дорожку до общей длительности записи.</summary>
+    /// <summary>Довести дорожку до заданной длительности.</summary>
     /// <remarks>
     /// Вызывается на остановке: если собеседник молчал последние полминуты,
     /// его дорожка иначе оказалась бы короче микрофонной, и длительности
@@ -114,16 +133,75 @@ internal sealed class TimelineWavWriter : IDisposable
         }
     }
 
+    /// <summary>Переписать длины в заголовке, не закрывая файл.</summary>
+    public void RefreshHeader()
+    {
+        lock (_gate)
+        {
+            if (!_disposed)
+            {
+                RefreshHeaderLocked();
+            }
+        }
+    }
+
+    private void RefreshHeaderLocked()
+    {
+        try
+        {
+            // Flush у WaveFileWriter не просто сбрасывает буфер: он переписывает
+            // размеры областей RIFF и возвращает позицию обратно.
+            _writer.Flush();
+            _sinceHeaderRefresh.Restart();
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            AppLog.Warn($"Не удалось обновить заголовок {System.IO.Path.GetFileName(Path)}.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Записать порцию с ограничением амплитуды.
+    /// </summary>
+    /// <remarks>
+    /// Клиппинг обязателен: float за пределами [-1, 1] при приведении к short
+    /// переполняется и превращается в громкий щелчок. Пишем пачкой, а не по
+    /// сэмплу: вызов на каждый из шестнадцати тысяч сэмплов в секунду делается
+    /// в потоке WASAPI, где лишняя работа оборачивается пропусками в записи.
+    /// </remarks>
+    private void WriteClampedLocked(ReadOnlySpan<float> samples)
+    {
+        if (samples.IsEmpty)
+        {
+            return;
+        }
+
+        if (_scratch.Length < samples.Length)
+        {
+            _scratch = new float[samples.Length];
+        }
+
+        for (int i = 0; i < samples.Length; i++)
+        {
+            _scratch[i] = Math.Clamp(samples[i], -1f, 1f);
+        }
+
+        _writer.WriteSamples(_scratch, 0, samples.Length);
+    }
+
     private void PadLocked(long samples)
     {
+        long limit = (long)(MaxSinglePad.TotalSeconds * AudioCapture.TargetSampleRate);
+        if (samples > limit)
+        {
+            AppLog.Warn($"Добивка {samples} сэмплов ограничена пределом — опорные часы разошлись.");
+            samples = limit;
+        }
+
         while (samples > 0)
         {
             int chunk = (int)Math.Min(samples, _silence.Length);
-            for (int i = 0; i < chunk; i++)
-            {
-                _writer.WriteSample(0f);
-            }
-
+            _writer.WriteSamples(_silence, 0, chunk);
             _written += chunk;
             samples -= chunk;
         }

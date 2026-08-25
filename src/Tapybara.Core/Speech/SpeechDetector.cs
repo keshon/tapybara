@@ -75,8 +75,22 @@ public sealed class SpeechDetector(SpeechDetectorOptions options) : IAsyncDispos
     private bool _disposed;
 
     /// <summary>Найти участки речи. Сэмплы — 16 кГц моно float32.</summary>
+    public Task<IReadOnlyList<SpeechRegion>> DetectAsync(
+        ReadOnlyMemory<float> samples,
+        CancellationToken cancellationToken = default) =>
+        DetectAsync(samples, options.Threshold, cancellationToken);
+
+    /// <summary>
+    /// То же, но с порогом на один прогон.
+    /// </summary>
+    /// <remarks>
+    /// Нужно подбору порога: он гоняет одну и ту же запись на нескольких
+    /// значениях, и пересоздавать ради этого модель незачем — порог живёт
+    /// в билдере прогона, а не в самой модели.
+    /// </remarks>
     public async Task<IReadOnlyList<SpeechRegion>> DetectAsync(
         ReadOnlyMemory<float> samples,
+        float threshold,
         CancellationToken cancellationToken = default)
     {
         if (samples.IsEmpty)
@@ -92,7 +106,7 @@ public sealed class SpeechDetector(SpeechDetectorOptions options) : IAsyncDispos
             _factory ??= WhisperVadFactory.FromPath(options.ModelPath);
 
             await using WhisperVadProcessor processor = _factory.CreateBuilder()
-                .WithThreshold(options.Threshold)
+                .WithThreshold(threshold)
                 .WithMinSpeechDuration(options.MinSpeech)
                 .WithMinSilenceDuration(options.MinSilence)
                 .WithMaxSpeechDuration(options.MaxSpeech)

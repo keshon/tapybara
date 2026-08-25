@@ -51,22 +51,11 @@ public static class AudioNormalizer
     /// <summary>Вернуть копию записи, приведённую к рабочей громкости.</summary>
     public static float[] Normalize(float[] samples)
     {
-        double? speechLevel = EstimateSpeechLevelDb(samples);
-        if (speechLevel is null)
+        if (Gain(samples) is not { } gain)
         {
             return samples;
         }
 
-        double gainDb = Math.Min(TargetDb - speechLevel.Value, MaxGainDb);
-
-        // Тише делать не будем: перегруженную запись это не чинит, а тихую
-        // портит. Ослабление оставлено ограничителю ниже.
-        if (gainDb <= 0)
-        {
-            return samples;
-        }
-
-        double gain = Math.Pow(10, gainDb / 20);
         float[] result = new float[samples.Length];
         for (int i = 0; i < samples.Length; i++)
         {
@@ -76,6 +65,44 @@ public static class AudioNormalizer
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Привести громкость прямо в переданном массиве.
+    /// </summary>
+    /// <remarks>
+    /// Для звонков это принципиально: час записи — это 230 МБ на канал, и
+    /// копия ради усиления удваивала расход впустую. Диктовке хватает и
+    /// обычной <see cref="Normalize"/>, но раз уж массив всё равно наш —
+    /// незачем плодить второй.
+    /// </remarks>
+    public static void NormalizeInPlace(float[] samples)
+    {
+        if (Gain(samples) is not { } gain)
+        {
+            return;
+        }
+
+        for (int i = 0; i < samples.Length; i++)
+        {
+            samples[i] = (float)Math.Clamp(samples[i] * gain, -1.0, 1.0);
+        }
+    }
+
+    /// <summary>Во сколько раз усилить, или <c>null</c>, если усиливать не надо.</summary>
+    private static double? Gain(float[] samples)
+    {
+        double? speechLevel = EstimateSpeechLevelDb(samples);
+        if (speechLevel is null)
+        {
+            return null;
+        }
+
+        double gainDb = Math.Min(TargetDb - speechLevel.Value, MaxGainDb);
+
+        // Тише делать не будем: перегруженную запись это не чинит, а тихую
+        // портит. Ослабление оставлено ограничителю ниже.
+        return gainDb <= 0 ? null : Math.Pow(10, gainDb / 20);
     }
 
     /// <summary>

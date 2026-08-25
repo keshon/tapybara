@@ -8,6 +8,13 @@ using Tapybara.Core.Dictation;
 
 namespace Tapybara.App;
 
+/// <summary>Насколько срочно уведомление.</summary>
+public enum BalloonKind
+{
+    Info,
+    Warning,
+}
+
 /// <summary>
 /// Иконка в системном трее и её меню.
 /// </summary>
@@ -20,7 +27,8 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _statusItem;
     private readonly ToolStripMenuItem _toggleItem;
-    private readonly ToolStripMenuItem _copyLastItem;
+    private readonly ToolStripMenuItem _cancelItem;
+    private readonly ToolStripMenuItem _historyItem;
     private readonly ToolStripMenuItem _retryHotkeyItem;
     private readonly ToolStripMenuItem _modelsItem;
     private readonly ToolStripMenuItem _autoPasteItem;
@@ -31,9 +39,9 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly ToolStripMenuItem _callsFolderItem;
     private readonly ToolStripMenuItem _exitItem;
 
-    private readonly Icon _idleIcon;
-    private readonly Icon _activeIcon;
-    private readonly Icon _busyIcon;
+    private Icon _idleIcon;
+    private Icon _activeIcon;
+    private Icon _busyIcon;
 
     private DictationState _state = DictationState.Idle;
     private bool _engineBusy;
@@ -41,20 +49,21 @@ public sealed partial class TrayIconHost : IDisposable
 
     public TrayIconHost()
     {
-        _idleIcon = CreateDotIcon(Color.FromArgb(210, 210, 215));
-        _activeIcon = CreateDotIcon(Color.FromArgb(255, 77, 77));
-
-        // Третий цвет нужен не для красоты: загрузка модели занимает секунды,
-        // и без видимого признака «работаю» это выглядит как зависание.
-        _busyIcon = CreateDotIcon(Color.FromArgb(255, 176, 32));
+        (_idleIcon, _activeIcon, _busyIcon) = BuildIcons();
 
         _statusItem = new ToolStripMenuItem { Enabled = false };
 
         _toggleItem = new ToolStripMenuItem();
         _toggleItem.Click += (_, _) => ToggleRequested?.Invoke();
 
-        _copyLastItem = new ToolStripMenuItem { Enabled = false };
-        _copyLastItem.Click += (_, _) => CopyLastRequested?.Invoke();
+        // Отмена отдельным пунктом. Раньше во время распознавания меню
+        // предлагало только неактивный «Распознаю…», а прервать затянувшуюся
+        // работу можно было исключительно клавишей Escape — и то, если её
+        // удалось занять.
+        _cancelItem = new ToolStripMenuItem { Visible = false };
+        _cancelItem.Click += (_, _) => CancelRequested?.Invoke();
+
+        _historyItem = new ToolStripMenuItem();
 
         // Хоткей мог быть занят чужим процессом в момент запуска. Требовать
         // ради этого перезапуск приложения — плохо: даём переиграть на месте.
@@ -93,7 +102,8 @@ public sealed partial class TrayIconHost : IDisposable
             _statusItem,
             new ToolStripSeparator(),
             _toggleItem,
-            _copyLastItem,
+            _cancelItem,
+            _historyItem,
             new ToolStripSeparator(),
             _recordCallItem,
             new ToolStripSeparator(),
@@ -119,26 +129,41 @@ public sealed partial class TrayIconHost : IDisposable
         // Двойной клик по иконке — то же, что хоткей: удобно, когда рук на
         // клавиатуре нет, а надо остановить запись.
         _icon.DoubleClick += (_, _) => ToggleRequested?.Invoke();
+        _icon.BalloonTipClicked += (_, _) => BalloonClicked?.Invoke();
+        menu.Opening += (_, _) => MenuOpening?.Invoke();
 
         ApplyLanguage();
     }
 
     public event Action? ToggleRequested;
-    public event Action? CopyLastRequested;
+    public event Action? CancelRequested;
     public event Action? ExitRequested;
     public event Action? OpenModelsFolderRequested;
     public event Action? OpenCallsFolderRequested;
     public event Action? RecordCallRequested;
     public event Action? SettingsRequested;
     public event Action? RetryHotkeyRequested;
+    public event Action? BalloonClicked;
+
+    /// <summary>
+    /// Меню вот-вот откроется — самое время перечитать, что на диске.
+    /// </summary>
+    /// <remarks>
+    /// Страховка к наблюдению за папкой: событие файловой системы может не
+    /// прийти (сетевой диск, права), а меню человек открывает всегда. Стоит
+    /// это одного перечисления каталога.
+    /// </remarks>
+    public event Action? MenuOpening;
     public event Action<bool>? AutoPasteToggled;
     public event Action<bool>? AutoStartToggled;
     public event Action<string>? ModelSelected;
+    public event Action<string>? HistoryItemSelected;
 
     /// <summary>Перечитать все надписи из текущего языка.</summary>
     public void ApplyLanguage()
     {
-        _copyLastItem.Text = L.S.TrayCopyLast;
+        _cancelItem.Text = L.S.TrayCancel;
+        _historyItem.Text = L.S.TrayHistory;
         _retryHotkeyItem.Text = L.S.TrayRetryHotkey;
         _modelsItem.Text = L.S.TrayModel;
         _autoPasteItem.Text = L.S.TrayAutoPaste;
@@ -154,6 +179,21 @@ public sealed partial class TrayIconHost : IDisposable
         }
 
         ApplyVisualState();
+    }
+
+    /// <summary>Перерисовать иконки под сменившуюся тему системы.</summary>
+    public void ApplyTheme()
+    {
+        Icon oldIdle = _idleIcon;
+        Icon oldActive = _activeIcon;
+        Icon oldBusy = _busyIcon;
+
+        (_idleIcon, _activeIcon, _busyIcon) = BuildIcons();
+        ApplyVisualState();
+
+        oldIdle.Dispose();
+        oldActive.Dispose();
+        oldBusy.Dispose();
     }
 
     /// <summary>Отразить состояние диктовки.</summary>
@@ -191,7 +231,7 @@ public sealed partial class TrayIconHost : IDisposable
         {
             DictationState.Recording => _activeIcon,
             DictationState.Transcribing => _busyIcon,
-            _ when _recordingCall => _activeIcon,
+            _ when _recordingCall => _busyIcon,
             _ => _engineBusy ? _busyIcon : _idleIcon,
         };
 
@@ -205,6 +245,7 @@ public sealed partial class TrayIconHost : IDisposable
         };
 
         _toggleItem.Enabled = _state != DictationState.Transcribing && !_engineBusy;
+        _cancelItem.Visible = _state is DictationState.Recording or DictationState.Transcribing;
 
         // Меню моделей во время переключения тоже блокируем: второй выбор,
         // пришедший поверх незавершённого первого, оставил бы настройку и
@@ -214,9 +255,9 @@ public sealed partial class TrayIconHost : IDisposable
 
     /// <summary>Строка состояния вверху меню и всплывающая подсказка иконки.</summary>
     /// <remarks>
-    /// Статус обрезается жёстко. В нём оказывается начало распознанного текста,
-    /// а меню растягивается по самому длинному пункту: одна длинная диктовка
-    /// раздувала его на пол-экрана и делала неудобным всё остальное.
+    /// Статус обрезается жёстко. Меню растягивается по самому длинному пункту:
+    /// одна длинная строка раздувала его на пол-экрана и делала неудобным
+    /// всё остальное.
     /// </remarks>
     public void SetStatus(string status)
     {
@@ -245,11 +286,36 @@ public sealed partial class TrayIconHost : IDisposable
         return flat.Length <= limit ? flat : flat[..(limit - 1)] + "…";
     }
 
-    public void SetLastTextAvailable(bool available) => _copyLastItem.Enabled = available;
+    /// <summary>Наполнить подменю последних диктовок.</summary>
+    public void SetHistory(IReadOnlyList<string> history)
+    {
+        _historyItem.DropDownItems.Clear();
+
+        if (history.Count == 0)
+        {
+            _historyItem.DropDownItems.Add(new ToolStripMenuItem(L.S.TrayHistoryEmpty) { Enabled = false });
+            _historyItem.Enabled = false;
+            return;
+        }
+
+        _historyItem.Enabled = true;
+        foreach (string text in history)
+        {
+            string captured = text;
+            _historyItem.DropDownItems.Add(new ToolStripMenuItem(
+                Shorten(text, 60),
+                null,
+                (_, _) => HistoryItemSelected?.Invoke(captured)));
+        }
+    }
 
     public void SetAutoPaste(bool enabled) => _autoPasteItem.Checked = enabled;
 
-    public void SetAutoStart(bool enabled) => _autoStartItem.Checked = enabled;
+    public void SetAutoStart(bool enabled, bool available)
+    {
+        _autoStartItem.Checked = enabled;
+        _autoStartItem.Enabled = available;
+    }
 
     public void SetHotkeyFailed(bool failed) => _retryHotkeyItem.Visible = failed;
 
@@ -276,14 +342,47 @@ public sealed partial class TrayIconHost : IDisposable
         }
     }
 
-    public void ShowBalloon(string title, string message) =>
-        _icon.ShowBalloonTip(5000, title, message, ToolTipIcon.Warning);
+    /// <summary>Всплывающее уведомление.</summary>
+    /// <remarks>
+    /// Значок — параметр, а не константа. Раньше всё показывалось с жёлтым
+    /// треугольником, включая «Транскрипт готов»: успех выглядел так же
+    /// тревожно, как отказ.
+    /// </remarks>
+    public void ShowBalloon(string title, string message, BalloonKind kind = BalloonKind.Info) =>
+        _icon.ShowBalloonTip(
+            5000,
+            title,
+            message,
+            kind == BalloonKind.Warning ? ToolTipIcon.Warning : ToolTipIcon.Info);
 
-    /// <summary>«ggml-podlodka-turbo-q8_0.bin» → «podlodka-turbo-q8_0».</summary>
+    /// <summary>«ggml-large-v3-turbo-q5_0.bin» → «large-v3-turbo-q5_0».</summary>
     private static string PrettyModelName(string fileName)
     {
         string name = Path.GetFileNameWithoutExtension(fileName);
         return name.StartsWith("ggml-", StringComparison.OrdinalIgnoreCase) ? name[5..] : name;
+    }
+
+    /// <summary>
+    /// Иконки состояний под текущую тему панели задач.
+    /// </summary>
+    /// <remarks>
+    /// Цвет покоя раньше был почти белым — на светлой панели задач иконка
+    /// становилась невидимой, и приложение выглядело незапущенным. Активные
+    /// состояния цветные и читаются на любом фоне, а вот нейтральное
+    /// приходится выбирать под тему.
+    /// </remarks>
+    private static (Icon Idle, Icon Active, Icon Busy) BuildIcons()
+    {
+        Color idle = SystemTheme.IsTaskbarLight
+            ? Color.FromArgb(64, 64, 70)
+            : Color.FromArgb(210, 210, 215);
+
+        return (
+            CreateDotIcon(idle),
+            CreateDotIcon(Color.FromArgb(255, 77, 77)),
+            // Третий цвет нужен не для красоты: загрузка модели занимает секунды,
+            // и без видимого признака «работаю» это выглядит как зависание.
+            CreateDotIcon(Color.FromArgb(255, 176, 32)));
     }
 
     /// <summary>

@@ -52,18 +52,71 @@ public sealed record CallSession
     [JsonIgnore]
     public string TranscriptPath => Path.Combine(Directory, TranscriptFileName);
 
+    /// <summary>Сколько символов имени приложения помещаем в имя папки.</summary>
+    private const int MaxTriggerLength = 40;
+
+    /// <summary>
+    /// Имена, которые Windows считает устройствами, а не файлами.
+    /// </summary>
+    /// <remarks>
+    /// Папку с таким именем создать нельзя, и попытка кончается исключением
+    /// на старте записи. Имя приложения приходит из заголовка окна, то есть
+    /// из-под контроля пользователя, — проверять обязательно.
+    /// </remarks>
+    private static readonly string[] ReservedNames =
+    [
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+
     /// <summary>Имя папки: время начала и, если известно, приложение-триггер.</summary>
     public static string BuildFolderName(DateTimeOffset startedAt, string? trigger)
     {
         string stamp = startedAt.ToString("yyyy-MM-dd HH-mm-ss", CultureInfo.InvariantCulture);
-        return string.IsNullOrWhiteSpace(trigger) ? stamp : $"{stamp} ({Sanitize(trigger)})";
+        string safe = Sanitize(trigger);
+        return safe.Length == 0 ? stamp : $"{stamp} ({safe})";
     }
 
-    /// <summary>Убрать из имени приложения символы, недопустимые в пути.</summary>
-    private static string Sanitize(string name)
+    /// <summary>
+    /// Привести имя приложения к виду, пригодному для имени папки.
+    /// </summary>
+    /// <remarks>
+    /// Недостаточно выбросить запрещённые символы. Windows отдельно не любит
+    /// точку и пробел в конце имени (молча их отбрасывает, из-за чего папка
+    /// оказывается не там, где её ищут) и полностью запрещает имена устройств.
+    /// Плюс длина: заголовок окна бывает в сотню символов, а вместе с путём и
+    /// именами файлов внутри это упирается в предел длины пути.
+    /// </remarks>
+    internal static string Sanitize(string? name)
     {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
         char[] invalid = Path.GetInvalidFileNameChars();
-        return new string([.. name.Where(c => !invalid.Contains(c))]).Trim();
+        string cleaned = new string([.. name.Where(c => !invalid.Contains(c) && !char.IsControl(c))]).Trim();
+
+        if (cleaned.Length > MaxTriggerLength)
+        {
+            cleaned = cleaned[..MaxTriggerLength].TrimEnd();
+        }
+
+        // Точки и пробелы в конце Windows отбрасывает сама — уберём сами,
+        // чтобы имя папки совпадало с тем, что мы записали в мету.
+        cleaned = cleaned.TrimEnd('.', ' ');
+
+        string stem = cleaned.Contains('.', StringComparison.Ordinal)
+            ? cleaned[..cleaned.IndexOf('.', StringComparison.Ordinal)]
+            : cleaned;
+
+        if (ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase))
+        {
+            cleaned = "_" + cleaned;
+        }
+
+        return cleaned;
     }
 }
 
@@ -86,11 +139,20 @@ public static class CallMeta
     /// </remarks>
     public static void Save(CallSession session)
     {
-        System.IO.Directory.CreateDirectory(session.Directory);
+        try
+        {
+            System.IO.Directory.CreateDirectory(session.Directory);
 
-        string temp = session.MetaPath + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(session, Options));
-        File.Move(temp, session.MetaPath, overwrite: true);
+            string temp = session.MetaPath + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(session, Options));
+            File.Move(temp, session.MetaPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Мета — это удобство, а звук уже на диске. Ронять из-за неё
+            // запись разговора было бы обменом ценного на служебное.
+            Diagnostics.AppLog.Error("Не удалось сохранить мету звонка.", ex);
+        }
     }
 
     /// <summary>Прочитать мету, или null, если её нет или она испорчена.</summary>

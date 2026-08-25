@@ -33,8 +33,24 @@ public sealed class SpeechTranscriber(WhisperEngine engine, SpeechDetector? dete
     /// </remarks>
     private static readonly TimeSpan MergeGap = TimeSpan.FromMilliseconds(700);
 
-    /// <summary>Слишком короткие участки не распознаём: там нечего услышать.</summary>
-    private static readonly TimeSpan MinRegion = TimeSpan.FromMilliseconds(300);
+    /// <summary>
+    /// Слишком короткие участки не распознаём.
+    /// </summary>
+    /// <remarks>
+    /// Порог низкий сознательно. Детектор отдаёт участки уже с запасом тишины
+    /// по краям, поэтому здесь мы отсекаем не короткую речь, а огрызки в
+    /// единицы миллисекунд. Прежние 300 мс рисковали съесть односложный
+    /// ответ — «да», «нет», «угу», — а в транскрипте звонка пропавшее «нет»
+    /// меняет смысл разговора.
+    /// </remarks>
+    private static readonly TimeSpan MinRegion = TimeSpan.FromMilliseconds(120);
+
+    /// <summary>Движок, на котором работает этот распознаватель.</summary>
+    public WhisperEngine Engine => engine;
+
+    /// <summary>Прогреть движок заранее — пока пользователь ещё говорит.</summary>
+    public Task PrepareAsync(CancellationToken cancellationToken = default) =>
+        engine.LoadAsync(cancellationToken: cancellationToken);
 
     /// <summary>Распознать запись. Сэмплы — 16 кГц моно float32.</summary>
     public async Task<IReadOnlyList<TranscriptSegment>> TranscribeAsync(
@@ -69,20 +85,36 @@ public sealed class SpeechTranscriber(WhisperEngine engine, SpeechDetector? dete
                 : [];
         }
 
+        // Прогресс считаем по доле звука, а не по числу участков: участки
+        // разной длины, и «один из трёх готов» после двадцатисекундной реплики
+        // и после полусекундной означает совершенно разное. Ровно движущийся
+        // индикатор — единственное, что отличает работу от зависания.
+        double totalSeconds = regions.Sum(r => r.Duration.TotalSeconds);
+        double doneSeconds = 0;
+
         var result = new List<TranscriptSegment>();
-        for (int i = 0; i < regions.Count; i++)
+        foreach (SpeechRegion region in regions)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            SpeechRegion region = regions[i];
             (int from, int count) = Slice(region, audio.Length);
             if (count <= 0)
             {
                 continue;
             }
 
+            double regionShare = totalSeconds > 0 ? region.Duration.TotalSeconds / totalSeconds : 0;
+            double regionStart = doneSeconds;
+
+            IProgress<int>? inner = progress is null
+                ? null
+                : new Progress<int>(percent => progress.Report((int)Math.Clamp(
+                    ((regionStart / Math.Max(totalSeconds, 0.001)) + (regionShare * percent / 100.0)) * 100,
+                    0,
+                    100)));
+
             IReadOnlyList<TranscriptSegment> segments = await engine
-                .TranscribeAsync(audio.AsMemory(from, count), progress: null, language, cancellationToken)
+                .TranscribeAsync(audio.AsMemory(from, count), inner, language, cancellationToken)
                 .ConfigureAwait(false);
 
             // Сдвиг на измеренное начало участка — то, ради чего всё затевалось.
@@ -95,7 +127,8 @@ public sealed class SpeechTranscriber(WhisperEngine engine, SpeechDetector? dete
                 });
             }
 
-            progress?.Report((i + 1) * 100 / regions.Count);
+            doneSeconds += region.Duration.TotalSeconds;
+            progress?.Report((int)Math.Clamp(doneSeconds / Math.Max(totalSeconds, 0.001) * 100, 0, 100));
         }
 
         return result;
@@ -110,7 +143,7 @@ public sealed class SpeechTranscriber(WhisperEngine engine, SpeechDetector? dete
     }
 
     /// <summary>Слить близкие участки и выбросить слишком короткие.</summary>
-    private static IReadOnlyList<SpeechRegion> Merge(IReadOnlyList<SpeechRegion> regions)
+    internal static IReadOnlyList<SpeechRegion> Merge(IReadOnlyList<SpeechRegion> regions)
     {
         if (regions.Count == 0)
         {

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Tapybara.Core.Windows;
 
@@ -38,7 +39,12 @@ public sealed record HotkeyCombo(HotkeyModifiers Modifiers, ushort VirtualKey)
     /// <remarks>
     /// Один Shift не считается: ⇧D в качестве глобального хоткея отняло бы у
     /// системы ввод заглавной D.
+    /// <para>
+    /// <c>JsonIgnore</c>: это вывод из модификаторов, а не отдельная настройка,
+    /// и в settings.json ему делать нечего.
+    /// </para>
     /// </remarks>
+    [JsonIgnore]
     public bool IsUsableAsGlobal =>
         (Modifiers & (HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Win)) != 0;
 

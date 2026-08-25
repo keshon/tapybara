@@ -1,10 +1,52 @@
 using System.Globalization;
 using System.Text;
 using Tapybara.Core.Audio;
+using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Settings;
 using Tapybara.Core.Speech;
 
 namespace Tapybara.Core.Calls;
+
+/// <summary>Этап сборки транскрипта — чтобы интерфейс мог сказать это своими словами.</summary>
+public enum CallTranscriptionStage
+{
+    ReadingTracks,
+    TranscribingMicrophone,
+    TranscribingOtherSide,
+    FilteringBleed,
+    Done,
+}
+
+/// <summary>
+/// Подписи в готовом транскрипте.
+/// </summary>
+/// <remarks>
+/// Транскрипт читает человек, и заголовки в нём должны быть на его языке.
+/// Раньше они были зашиты по-русски прямо здесь: английский пользователь
+/// получал английскую речь под русскими заголовками. Словаря у <c>Core</c>
+/// нет и быть не должно, поэтому подписи приходят снаружи.
+/// </remarks>
+public sealed record CallTranscriptLabels(
+    string StartedAt,
+    string Duration,
+    string Trigger,
+    string Participants,
+    string BleedRemoved,
+    string BleedByText,
+    string BleedByEnergy,
+    string NothingRecognized)
+{
+    /// <summary>Английские подписи — запасной вариант для консольных сценариев.</summary>
+    public static CallTranscriptLabels Default { get; } = new(
+        "Started",
+        "Duration",
+        "Trigger",
+        "Participants",
+        "Other-side speech removed from your channel",
+        "by text",
+        "by loudness",
+        "_No speech recognised._");
+}
 
 /// <summary>
 /// Сборка транскрипта звонка из двух каналов.
@@ -15,7 +57,10 @@ namespace Tapybara.Core.Calls;
 /// нужна только чтобы разделить нескольких собеседников между собой, и для
 /// разговора один на один не требуется вовсе.
 /// </remarks>
-public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSettings> settings)
+public sealed class CallTranscriber(
+    SpeechTranscriber transcriber,
+    Func<AppSettings> settings,
+    Func<CallTranscriptLabels>? labels = null)
 {
     /// <summary>Одна реплика в общей хронологии.</summary>
     private sealed record Utterance(TimeSpan Start, string Speaker, string Text);
@@ -24,35 +69,47 @@ public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSetti
     /// <returns>Путь к готовому транскрипту.</returns>
     public async Task<string> TranscribeAsync(
         CallSession session,
-        IProgress<string>? progress = null,
+        IProgress<CallTranscriptionStage>? progress = null,
         CancellationToken cancellationToken = default)
     {
         AppSettings current = settings();
 
-        progress?.Report("Читаю дорожки");
-        float[] micSamples = AudioFile.ReadMono16k(session.MicPath);
-        float[] systemSamples = AudioFile.ReadMono16k(session.SystemPath);
+        if (!File.Exists(session.MicPath) || !File.Exists(session.SystemPath))
+        {
+            throw new FileNotFoundException(
+                "В папке звонка нет дорожек mic.wav и system.wav.", session.MicPath);
+        }
 
-        progress?.Report("Распознаю микрофон");
-        // Свой канал распознаём заданным языком: что говорит владелец
-        // микрофона, известно заранее.
-        IReadOnlyList<TranscriptSegment> micSegments = await transcriber
-            .TranscribeAsync(micSamples, language: current.Language, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        // Оборванная запись — обычное дело: приложение могли закрыть жёстко.
+        // Чиним заголовки, прежде чем пытаться читать.
+        CallRepair.RepairCall(session);
 
-        progress?.Report("Распознаю собеседников");
-        // Чужой канал — определением языка. Навязанный не тому каналу язык
-        // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
-        IReadOnlyList<TranscriptSegment> systemSegments = await transcriber
-            .TranscribeAsync(systemSamples, language: current.OtherSideLanguage, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        progress?.Report(CallTranscriptionStage.ReadingTracks);
 
-        progress?.Report("Отсеиваю чужую речь из своего канала");
-        BleedFilter.Result filtered = BleedFilter.Apply(
-            Clean(micSegments, current),
-            Clean(systemSegments, current),
-            micSamples,
-            systemSamples);
+        // Каналы обрабатываем ПО ОЧЕРЕДИ и массив отпускаем сразу. Держать оба
+        // часовых канала в памяти — это около гигабайта в куче больших
+        // объектов ради нескольких десятков средних значений, которые
+        // прекрасно считаются по огибающей.
+        progress?.Report(CallTranscriptionStage.TranscribingMicrophone);
+        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy) = await ProcessChannelAsync(
+            session.MicPath,
+            // Свой канал распознаём заданным языком: что говорит владелец
+            // микрофона, известно заранее.
+            current.Language,
+            current,
+            cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(CallTranscriptionStage.TranscribingOtherSide);
+        (IReadOnlyList<TranscriptSegment> systemSegments, EnergyEnvelope systemEnergy) = await ProcessChannelAsync(
+            session.SystemPath,
+            // Чужой канал — определением языка. Навязанный не тому каналу язык
+            // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
+            current.OtherSideLanguage,
+            current,
+            cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(CallTranscriptionStage.FilteringBleed);
+        BleedFilter.Result filtered = BleedFilter.Apply(micSegments, systemSegments, micEnergy, systemEnergy);
 
         string otherSide = session.Participants.Count == 1
             ? session.Participants[0]
@@ -61,16 +118,47 @@ public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSetti
         List<Utterance> timeline =
         [
             .. filtered.Kept.Select(s => new Utterance(s.Start, current.MyName, s.Text)),
-            .. Clean(systemSegments, current).Select(s => new Utterance(s.Start, otherSide, s.Text)),
+            .. systemSegments.Select(s => new Utterance(s.Start, otherSide, s.Text)),
         ];
 
         timeline.Sort((a, b) => a.Start.CompareTo(b.Start));
 
-        string markdown = Render(session, current, timeline, filtered);
+        string markdown = Render(session, current, timeline, filtered, labels?.Invoke() ?? CallTranscriptLabels.Default);
         await File.WriteAllTextAsync(session.TranscriptPath, markdown, cancellationToken).ConfigureAwait(false);
 
-        progress?.Report($"Готово: убрано чужой речи {filtered.RemovedTotal}");
+        AppLog.Info($"Транскрипт готов: {session.TranscriptPath}, отсеяно {filtered.RemovedTotal} реплик.");
+        progress?.Report(CallTranscriptionStage.Done);
         return session.TranscriptPath;
+    }
+
+    /// <summary>
+    /// Прочитать канал, распознать его и снять огибающую громкости.
+    /// </summary>
+    /// <remarks>
+    /// Массив сэмплов живёт только внутри этого метода: наружу уходят сегменты
+    /// и огибающая, вместе занимающие меньше мегабайта на час записи.
+    /// </remarks>
+    private async Task<(IReadOnlyList<TranscriptSegment> Segments, EnergyEnvelope Energy)> ProcessChannelAsync(
+        string path,
+        string language,
+        AppSettings current,
+        CancellationToken cancellationToken)
+    {
+        float[] samples = AudioFile.ReadMono16k(path);
+        if (samples.Length == 0)
+        {
+            return ([], EnergyEnvelope.Empty);
+        }
+
+        // Огибающую снимаем ДО нормализации: анти-bleed сравнивает каналы
+        // между собой, а нормализация усиливает каждый по-своему.
+        EnergyEnvelope energy = EnergyEnvelope.Build(samples);
+
+        IReadOnlyList<TranscriptSegment> segments = await transcriber
+            .TranscribeAsync(samples, progress: null, language: language, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        return (Clean(segments, current), energy);
     }
 
     /// <summary>Убрать галлюцинации и применить пользовательский словарь.</summary>
@@ -78,8 +166,7 @@ public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSetti
         IReadOnlyList<TranscriptSegment> segments,
         AppSettings appSettings) =>
         [
-            .. segments
-                .Where(s => !TextPostProcessor.IsHallucination(s.Text))
+            .. TextPostProcessor.RemoveHallucinations(segments)
                 .Select(s => s with { Text = TextPostProcessor.ApplyReplacements(s.Text, appSettings.Replacements) })
                 .Where(s => s.Text.Length > 0),
         ];
@@ -88,24 +175,25 @@ public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSetti
         CallSession session,
         AppSettings appSettings,
         IReadOnlyList<Utterance> timeline,
-        BleedFilter.Result filtered)
+        BleedFilter.Result filtered,
+        CallTranscriptLabels text)
     {
-        var text = new StringBuilder();
-        text.Append("# ").AppendLine(Path.GetFileName(session.Directory)).AppendLine();
+        var markdown = new StringBuilder();
+        markdown.Append("# ").AppendLine(Path.GetFileName(session.Directory)).AppendLine();
 
-        text.Append("- Начало: ")
+        markdown.Append("- ").Append(text.StartedAt).Append(": ")
             .AppendLine(session.StartedAt.ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture));
-        text.Append("- Длительность: ")
+        markdown.Append("- ").Append(text.Duration).Append(": ")
             .AppendLine(Stamp(session.Duration));
 
         if (!string.IsNullOrWhiteSpace(session.Trigger))
         {
-            text.Append("- Триггер: ").AppendLine(session.Trigger);
+            markdown.Append("- ").Append(text.Trigger).Append(": ").AppendLine(session.Trigger);
         }
 
         if (session.Participants.Count > 0)
         {
-            text.Append("- Участники: ")
+            markdown.Append("- ").Append(text.Participants).Append(": ")
                 .AppendLine(string.Join(", ", new[] { appSettings.MyName }.Concat(session.Participants)));
         }
 
@@ -113,32 +201,32 @@ public sealed class CallTranscriber(SpeechTranscriber transcriber, Func<AppSetti
         // это единственный способ заметить пропажу, не переслушивая запись.
         if (filtered.RemovedTotal > 0)
         {
-            text.Append("- Отсеяно чужой речи из своего канала: ")
+            markdown.Append("- ").Append(text.BleedRemoved).Append(": ")
                 .Append(filtered.RemovedTotal.ToString(CultureInfo.CurrentCulture))
-                .Append(" (по тексту ")
+                .Append(" (").Append(text.BleedByText).Append(' ')
                 .Append(filtered.RemovedByText.ToString(CultureInfo.CurrentCulture))
-                .Append(", по громкости ")
+                .Append(", ").Append(text.BleedByEnergy).Append(' ')
                 .Append(filtered.RemovedByEnergy.ToString(CultureInfo.CurrentCulture))
                 .AppendLine(")");
         }
 
-        text.AppendLine().AppendLine("---").AppendLine();
+        markdown.AppendLine().AppendLine("---").AppendLine();
 
         if (timeline.Count == 0)
         {
-            text.AppendLine("_Речь не распознана._");
-            return text.ToString();
+            markdown.AppendLine(text.NothingRecognized);
+            return markdown.ToString();
         }
 
         foreach (Utterance utterance in timeline)
         {
-            text.Append("**[").Append(Stamp(utterance.Start)).Append("] ")
+            markdown.Append("**[").Append(Stamp(utterance.Start)).Append("] ")
                 .Append(utterance.Speaker).Append(":** ")
                 .AppendLine(utterance.Text)
                 .AppendLine();
         }
 
-        return text.ToString();
+        return markdown.ToString();
     }
 
     /// <summary>

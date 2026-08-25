@@ -51,19 +51,22 @@ public static class VadCalibrator
         // подобранный порог не будет соответствовать реальной работе.
         float[] audio = normalize ? AudioNormalizer.Normalize(samples) : samples;
 
+        // Один детектор на все пороги. Порог — параметр отдельного прогона, а
+        // не самой модели, и создавать её заново шесть раз подряд означало
+        // шесть раз прочитать файл и поднять контекст ради значения, которое
+        // меняется в билдере.
+        await using var detector = new SpeechDetector(new SpeechDetectorOptions
+        {
+            ModelPath = vadModelPath,
+        });
+
         var probes = new List<VadProbe>(Candidates.Length);
         foreach (float threshold in Candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await using var detector = new SpeechDetector(new SpeechDetectorOptions
-            {
-                ModelPath = vadModelPath,
-                Threshold = threshold,
-            });
-
             IReadOnlyList<SpeechRegion> regions =
-                await detector.DetectAsync(audio, cancellationToken).ConfigureAwait(false);
+                await detector.DetectAsync(audio, threshold, cancellationToken).ConfigureAwait(false);
 
             TimeSpan total = regions.Aggregate(TimeSpan.Zero, (sum, r) => sum + r.Duration);
             probes.Add(new VadProbe(threshold, regions.Count, total));

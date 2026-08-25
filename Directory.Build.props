@@ -32,8 +32,16 @@
     <!-- Централизованные версии пакетов: см. Directory.Packages.props -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
-    <Version>0.1.0</Version>
+    <!-- Свойства сборки. Без них вкладка «Подробно» у exe пустая, и для
+         осторожного пользователя приложение выглядит подозрительно ещё
+         до запуска. -->
+    <Version>0.2.0</Version>
     <Company>keshon</Company>
     <Product>Tapybara</Product>
+    <Authors>keshon</Authors>
+    <Copyright>Copyright (c) keshon. MIT licence.</Copyright>
+    <AssemblyTitle>Tapybara</AssemblyTitle>
+    <Description>Local voice dictation for Windows.</Description>
+    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 </Project>

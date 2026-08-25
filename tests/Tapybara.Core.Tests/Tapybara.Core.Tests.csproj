@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Тесты на чистую логику ядра: пост-обработка текста, анти-bleed, подбор
+    порога детектора, выравнивание дорожек, разбор сочетаний клавиш.
+
+    Всё это — функции над обычными данными, без звуковых устройств, окон и
+    моделей. Именно здесь жили ошибки, которые дороже всего обходились
+    пользователю, и именно их проще всего было бы поймать сразу.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Tapybara.Core.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <!-- В тестах допустимы имена вроде Similarity_ReturnsOne_ForIdenticalStrings
+         и публичные вложенные классы: правила про именование и видимость,
+         полезные в библиотеке, здесь только мешают. -->
+    <NoWarn>$(NoWarn);CA1707;CA1861;CA5394</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tapybara.Core/Tapybara.Core.csproj" />
+  </ItemGroup>
+
+</Project>
