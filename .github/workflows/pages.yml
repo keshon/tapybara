@@ -1,0 +1,82 @@
+name: pages
+
+# Публикация лендинга на GitHub Pages.
+#
+# В настройках репозитория источник Pages выставлен в «GitHub Actions», и это
+# важно понимать буквально: при таком источнике GitHub НЕ раздаёт файлы из
+# ветки сам. Он ждёт, что workflow соберёт артефакт и вызовет deploy-pages.
+# Без такого workflow сайт отвечает 404 — домен настроен, DNS сходится,
+# HTTPS выписан, а раздавать нечего.
+#
+# Второй возможный вариант — переключить источник на «Deploy from a branch»
+# (main / root), и тогда этот файл не нужен вовсе. Так сделано в melodix.
+# Здесь выбран путь через Actions, потому что он публикует только то, что
+# относится к сайту, а не весь репозиторий с исходниками и тестами.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'assets/**'
+      - 'CNAME'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Параллельные публикации запрещены, но начатую не отменяем: обрыв на середине
+# оставил бы сайт в неопределённом состоянии.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect the site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r assets _site/
+
+          # CNAME кладём в артефакт, а не полагаемся только на настройку в
+          # интерфейсе: при публикации через Actions домен берётся из того,
+          # что опубликовано, и без этого файла он слетает на следующем деплое.
+          if [ -f CNAME ]; then cp CNAME _site/; fi
+
+          echo "published files:"
+          find _site -type f | sort
+
+      - name: Check that nothing the page needs is missing
+        run: |
+          # Дешевле поймать опечатку в пути здесь, чем по 404 на живом сайте.
+          missing=0
+          for path in $(grep -oE '(src|href)="(assets/[^"]+)"' _site/index.html | sed -E 's/.*"(assets[^"]+)"/\1/' | sort -u); do
+            if [ ! -f "_site/$path" ]; then
+              echo "missing: $path"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -16,3 +16,6 @@
 *.ico  binary
 *.bin binary
 *.wav binary
+
+# CNAME читает GitHub Pages как одну строку. CRLF ему не нравится.
+CNAME text eol=lf
