@@ -1,6 +1,6 @@
 @echo off
 rem ---------------------------------------------------------------------------
-rem  TapRecorder build helper.
+rem  Tapybara build helper.
 rem
 rem    build            build Release
 rem    build run        build Release and start the app
@@ -18,7 +18,7 @@ cd /d "%~dp0"
 set MODE=%~1
 if "%MODE%"=="" set MODE=build
 
-set APP=src\TapRecorder.App\TapRecorder.App.csproj
+set APP=src\Tapybara.App\Tapybara.App.csproj
 
 where dotnet >nul 2>nul
 if errorlevel 1 (
@@ -40,7 +40,7 @@ rem ---------------------------------------------------------------------------
 :stop
 rem The app lives in the tray, so a previous instance is easy to forget about
 rem and will hold the output files locked. Every mode stops it first.
-taskkill /im TapRecorder.App.exe /f >nul 2>nul
+taskkill /im Tapybara.exe /f >nul 2>nul
 if errorlevel 1 (
     echo Nothing was running.
 ) else (
@@ -58,7 +58,7 @@ echo Building Release...
 dotnet build -c Release
 if errorlevel 1 exit /b 1
 echo.
-echo Done: src\TapRecorder.App\bin\Release\net10.0-windows\TapRecorder.App.exe
+echo Done: src\Tapybara.App\bin\Release\net10.0-windows\Tapybara.exe
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ echo Building Release...
 dotnet build -c Release
 if errorlevel 1 exit /b 1
 echo Starting...
-start "" "src\TapRecorder.App\bin\Release\net10.0-windows\TapRecorder.App.exe"
+start "" "src\Tapybara.App\bin\Release\net10.0-windows\Tapybara.exe"
 echo The app is in the tray. Press Ctrl+Alt+D to dictate.
 exit /b 0
 
@@ -79,7 +79,7 @@ echo Building Debug...
 dotnet build
 if errorlevel 1 exit /b 1
 echo Starting...
-start "" "src\TapRecorder.App\bin\Debug\net10.0-windows\TapRecorder.App.exe"
+start "" "src\Tapybara.App\bin\Debug\net10.0-windows\Tapybara.exe"
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -92,8 +92,8 @@ rem that actually works. Self-contained means the machine needs no .NET.
 dotnet publish "%APP%" -c Release -r win-x64 --self-contained true -o dist
 if errorlevel 1 exit /b 1
 echo.
-echo Done: dist\TapRecorder.App.exe
-echo Models are not included; put them in %%APPDATA%%\TapRecorder\models
-echo or create an empty file named TapRecorder.portable next to the exe
+echo Done: dist\Tapybara.exe
+echo Models are not included; put them in %%APPDATA%%\Tapybara\models
+echo or create an empty file named Tapybara.portable next to the exe
 echo and use a Data folder beside it instead.
 exit /b 0
