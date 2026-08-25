@@ -188,13 +188,36 @@ public sealed partial class TrayIconHost : IDisposable
     }
 
     /// <summary>Строка состояния вверху меню и всплывающая подсказка иконки.</summary>
+    /// <remarks>
+    /// Статус обрезается жёстко. В нём оказывается начало распознанного текста,
+    /// а меню растягивается по самому длинному пункту: одна длинная диктовка
+    /// раздувала его на пол-экрана и делала неудобным всё остальное.
+    /// </remarks>
     public void SetStatus(string status)
     {
-        _statusItem.Text = status;
+        _statusItem.Text = Shorten(status, 46);
 
         // NotifyIcon.Text ограничен 63 символами — более длинное значение
         // роняет установку свойства исключением.
-        _icon.Text = status.Length <= 63 ? status : status[..60] + "…";
+        _icon.Text = Shorten(status, 62);
+    }
+
+    /// <summary>Показать сочетание клавиш справа от пункта запуска.</summary>
+    /// <remarks>
+    /// Задаём только текст, но НЕ <c>ShortcutKeys</c>: тот заставил бы WinForms
+    /// самому перехватывать сочетание, а глобальный хоткей у нас уже занят
+    /// через RegisterHotKey — получили бы двойную обработку одного нажатия.
+    /// </remarks>
+    public void SetHotkeyDisplay(string hotkey)
+    {
+        _toggleItem.ShortcutKeyDisplayString = hotkey;
+        _toggleItem.ShowShortcutKeys = true;
+    }
+
+    private static string Shorten(string text, int limit)
+    {
+        string flat = text.ReplaceLineEndings(" ");
+        return flat.Length <= limit ? flat : flat[..(limit - 1)] + "…";
     }
 
     public void SetLastTextAvailable(bool available) => _copyLastItem.Enabled = available;
