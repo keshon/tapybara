@@ -1,4 +1,4 @@
-# TapRecorder
+# Tapybara
 
 Local voice dictation for Windows. Press a hotkey, speak, press it again — your
 words are typed into whatever application has focus.
@@ -12,7 +12,7 @@ leaves it, and the app works with no internet connection at all.
 ## Why another dictation tool
 
 Windows ships with dictation built in, but it is cloud-backed, and its quality
-for languages other than English is mediocre. TapRecorder runs
+for languages other than English is mediocre. Tapybara runs
 [whisper.cpp](https://github.com/ggerganov/whisper.cpp) locally on your GPU: it
 is more accurate, it is private by construction, and on a mid-range graphics
 card it transcribes a minute of speech in about a second.
@@ -69,14 +69,14 @@ dotnet build -c Release
 ```
 
 Download a Whisper model in `ggml` format and place it in
-`%APPDATA%\TapRecorder\models\`. Models are available from
+`%APPDATA%\Tapybara\models\`. Models are available from
 [ggerganov/whisper.cpp on Hugging Face](https://huggingface.co/ggerganov/whisper.cpp).
 `ggml-large-v3-turbo` is a good default.
 
 Run it:
 
 ```bash
-dotnet run --project src/TapRecorder.App -c Release
+dotnet run --project src/Tapybara.App -c Release
 ```
 
 A dot appears in the system tray. Put the caret in any text field, press
@@ -110,12 +110,12 @@ sample with `large-v3-turbo`:
 | Vulkan, warmed up | **0.52 s** | **53× realtime** |
 
 The first run is slow because Vulkan compiles its compute shaders on first use.
-TapRecorder hides this by warming the engine up at startup, so your first real
+Tapybara hides this by warming the engine up at startup, so your first real
 dictation is already fast.
 
 ## Configuration
 
-Settings live in `%APPDATA%\TapRecorder\settings.json` and are written
+Settings live in `%APPDATA%\Tapybara\settings.json` and are written
 atomically. The tray menu covers the common ones; the rest are edited in the
 file for now.
 
@@ -136,8 +136,8 @@ file for now.
 
 ### Storage and portable mode
 
-By default, settings and models live in `%APPDATA%\TapRecorder\`. Creating an
-empty file named `TapRecorder.portable` next to the executable switches the
+By default, settings and models live in `%APPDATA%\Tapybara\`. Creating an
+empty file named `Tapybara.portable` next to the executable switches the
 application to a `Data` folder beside itself instead — useful on a USB stick or
 when you would rather leave nothing behind in the system.
 
@@ -231,9 +231,9 @@ Things that cost us time and may cost you some too:
 ## Development
 
 ```
-src/TapRecorder.Core/     engine, audio, settings, Win32 plumbing — no UI
-src/TapRecorder.App/      WPF application: tray, overlay
-tools/TapRecorder.Bench/  console harness for benchmarking and diagnostics
+src/Tapybara.Core/     engine, audio, settings, Win32 plumbing — no UI
+src/Tapybara.App/      WPF application: tray, overlay
+tools/Tapybara.Bench/  console harness for benchmarking and diagnostics
 ```
 
 All logic lives in `Core`, which has no dependency on the user interface. That
@@ -247,19 +247,19 @@ every build.
 The benchmark harness:
 
 ```bash
-dotnet run --project tools/TapRecorder.Bench -- models
+dotnet run --project tools/Tapybara.Bench -- models
 ```
 
 ```bash
-dotnet run --project tools/TapRecorder.Bench -- rec 30
+dotnet run --project tools/Tapybara.Bench -- rec 30
 ```
 
 ```bash
-dotnet run --project tools/TapRecorder.Bench -- run large-v3-turbo
+dotnet run --project tools/Tapybara.Bench -- run large-v3-turbo
 ```
 
 ```bash
-dotnet run --project tools/TapRecorder.Bench -- check
+dotnet run --project tools/Tapybara.Bench -- check
 ```
 
 `rec` records a sample, `run` transcribes it and reports timings, `check`

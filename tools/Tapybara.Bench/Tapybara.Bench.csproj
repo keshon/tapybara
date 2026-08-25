@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Консольный харнесс «записал → распознал → замерил». Нужен, чтобы мерить
+    скорость и сравнивать модели без запуска GUI. Это же — вертикальный срез
+    будущей диктовки: если работает здесь, дальше остаётся только интерфейс.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Tapybara.Bench</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tapybara.Core/Tapybara.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Нативные библиотеки whisper.cpp. Whisper.net перебирает рантаймы
+         сам, от быстрого к совместимому, и молча падает на следующий, если
+         нативную .dll не удалось загрузить.
+
+         Cuda.Windows — быстрее всех, но требует cublas64_13.dll из CUDA Toolkit,
+                        которого на чистой машине нет;
+         Vulkan       — идёт в составе драйвера GPU, ставить ничего не нужно,
+                        и работает не только на NVIDIA;
+         Runtime      — CPU, последний рубеж. -->
+    <PackageReference Include="Whisper.net.Runtime.Cuda.Windows" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" />
+    <PackageReference Include="Whisper.net.Runtime" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Приложение: трей, оверлей, окно настроек. Логики здесь нет — она в Core.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Tapybara.App</RootNamespace>
+
+    <!-- Имя бинарника без суффикса проекта: пользователь видит
+         Tapybara.exe, а не Tapybara.App.exe. -->
+    <AssemblyName>Tapybara</AssemblyName>
+    <UseWPF>true</UseWPF>
+
+    <!-- WinForms включён ради одного класса: NotifyIcon. Это стандартный
+         способ сделать трей в WPF-приложении — своего у WPF просто нет. -->
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <!-- Нужен генератору LibraryImport (одна функция DestroyIcon в трее). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Tapybara.Core/Tapybara.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" />
+
+    <!-- Нативные библиотеки whisper.cpp подключает исполняемый проект.
+         Порядок перебора внутри Whisper.net: CUDA → Vulkan → CPU. -->
+    <PackageReference Include="Whisper.net.Runtime.Cuda.Windows" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" />
+    <PackageReference Include="Whisper.net.Runtime" />
+  </ItemGroup>
+
+</Project>

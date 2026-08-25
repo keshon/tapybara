@@ -1,0 +1,22 @@
+<Application x:Class="Tapybara.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <!--
+        ShutdownMode="OnExplicitShutdown" — обязательно. По умолчанию WPF
+        закрывает приложение вместе с последним окном, а у нас окон в норме
+        нет вообще: приложение живёт в трее. Без этого оно завершалось бы
+        сразу после закрытия оверлея.
+
+        StartupUri не задан по той же причине — главного окна нет.
+    -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
