@@ -198,6 +198,7 @@ public partial class App : Application, IDisposable
             listener.Start();
             _hotkey = listener;
             _tray!.SetHotkeyFailed(false);
+            _tray.SetHotkeyDisplay(_settings.Hotkey.ToString());
         }
         catch (Exception ex)
         {

@@ -433,7 +433,7 @@ public partial class SettingsWindow : FluentWindow
         Text = text,
         Opacity = 0.75,
         TextWrapping = TextWrapping.Wrap,
-        MaxWidth = ControlColumnWidth,
+        MaxWidth = 320,
         TextAlignment = TextAlignment.Right,
         VerticalAlignment = System.Windows.VerticalAlignment.Center,
     };
@@ -592,7 +592,14 @@ public partial class SettingsWindow : FluentWindow
 
     private static StackPanel BuildHeader(string title, string? description, double maxWidth = 320)
     {
-        var panel = new StackPanel { MaxWidth = maxWidth };
+        // Прижимаем влево явно: без этого CardControl центрирует заголовок в
+        // отведённой ему ширине, и карточки без описания выглядят съехавшими
+        // относительно карточек с описанием — колонка заголовков «пляшет».
+        var panel = new StackPanel
+        {
+            MaxWidth = maxWidth,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+        };
         panel.Children.Add(new TextBlock { Text = title, TextWrapping = TextWrapping.Wrap });
 
         if (description is not null)
