@@ -95,6 +95,7 @@ public sealed record UiStrings
     public required string LanguageRussian { get; init; }
     public required string Minutes { get; init; }
     public required string Seconds { get; init; }
+    public required string FooterStoragePath { get; init; }
 
     public static UiStrings English { get; } = new()
     {
@@ -132,11 +133,11 @@ public sealed record UiStrings
         PillCancelled = "Cancelled",
 
         SettingsTitle = "TapRecorder settings",
-        SectionRecognition = "RECOGNITION",
-        SectionInput = "INPUT",
-        SectionText = "TEXT",
-        SectionStorage = "STORAGE",
-        SectionInterface = "INTERFACE",
+        SectionRecognition = "Recognition",
+        SectionInput = "Input",
+        SectionText = "Text",
+        SectionStorage = "Storage",
+        SectionInterface = "Interface",
 
         FieldModel = "Model",
         FieldRecognitionLanguage = "Recognition language",
@@ -170,6 +171,7 @@ public sealed record UiStrings
         LanguageRussian = "Russian",
         Minutes = "min",
         Seconds = "s",
+        FooterStoragePath = "Settings and models are stored in {0}",
     };
 
     public static UiStrings Russian { get; } = new()
@@ -208,11 +210,11 @@ public sealed record UiStrings
         PillCancelled = "Отменено",
 
         SettingsTitle = "Настройки TapRecorder",
-        SectionRecognition = "РАСПОЗНАВАНИЕ",
-        SectionInput = "ВВОД",
-        SectionText = "ТЕКСТ",
-        SectionStorage = "ХРАНЕНИЕ",
-        SectionInterface = "ИНТЕРФЕЙС",
+        SectionRecognition = "Распознавание",
+        SectionInput = "Ввод",
+        SectionText = "Текст",
+        SectionStorage = "Хранение",
+        SectionInterface = "Интерфейс",
 
         FieldModel = "Модель",
         FieldRecognitionLanguage = "Язык распознавания",
@@ -246,6 +248,7 @@ public sealed record UiStrings
         LanguageRussian = "Русский",
         Minutes = "мин",
         Seconds = "с",
+        FooterStoragePath = "Настройки и модели хранятся в {0}",
     };
 }
 

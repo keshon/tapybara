@@ -5,28 +5,44 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using TapRecorder.App.Localization;
 using TapRecorder.Core.Settings;
 using TapRecorder.Core.Windows;
+using Wpf.Ui.Controls;
 
-// Те же коллизии имён между WinForms и WPF, что и в остальном приложении.
+// Коллизии имён между WinForms, WPF и WPF-UI: часть типов определена во всех
+// трёх, а ImplicitUsings подключает пространства имён WinForms и WPF.
+using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
-using CheckBox = System.Windows.Controls.CheckBox;
+using Color = System.Windows.Media.Color;
 using ComboBox = System.Windows.Controls.ComboBox;
+using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Orientation = System.Windows.Controls.Orientation;
+using TextBlock = System.Windows.Controls.TextBlock;
 using TextBox = System.Windows.Controls.TextBox;
 
 namespace TapRecorder.App;
 
 /// <summary>Окно настроек.</summary>
 /// <remarks>
-/// Строки собираются кодом, а не размечаются в XAML: полей много, они
-/// однотипные, и один построитель строки честнее, чем две сотни строк
-/// копипасты с расходящимися отступами.
+/// Карточки собираются кодом, а не размечаются в XAML: полей много, они
+/// однотипные, и один построитель честнее, чем две сотни строк копипасты
+/// с расходящимися отступами.
 /// </remarks>
-public partial class SettingsWindow : Window
+public partial class SettingsWindow : FluentWindow
 {
+    /// <summary>
+    /// Ширина колонки контролов.
+    /// </summary>
+    /// <remarks>
+    /// Одна на все карточки. Поля разной ширины давали рваный правый край —
+    /// в настройках Windows все контролы выровнены по единой колонке, и
+    /// именно это создаёт ощущение аккуратности.
+    /// </remarks>
+    private const double ControlColumnWidth = 220;
+
     private readonly IReadOnlyList<string> _models;
     private AppSettings _settings;
 
@@ -43,8 +59,10 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         Title = L.S.SettingsTitle;
+        WindowTitleBar.Title = L.S.SettingsTitle;
         CloseButton.Content = L.S.ButtonClose;
-        FooterHint.Text = L.S.FieldHotkeyHint;
+        FooterHint.Text = string.Format(
+            CultureInfo.CurrentCulture, L.S.FooterStoragePath, AppPaths.DataDirectory);
 
         BuildRecognitionSection();
         BuildInputSection();
@@ -75,7 +93,7 @@ public partial class SettingsWindow : Window
     {
         AddCaption(L.S.SectionRecognition);
 
-        var modelBox = new ComboBox { MinWidth = 260 };
+        var modelBox = new ComboBox { Width = ControlColumnWidth };
         foreach (string model in _models)
         {
             modelBox.Items.Add(PrettyModelName(model));
@@ -92,9 +110,9 @@ public partial class SettingsWindow : Window
             }
         };
 
-        AddRow(L.S.FieldModel, hint: null, modelBox);
+        AddCard(SymbolRegular.BrainCircuit24, L.S.FieldModel, description: null, modelBox);
 
-        var languageBox = new TextBox { Text = _settings.Language, Width = 90 };
+        var languageBox = new TextBox { Width = ControlColumnWidth, Text = _settings.Language };
         languageBox.LostFocus += (_, _) =>
         {
             string value = languageBox.Text.Trim().ToLowerInvariant();
@@ -104,14 +122,18 @@ public partial class SettingsWindow : Window
             }
         };
 
-        AddRow(L.S.FieldRecognitionLanguage, L.S.FieldRecognitionLanguageHint, languageBox);
+        AddCard(
+            SymbolRegular.LocalLanguage24,
+            L.S.FieldRecognitionLanguage,
+            L.S.FieldRecognitionLanguageHint,
+            languageBox);
 
         _promptBox = new TextBox
         {
             Text = _settings.Prompt ?? string.Empty,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            MinHeight = 60,
+            MinHeight = 64,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
 
@@ -121,19 +143,27 @@ public partial class SettingsWindow : Window
             Apply(_settings with { Prompt = value.Length == 0 ? null : value });
         };
 
-        var resetPrompt = new Button { Content = L.S.ButtonDefault, MinWidth = 96 };
+        var resetPrompt = new Button
+        {
+            Content = L.S.ButtonDefault,
+            MinWidth = 110,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
         resetPrompt.Click += (_, _) =>
         {
             _promptBox.Text = LanguageDefaults.DefaultPrompt(_settings.Language);
             Apply(_settings with { Prompt = _promptBox.Text });
         };
 
-        AddStackedRow(L.S.FieldPrompt, L.S.FieldPromptHint, _promptBox, resetPrompt);
+        AddStackedCard(SymbolRegular.TextAlignLeft24, L.S.FieldPrompt, L.S.FieldPromptHint, _promptBox, resetPrompt);
 
-        AddRow(
+        AddCard(
+            SymbolRegular.Timer24,
             L.S.FieldIdleUnload,
-            hint: null,
-            NumberBox(
+            description: null,
+            NumberField(
                 _settings.IdleUnloadMinutes,
                 L.S.Minutes,
                 value => Apply(_settings with { IdleUnloadMinutes = Math.Clamp((int)value, 1, 240) })));
@@ -143,19 +173,21 @@ public partial class SettingsWindow : Window
     {
         AddCaption(L.S.SectionInput);
 
-        _hotkeyButton = new Button { Content = _settings.Hotkey.ToString(), MinWidth = 180 };
+        _hotkeyButton = new Button { Content = _settings.Hotkey.ToString(), Width = ControlColumnWidth };
         _hotkeyButton.Click += (_, _) => BeginHotkeyCapture();
-        AddRow(L.S.FieldHotkey, L.S.FieldHotkeyHint, _hotkeyButton);
+        AddCard(SymbolRegular.Options24, L.S.FieldHotkey, L.S.FieldHotkeyHint, _hotkeyButton);
 
-        AddCheckRow(
+        AddToggleCard(
+            SymbolRegular.ClipboardPaste24,
             L.S.FieldAutoPaste,
-            hint: null,
+            description: null,
             _settings.AutoPaste,
             value => Apply(_settings with { AutoPaste = value }));
 
-        AddCheckRow(
+        AddToggleCard(
+            SymbolRegular.ClipboardPaste24,
             L.S.FieldClipboardHistory,
-            hint: null,
+            description: null,
             _settings.ExcludeFromClipboardHistory,
             value => Apply(_settings with { ExcludeFromClipboardHistory = value }));
     }
@@ -164,16 +196,18 @@ public partial class SettingsWindow : Window
     {
         AddCaption(L.S.SectionText);
 
-        AddCheckRow(
+        AddToggleCard(
+            SymbolRegular.TextParagraph24,
             L.S.FieldSplitParagraphs,
-            hint: null,
+            description: null,
             _settings.SplitParagraphsByPauses,
             value => Apply(_settings with { SplitParagraphsByPauses = value }));
 
-        AddRow(
+        AddCard(
+            SymbolRegular.Timer24,
             L.S.FieldParagraphPause,
-            hint: null,
-            NumberBox(
+            description: null,
+            NumberField(
                 _settings.ParagraphPauseSeconds,
                 L.S.Seconds,
                 value => Apply(_settings with { ParagraphPauseSeconds = Math.Clamp(value, 0.2, 10) })));
@@ -182,15 +216,20 @@ public partial class SettingsWindow : Window
         {
             Text = FormatReplacements(_settings.Replacements),
             AcceptsReturn = true,
-            MinHeight = 90,
+            MinHeight = 92,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            FontFamily = new FontFamily("Consolas"),
         };
 
         replacementsBox.LostFocus += (_, _) =>
             Apply(_settings with { Replacements = ParseReplacements(replacementsBox.Text) });
 
-        AddStackedRow(L.S.FieldReplacements, L.S.FieldReplacementsHint, replacementsBox, trailing: null);
+        AddStackedCard(
+            SymbolRegular.ArrowReset24,
+            L.S.FieldReplacements,
+            L.S.FieldReplacementsHint,
+            replacementsBox,
+            trailing: null);
     }
 
     private void BuildStorageSection()
@@ -203,7 +242,7 @@ public partial class SettingsWindow : Window
             IsReadOnly = true,
         };
 
-        var browse = new Button { Content = L.S.ButtonBrowse, MinWidth = 96, Margin = new Thickness(0, 0, 8, 0) };
+        var browse = new Button { Content = L.S.ButtonBrowse, MinWidth = 110, Margin = new Thickness(0, 0, 8, 0) };
         browse.Click += (_, _) =>
         {
             var dialog = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = _modelsFolderBox.Text };
@@ -214,20 +253,27 @@ public partial class SettingsWindow : Window
             }
         };
 
-        var open = new Button { Content = L.S.ButtonOpen, MinWidth = 96 };
+        var open = new Button { Content = L.S.ButtonOpen, MinWidth = 110 };
         open.Click += (_, _) =>
         {
             Directory.CreateDirectory(_modelsFolderBox.Text);
             Process.Start(new ProcessStartInfo(_modelsFolderBox.Text) { UseShellExecute = true });
         };
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
         buttons.Children.Add(browse);
         buttons.Children.Add(open);
 
-        AddStackedRow(L.S.FieldModelsFolder, hint: null, _modelsFolderBox, buttons);
+        AddStackedCard(SymbolRegular.FolderOpen24, L.S.FieldModelsFolder, description: null, _modelsFolderBox, buttons);
 
-        AddCheckRow(
+        AddToggleCard(
+            SymbolRegular.Options24,
             L.S.FieldPortable,
             L.S.FieldPortableHint + " " + L.S.RestartRequired + ".",
             AppPaths.IsPortable,
@@ -238,7 +284,7 @@ public partial class SettingsWindow : Window
     {
         AddCaption(L.S.SectionInterface);
 
-        var languageBox = new ComboBox { MinWidth = 200 };
+        var languageBox = new ComboBox { Width = ControlColumnWidth };
         languageBox.Items.Add(L.S.FieldUiLanguageAuto);
         languageBox.Items.Add(L.S.LanguageEnglish);
         languageBox.Items.Add(L.S.LanguageRussian);
@@ -268,7 +314,7 @@ public partial class SettingsWindow : Window
             LanguageChanged?.Invoke();
         };
 
-        AddRow(L.S.FieldUiLanguage, hint: null, languageBox);
+        AddCard(SymbolRegular.LocalLanguage24, L.S.FieldUiLanguage, description: null, languageBox);
     }
 
     // --- захват сочетания клавиш -------------------------------------------
@@ -348,103 +394,116 @@ public partial class SettingsWindow : Window
         EndHotkeyCapture();
     }
 
-    // --- построители строк -------------------------------------------------
+    // --- построители карточек ----------------------------------------------
 
     private void AddCaption(string text) => Sections.Children.Add(new TextBlock
     {
         Text = text,
-        FontSize = 10.5,
+        FontSize = 15,
         FontWeight = FontWeights.SemiBold,
-        Opacity = 0.6,
-        Margin = new Thickness(0, 18, 0, 8),
+        Margin = new Thickness(2, 22, 0, 8),
     });
 
-    /// <summary>Строка «подпись слева — контрол справа».</summary>
-    private void AddRow(string label, string? hint, UIElement control)
+    /// <summary>Карточка «иконка, заголовок с описанием — контрол справа».</summary>
+    private void AddCard(SymbolRegular icon, string title, string? description, UIElement control)
     {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        labels.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap });
-        if (hint is not null)
+        Sections.Children.Add(new CardControl
         {
-            labels.Children.Add(HintBlock(hint));
-        }
-
-        Grid.SetColumn(labels, 0);
-        grid.Children.Add(labels);
-
-        if (control is FrameworkElement element)
-        {
-            element.VerticalAlignment = VerticalAlignment.Center;
-            element.Margin = new Thickness(16, 0, 0, 0);
-        }
-
-        Grid.SetColumn(control, 1);
-        grid.Children.Add(control);
-
-        Sections.Children.Add(grid);
+            Icon = new SymbolIcon { Symbol = icon },
+            Header = BuildHeader(title, description),
+            Content = control,
+            Margin = new Thickness(0, 0, 0, 4),
+        });
     }
 
-    /// <summary>Строка, где контрол занимает всю ширину под подписью.</summary>
-    private void AddStackedRow(string label, string? hint, UIElement control, UIElement? trailing)
+    private void AddToggleCard(
+        SymbolRegular icon,
+        string title,
+        string? description,
+        bool value,
+        Action<bool> onChange)
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-        panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 0, 4) });
-        if (hint is not null)
-        {
-            panel.Children.Add(HintBlock(hint));
-        }
+        var toggle = new ToggleSwitch { IsChecked = value };
+        toggle.Checked += (_, _) => onChange(true);
+        toggle.Unchecked += (_, _) => onChange(false);
 
-        panel.Children.Add(control);
+        AddCard(icon, title, description, toggle);
+    }
+
+    /// <summary>
+    /// Карточка, где контрол занимает всю ширину под заголовком.
+    /// </summary>
+    /// <remarks>
+    /// Для многострочных полей: <see cref="CardControl"/> кладёт содержимое
+    /// справа от заголовка, и текстовая область там оказалась бы шириной
+    /// в треть окна.
+    /// </remarks>
+    private void AddStackedCard(
+        SymbolRegular icon,
+        string title,
+        string? description,
+        UIElement control,
+        UIElement? trailing)
+    {
+        var content = new StackPanel();
+
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        head.Children.Add(new SymbolIcon
+        {
+            Symbol = icon,
+            FontSize = 20,
+            Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = System.Windows.VerticalAlignment.Top,
+        });
+
+        head.Children.Add(BuildHeader(title, description, maxWidth: 470));
+        content.Children.Add(head);
+        content.Children.Add(control);
+
         if (trailing is not null)
         {
-            if (trailing is FrameworkElement element && element.Margin.Top == 0)
-            {
-                element.Margin = new Thickness(0, 6, 0, 0);
-                element.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
-            }
-
-            panel.Children.Add(trailing);
+            content.Children.Add(trailing);
         }
 
-        Sections.Children.Add(panel);
-    }
-
-    private void AddCheckRow(string label, string? hint, bool value, Action<bool> onChange)
-    {
-        var check = new CheckBox { IsChecked = value, Content = label, Margin = new Thickness(0, 0, 0, 4) };
-        check.Checked += (_, _) => onChange(true);
-        check.Unchecked += (_, _) => onChange(false);
-
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-        panel.Children.Add(check);
-        if (hint is not null)
+        Sections.Children.Add(new Border
         {
-            panel.Children.Add(HintBlock(hint));
-        }
-
-        Sections.Children.Add(panel);
+            Background = ThemeBrush("CardBackgroundFillColorDefaultBrush", Colors.Transparent),
+            BorderBrush = ThemeBrush("CardStrokeColorDefaultBrush", Colors.Gray),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(16, 14, 16, 14),
+            Margin = new Thickness(0, 0, 0, 4),
+            Child = content,
+        });
     }
 
-    private static TextBlock HintBlock(string text) => new()
+    private static StackPanel BuildHeader(string title, string? description, double maxWidth = 320)
     {
-        Text = text,
-        FontSize = 11,
-        Opacity = 0.65,
-        TextWrapping = TextWrapping.Wrap,
-        Margin = new Thickness(0, 2, 0, 0),
-    };
+        var panel = new StackPanel { MaxWidth = maxWidth };
+        panel.Children.Add(new TextBlock { Text = title, TextWrapping = TextWrapping.Wrap });
+
+        if (description is not null)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = description,
+                FontSize = 12,
+                Opacity = 0.65,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 3, 0, 0),
+            });
+        }
+
+        return panel;
+    }
 
     /// <summary>Поле для числа с подписью единиц измерения.</summary>
-    private static StackPanel NumberBox(double initial, string unit, Action<double> onChange)
+    private static StackPanel NumberField(double initial, string unit, Action<double> onChange)
     {
         var box = new TextBox
         {
             Text = initial.ToString(CultureInfo.CurrentCulture),
-            Width = 70,
+            Width = 80,
             TextAlignment = TextAlignment.Right,
         };
 
@@ -463,18 +522,27 @@ public partial class SettingsWindow : Window
             }
         };
 
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+        };
+
         panel.Children.Add(box);
         panel.Children.Add(new TextBlock
         {
             Text = unit,
             Opacity = 0.65,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
         });
 
         return panel;
     }
+
+    /// <summary>Кисть из темы, с запасным цветом, если ресурса нет.</summary>
+    private Brush ThemeBrush(string resourceKey, Color fallback) =>
+        TryFindResource(resourceKey) as Brush ?? new SolidColorBrush(fallback);
 
     // --- словарь замен -----------------------------------------------------
 
