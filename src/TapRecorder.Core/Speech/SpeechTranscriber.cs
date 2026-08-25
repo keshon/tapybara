@@ -58,7 +58,15 @@ public sealed class SpeechTranscriber(WhisperEngine engine, SpeechDetector? dete
 
         if (regions.Count == 0)
         {
-            return [];
+            // Детектор не нашёл речи. Это не повод молча вернуть пустоту: он
+            // обучен на человеческом голосе и, например, синтезированную или
+            // сильно зашумлённую речь может не признать. Если в записи есть
+            // звук — распознаём целиком. Потерять канал хуже, чем получить
+            // неточные тайминги: детектор здесь уточняет результат, а не
+            // решает, быть ему или нет.
+            return AudioNormalizer.HasAudibleContent(audio)
+                ? await engine.TranscribeAsync(audio, progress, language, cancellationToken).ConfigureAwait(false)
+                : [];
         }
 
         var result = new List<TranscriptSegment>();

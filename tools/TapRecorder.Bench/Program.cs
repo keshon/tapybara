@@ -29,7 +29,7 @@ string[] valueFlags = ["--prompt", "--vad-threshold", "--lang"];
 
 List<string> positionalArgs = [];
 string? promptOption = null;
-float vadThreshold = 0.5f;
+float? vadThreshold = null;
 string language = "ru";
 for (int i = 0; i < args.Length; i++)
 {
@@ -110,6 +110,16 @@ switch (command)
         await TranscribeCallAsync(positional[1]);
         break;
 
+    case "vad":
+        if (positional.Length < 2)
+        {
+            Console.Error.WriteLine("Укажи файл: bench vad <файл.wav>");
+            return 1;
+        }
+
+        await InspectVadAsync(positional[1]);
+        break;
+
     case "call":
         await RecordCallAsync(positional.Length > 1
             ? double.Parse(positional[1], CultureInfo.InvariantCulture)
@@ -126,6 +136,7 @@ switch (command)
               bench dictate [модель]         живая диктовка по глобальному хоткею
               bench call [секунды]           записать звонок в два канала
               bench transcribe <папка>       собрать транскрипт записанного звонка
+              bench vad <файл.wav>           что детектор считает речью в файле
 
             Модель задаётся куском имени файла: `bench run podlodka`.
 
@@ -235,6 +246,49 @@ async Task RunAsync(string modelHint, string wavPath)
 }
 
 /// <summary>
+/// Диагностика детектора: уровни до и после нормализации, найденные участки.
+/// </summary>
+async Task InspectVadAsync(string wavPath)
+{
+    if (!File.Exists(wavPath))
+    {
+        Console.Error.WriteLine($"Нет файла {wavPath}");
+        return;
+    }
+
+    float[] raw = AudioFile.ReadMono16k(wavPath);
+    float[] normalized = AudioNormalizer.Normalize(raw);
+
+    Console.WriteLine($"Файл: {Path.GetFileName(wavPath)}");
+    Console.WriteLine($"Длительность: {raw.Length / (double)AudioCapture.TargetSampleRate:F2} с");
+    Console.WriteLine($"Пик исходный:      {raw.Max(Math.Abs):F4}");
+    Console.WriteLine($"Пик после нормализации: {normalized.Max(Math.Abs):F4}");
+
+    string? vadPath = ModelLocator.ResolveVadModel("ggml-silero-v6.2.0.bin");
+    if (vadPath is null)
+    {
+        Console.Error.WriteLine("Модель детектора не найдена.");
+        return;
+    }
+
+    foreach (float threshold in new[] { 0.5f, 0.35f, 0.2f, 0.1f })
+    {
+        await using var detector = new SpeechDetector(new SpeechDetectorOptions
+        {
+            ModelPath = vadPath,
+            Threshold = threshold,
+        });
+
+        IReadOnlyList<SpeechRegion> regions = await detector.DetectAsync(normalized);
+        string found = regions.Count == 0
+            ? "ничего"
+            : string.Join(", ", regions.Select(r => $"{r.Start.TotalSeconds:F1}-{r.End.TotalSeconds:F1}"));
+
+        Console.WriteLine($"  порог {threshold:F2}: {regions.Count} уч. — {found}");
+    }
+}
+
+/// <summary>
 /// Собрать транскрипт ранее записанного звонка.
 /// </summary>
 async Task TranscribeCallAsync(string callDirectory)
@@ -271,12 +325,14 @@ async Task TranscribeCallAsync(string callDirectory)
         else
         {
             Console.WriteLine($"Детектор речи: {Path.GetFileName(vadPath)}");
-            Console.WriteLine($"Порог детектора: {vadThreshold:F2}");
-            detector = new SpeechDetector(new SpeechDetectorOptions
+            var vadOptions = new SpeechDetectorOptions { ModelPath = vadPath };
+            if (vadThreshold is { } threshold)
             {
-                ModelPath = vadPath,
-                Threshold = vadThreshold,
-            });
+                vadOptions = vadOptions with { Threshold = threshold };
+            }
+
+            Console.WriteLine($"Порог детектора: {vadOptions.Threshold:F2}");
+            detector = new SpeechDetector(vadOptions);
         }
     }
     else
@@ -325,7 +381,8 @@ async Task RecordCallAsync(double seconds)
         }
 
         lastPrint.Restart();
-        int bars = (int)Math.Clamp(level * 60, 0, 30);
+        double db = 20 * Math.Log10(Math.Max(level, 1e-7));
+        int bars = (int)Math.Clamp((db + 50) / 40 * 30, 0, 30);
         Console.SetCursorPosition(0, Console.CursorTop);
         Console.Write("  микрофон ["
                       + new string('#', bars).PadRight(30)

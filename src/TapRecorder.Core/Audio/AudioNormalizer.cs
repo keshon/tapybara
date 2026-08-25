@@ -38,6 +38,16 @@ public static class AudioNormalizer
     /// <summary>Окно для оценки уровня.</summary>
     private const int FrameSamples = AudioCapture.TargetSampleRate / 33; // ~30 мс
 
+    /// <summary>
+    /// Есть ли в записи что-то громче фонового шума.
+    /// </summary>
+    /// <remarks>
+    /// Нужно, чтобы отличить «детектор не услышал речи» от «в файле пусто».
+    /// В первом случае запись всё равно стоит распознать, во втором — нет.
+    /// </remarks>
+    public static bool HasAudibleContent(float[] samples) =>
+        EstimateSpeechLevelDb(samples) is > -45;
+
     /// <summary>Вернуть копию записи, приведённую к рабочей громкости.</summary>
     public static float[] Normalize(float[] samples)
     {
