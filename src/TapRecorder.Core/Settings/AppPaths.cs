@@ -57,6 +57,22 @@ public static class AppPaths
     public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
     /// <summary>
+    /// Папка со звонками по умолчанию.
+    /// </summary>
+    /// <remarks>
+    /// В «Документах», а не рядом с настройками: записи и транскрипты —
+    /// это документы пользователя, которые он открывает, ищет и переносит,
+    /// а не служебные файлы приложения. В портативном режиме — рядом с
+    /// программой, чтобы ничего не оставалось в системе.
+    /// </remarks>
+    public static string DefaultCallsDirectory => IsPortable
+        ? Path.Combine(PortableDataDirectory, "Calls")
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            FolderName,
+            "Calls");
+
+    /// <summary>
     /// Переключить портативный режим.
     /// </summary>
     /// <remarks>

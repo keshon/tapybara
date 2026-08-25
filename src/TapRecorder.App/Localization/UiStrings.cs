@@ -33,6 +33,13 @@ public sealed record UiStrings
     public required string TrayModelsFolder { get; init; }
     public required string TraySettings { get; init; }
     public required string TrayExit { get; init; }
+    public required string TrayStartRecording { get; init; }
+    public required string TrayStopRecording { get; init; }
+    public required string TrayCallsFolder { get; init; }
+    public required string StatusRecordingCall { get; init; }
+    public required string StatusTranscribingCall { get; init; }
+    public required string StatusCallSaved { get; init; }
+    public required string NotifyCallReadyTitle { get; init; }
 
     // --- состояния и уведомления ---
     public required string StatusReady { get; init; }
@@ -62,6 +69,7 @@ public sealed record UiStrings
     public required string SectionText { get; init; }
     public required string SectionStorage { get; init; }
     public required string SectionInterface { get; init; }
+    public required string SectionCalls { get; init; }
     public required string SectionAbout { get; init; }
 
     public required string FieldModel { get; init; }
@@ -89,6 +97,14 @@ public sealed record UiStrings
     public required string FieldVadModel { get; init; }
     public required string FieldVadThreshold { get; init; }
     public required string FieldVadThresholdHint { get; init; }
+    public required string FieldNormalize { get; init; }
+    public required string FieldNormalizeHint { get; init; }
+    public required string FieldCallsFolder { get; init; }
+    public required string FieldMyName { get; init; }
+    public required string FieldMyNameHint { get; init; }
+    public required string FieldOtherSideName { get; init; }
+    public required string FieldOtherSideLanguage { get; init; }
+    public required string FieldOtherSideLanguageHint { get; init; }
 
     public required string ButtonChange { get; init; }
     public required string ButtonReset { get; init; }
@@ -128,6 +144,13 @@ public sealed record UiStrings
         TrayModelsFolder = "Models folder…",
         TraySettings = "Settings…",
         TrayExit = "Exit",
+        TrayStartRecording = "Record a call",
+        TrayStopRecording = "Stop recording",
+        TrayCallsFolder = "Calls folder…",
+        StatusRecordingCall = "Recording a call · {0}",
+        StatusTranscribingCall = "Transcribing the call…",
+        StatusCallSaved = "Call saved: {0}",
+        NotifyCallReadyTitle = "Transcript ready",
 
         StatusReady = "Ready",
         StatusLoadingModel = "Loading model…",
@@ -154,6 +177,7 @@ public sealed record UiStrings
         SectionText = "Text",
         SectionStorage = "Storage",
         SectionInterface = "Interface",
+        SectionCalls = "Calls",
         SectionAbout = "About",
 
         FieldModel = "Model",
@@ -181,6 +205,14 @@ public sealed record UiStrings
         FieldVadModel = "Speech detector model",
         FieldVadThreshold = "Detector sensitivity",
         FieldVadThresholdHint = "Lower catches quieter speech but also more noise",
+        FieldNormalize = "Even out loudness before transcribing",
+        FieldNormalizeHint = "A microphone placed away from your face records far quieter than normal, and the speech detector decides by loudness.",
+        FieldCallsFolder = "Calls folder",
+        FieldMyName = "Your name in transcripts",
+        FieldMyNameHint = "How your own lines are labelled",
+        FieldOtherSideName = "Other side label",
+        FieldOtherSideLanguage = "Other side language",
+        FieldOtherSideLanguageHint = "auto is the sensible default: you know what you speak, you do not know what they will. A wrong language does not merely degrade recognition, it destroys it.",
 
         ButtonChange = "Change",
         ButtonReset = "Reset",
@@ -221,6 +253,13 @@ public sealed record UiStrings
         TrayModelsFolder = "Папка моделей…",
         TraySettings = "Настройки…",
         TrayExit = "Выход",
+        TrayStartRecording = "Записать звонок",
+        TrayStopRecording = "Остановить запись",
+        TrayCallsFolder = "Папка звонков…",
+        StatusRecordingCall = "Идёт запись звонка · {0}",
+        StatusTranscribingCall = "Распознаю звонок…",
+        StatusCallSaved = "Звонок сохранён: {0}",
+        NotifyCallReadyTitle = "Транскрипт готов",
 
         StatusReady = "Готов",
         StatusLoadingModel = "Загружаю модель…",
@@ -247,6 +286,7 @@ public sealed record UiStrings
         SectionText = "Текст",
         SectionStorage = "Хранение",
         SectionInterface = "Интерфейс",
+        SectionCalls = "Звонки",
         SectionAbout = "О программе",
 
         FieldModel = "Модель",
@@ -274,6 +314,14 @@ public sealed record UiStrings
         FieldVadModel = "Модель детектора речи",
         FieldVadThreshold = "Чувствительность детектора",
         FieldVadThresholdHint = "Ниже — ловит более тихую речь, но и больше шума",
+        FieldNormalize = "Выравнивать громкость перед распознаванием",
+        FieldNormalizeHint = "Микрофон, отодвинутый от лица, пишет в разы тише обычного, а детектор речи решает именно по громкости.",
+        FieldCallsFolder = "Папка звонков",
+        FieldMyName = "Ваше имя в транскриптах",
+        FieldMyNameHint = "Как подписывать ваши реплики",
+        FieldOtherSideName = "Подпись собеседников",
+        FieldOtherSideLanguage = "Язык собеседников",
+        FieldOtherSideLanguageHint = "auto здесь разумнее всего: свой язык вы знаете, язык собеседника — нет. Неверно заданный язык не ухудшает распознавание, а превращает речь в бессмыслицу.",
 
         ButtonChange = "Изменить",
         ButtonReset = "Сбросить",
