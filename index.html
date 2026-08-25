@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Tapybara — Local Voice Dictation for Windows | Offline Whisper Speech-to-Text</title>
+
+  <meta name="description"
+    content="Tapybara is an open-source dictation tool for Windows. Press a hotkey, speak, press it again, and the text is inserted where your caret was. Whisper runs locally on your own GPU.">
+
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <meta name="theme-color" content="#17120e">
+  <meta name="author" content="keshon">
+  <meta name="keywords" content="voice dictation windows, offline speech to text, whisper.cpp, local dictation, private speech recognition, open source dictation">
+
+  <link rel="canonical" href="https://tapybara.keshon.ru/">
+
+  <link rel="icon" type="image/png" href="assets/favicon/favicon-96x96.png" sizes="96x96">
+  <link rel="shortcut icon" href="assets/favicon/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Tapybara">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tapybara.keshon.ru/">
+  <meta property="og:site_name" content="Tapybara">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Tapybara — Local Voice Dictation for Windows">
+  <meta property="og:description"
+    content="Press a hotkey, speak, press it again — the text is inserted where your caret was. Whisper runs on your own GPU, so the audio stays on the machine.">
+  <meta property="og:image" content="https://tapybara.keshon.ru/assets/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Tapybara — local voice dictation for Windows">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Tapybara — Local Voice Dictation for Windows">
+  <meta name="twitter:description"
+    content="A hotkey, Whisper running locally, and the text inserted where you were already typing. Open source.">
+  <meta name="twitter:image" content="https://tapybara.keshon.ru/assets/og-banner.png">
+  <meta name="twitter:image:alt" content="Tapybara — local voice dictation for Windows">
+  <meta name="twitter:site" content="@keshon_">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Tapybara",
+    "description": "Local voice dictation for Windows. Press a hotkey, speak, press it again, and the text is inserted into whatever application has focus. Runs whisper.cpp on the GPU; the audio stays on the machine.",
+    "applicationCategory": "UtilitiesApplication",
+    "applicationSubCategory": "Speech Recognition",
+    "operatingSystem": "Windows 10, Windows 11",
+    "license": "https://github.com/keshon/tapybara/blob/main/LICENSE",
+    "url": "https://tapybara.keshon.ru/",
+    "downloadUrl": "https://github.com/keshon/tapybara/releases/latest",
+    "codeRepository": "https://github.com/keshon/tapybara",
+    "programmingLanguage": "C#",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "keshon", "url": "https://github.com/keshon" }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+  <style>
+  /*
+    Палитра взята у самого приложения: капибарий коричневый с иконки и тёмная
+    пилюля индикатора.
+  */
+  :root {
+    --ground:    #FAF6F1;
+    --surface:   #FFFFFF;
+    --surface-2: #F3ECE4;
+    --line:      #E7DBCD;
+    --text:      #1F1913;
+    --muted:     #6E5D4D;
+    --faint:     #93826F;
+    --accent:    #8A5A2B;
+    --accent-2:  #A96F36;
+    --accent-bg: rgba(138, 90, 43, .08);
+    --pill-bg:   #17120E;
+    --code-bg:   #241D16;
+    --code-text: #EFE6DA;
+    --code-dim:  #A08D7C;
+    --shadow:    0 1px 2px rgba(31, 25, 19, .05), 0 10px 30px rgba(31, 25, 19, .08);
+    --measure:   66ch;
+  }
+
+  /*
+    В тёмной теме переопределяются ВСЕ токены, а не только фон и текст.
+    Оставленный от светлой темы акцент или тень — самый частый способ получить
+    страницу, где половина элементов не читается.
+  */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:    #17120E;
+      --surface:   #1F1913;
+      --surface-2: #271F18;
+      --line:      #34291F;
+      --text:      #F5EFE8;
+      --muted:     #A6947F;
+      --faint:     #7D6D5C;
+      --accent:    #D2A272;
+      --accent-2:  #E4B98A;
+      --accent-bg: rgba(210, 162, 114, .10);
+      --code-bg:   #100C09;
+      --code-text: #EFE6DA;
+      --code-dim:  #8A7967;
+      --shadow:    0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .34);
+    }
+
+    .btn-primary { color: #17120E; }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; animation: none !important; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: "Source Sans 3", "Segoe UI Variable Text", system-ui, "Segoe UI", sans-serif;
+    font-size: 18px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: "Bricolage Grotesque", "Segoe UI Variable Display", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  code, kbd, .mono { font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; }
+  code { font-size: .88em; }
+
+  a { color: var(--accent-2); text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 4px; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  section { padding: 84px 0; border-top: 1px solid var(--line); }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 16px;
+  }
+
+  h2 { font-size: clamp(27px, 3.8vw, 37px); line-height: 1.15; margin-bottom: 16px; }
+  .lede { font-size: 19px; color: var(--muted); max-width: var(--measure); margin: 0 0 30px; }
+  p { max-width: var(--measure); }
+
+  /* ---------- hero ---------- */
+
+  .hero { padding: 76px 0 72px; text-align: center; }
+  .hero img.logo { width: 84px; height: 84px; }
+  .hero .kicker {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: .14em; color: var(--faint);
+    margin: 20px 0 0;
+    /* p наследует measure в 66ch, а моноширинный с разрядкой в неё не влезает
+       и переносится посреди строки, теряя центровку. */
+    max-width: none;
+  }
+  .hero h1 { font-size: clamp(40px, 6.6vw, 62px); line-height: 1.04; margin: 16px 0 20px; }
+  .hero p.intro {
+    font-size: 19px; color: var(--muted);
+    max-width: 62ch; margin: 0 auto 38px; text-align: left;
+  }
+
+  .pill-stage {
+    background: var(--pill-bg);
+    border-radius: 18px;
+    padding: 44px 24px;
+    margin: 0 auto 34px;
+    max-width: 720px;
+    box-shadow: var(--shadow);
+  }
+  .pill-stage img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  .pill-stage .caption {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; color: var(--code-dim);
+    margin: 26px 0 0; letter-spacing: .04em; max-width: none;
+  }
+
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 26px; border-radius: 10px;
+    font-weight: 600; font-size: 17px; text-decoration: none;
+    border: 1px solid transparent; transition: transform .12s ease, filter .12s ease;
+  }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--line); }
+
+  /* ---------- cards ---------- */
+
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 26px 24px;
+  }
+  .card h3 { font-size: 19px; margin-bottom: 9px; }
+  .card p { color: var(--muted); font-size: 16.5px; margin: 0; max-width: none; }
+  .card .n {
+    font-family: "JetBrains Mono", monospace; font-size: 12px;
+    color: var(--accent); letter-spacing: .12em; margin: 0 0 12px; max-width: none;
+  }
+
+  /* ---------- measured numbers ---------- */
+
+  .measured { margin-top: 30px; border-top: 1px solid var(--line); }
+  .measured .row {
+    display: flex; gap: 18px; align-items: baseline;
+    padding: 13px 0; border-bottom: 1px solid var(--line);
+    font-size: 16.5px;
+  }
+  .measured .row b {
+    font-family: "JetBrains Mono", monospace; font-weight: 600;
+    color: var(--text); min-width: 108px;
+  }
+  .measured .row span { color: var(--muted); }
+  .measured .note { font-size: 14.5px; color: var(--faint); margin: 14px 0 0; }
+
+  /* ---------- shots ---------- */
+
+  .shots { display: grid; gap: 26px; }
+  figure { margin: 0; }
+  figure img {
+    width: 100%; height: auto; display: block;
+    border-radius: 12px; border: 1px solid var(--line);
+    box-shadow: var(--shadow); background: var(--surface);
+  }
+  figcaption { margin-top: 12px; font-size: 15.5px; color: var(--muted); max-width: var(--measure); }
+  figcaption b { color: var(--text); font-weight: 600; }
+
+  /* ---------- features ---------- */
+
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 20px 32px; }
+  .feature h3 { font-size: 17.5px; margin-bottom: 6px; }
+  .feature p { color: var(--muted); font-size: 16px; margin: 0; max-width: none; }
+
+  /* ---------- code ---------- */
+
+  pre {
+    background: var(--code-bg); color: var(--code-text);
+    border-radius: 12px; padding: 20px 22px; overflow-x: auto;
+    font-family: "JetBrains Mono", monospace; font-size: 14.5px; line-height: 1.7;
+    margin: 0 0 20px;
+  }
+  pre .c { color: var(--code-dim); }
+
+  ol.steps { max-width: var(--measure); color: var(--muted); padding-left: 22px; margin: 0 0 26px; }
+  ol.steps li { margin-bottom: 10px; }
+  ol.steps b { color: var(--text); }
+
+  /* ---------- faq ---------- */
+
+  details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  details summary {
+    cursor: pointer; font-weight: 600; font-size: 18px;
+    list-style: none; display: flex; justify-content: space-between; gap: 16px;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "+"; color: var(--accent); font-family: "JetBrains Mono", monospace; }
+  details[open] summary::after { content: "−"; }
+  details p { margin: 14px 0 0; color: var(--muted); font-size: 16.5px; }
+
+  /* ---------- notice ---------- */
+
+  .notice {
+    background: var(--accent-bg); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 18px 22px; margin-top: 26px;
+  }
+  .notice p { margin: 0; font-size: 16.5px; color: var(--muted); max-width: none; }
+  .notice b { color: var(--text); }
+
+  /* ---------- footer ---------- */
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
+  footer .cols {
+    display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+    font-size: 15.5px; color: var(--muted);
+  }
+  footer .cols a { color: var(--muted); text-decoration: none; }
+  footer .cols a:hover { color: var(--accent-2); text-decoration: underline; }
+  .foot-legal {
+    display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+    margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 14.5px; color: var(--faint);
+  }
+  .foot-legal strong { color: var(--muted); font-weight: 600; }
+
+  @media (max-width: 640px) {
+    body { font-size: 17px; }
+    section { padding: 60px 0; }
+    .pill-stage { padding: 30px 16px; }
+    .measured .row { flex-direction: column; gap: 2px; }
+  }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===================== HERO ===================== -->
+  <header class="hero">
+    <div class="wrap">
+      <img class="logo" src="assets/icon-512.png" width="84" height="84"
+           alt="Tapybara icon: a microphone on a capybara-brown disc">
+
+      <p class="kicker">voice dictation · windows · whisper.cpp · open source</p>
+
+      <h1>Dictation that never leaves the machine.</h1>
+
+      <p class="intro">
+        Tapybara puts a global hotkey on your keyboard. Press it, speak, press it
+        again, and the text is inserted where your caret already was — in your
+        editor, your browser, your chat window. Whisper runs locally on your own
+        GPU, so the audio is never uploaded and there is no account involved.
+      </p>
+
+      <div class="pill-stage">
+        <img src="assets/screens/pill-recording.webp" width="472" height="110"
+             alt="The Tapybara indicator: a red recording dot, a live microphone waveform, elapsed time, and the hint Ctrl+Alt+D to stop">
+        <p class="caption">the indicator, floating above every window while you talk</p>
+      </div>
+
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== HOW ===================== -->
+  <section id="how">
+    <div class="wrap">
+      <p class="eyebrow">how it works</p>
+      <h2>Three keystrokes, and no window to visit.</h2>
+      <p class="lede">
+        Tapybara lives in the tray. You never switch to it, which is the point:
+        switching away from what you were writing defeats the exercise.
+      </p>
+
+      <div class="grid3">
+        <div class="card">
+          <p class="n">01</p>
+          <h3>Press the hotkey</h3>
+          <p>The indicator appears above everything, showing your microphone level and elapsed time. Focus does not move, so your caret stays where it was.</p>
+        </div>
+        <div class="card">
+          <p class="n">02</p>
+          <h3>Speak</h3>
+          <p>Pauses become paragraph breaks, since Whisper's timings say where they were. Escape discards the recording — and other applications still receive their Escape while you dictate.</p>
+        </div>
+        <div class="card">
+          <p class="n">03</p>
+          <h3>Press it again</h3>
+          <p>The text is inserted, not left on the clipboard for you to paste. Insertion goes through a synthetic paste, which is the path that also works in Electron and Chromium apps.</p>
+        </div>
+      </div>
+
+      <div class="pill-stage" style="margin-top:34px">
+        <img src="assets/screens/pill-transcribing.webp" width="372" height="110"
+             alt="The indicator while transcribing: Transcribing… 64%, with the hint Esc to cancel">
+        <p class="caption">recognition runs after you stop, not while you speak</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== WHY LOCAL ===================== -->
+  <section id="local">
+    <div class="wrap">
+      <p class="eyebrow">why local</p>
+      <h2>The model runs where the audio is.</h2>
+
+      <p>
+        Windows has dictation built in. It is cloud-backed, and its quality for
+        languages other than English is mediocre — both of which follow from
+        where the model lives rather than from anything unfixable. Running
+        whisper.cpp yourself moves the work to your own GPU, which makes the
+        recording a local file that is deleted rather than a request to
+        somebody's server.
+      </p>
+
+      <p>
+        It also means you choose the model. Language-specific fine-tunes exist
+        and are often markedly better than the general one for their language,
+        and swapping to one is a file in a folder.
+      </p>
+
+      <p>
+        The trade is real and worth stating plainly. You download a model once —
+        several hundred megabytes of it — and you need a GPU for this to feel
+        instant. On CPU it runs at roughly the speed you spoke, which is usable
+        for a sentence and tedious for a paragraph.
+      </p>
+
+      <div class="measured">
+        <div class="row"><b>26.2 s</b><span>CPU, an i5-9600KF</span></div>
+        <div class="row"><b>12.6 s</b><span>Vulkan, first run — the driver is compiling shaders</span></div>
+        <div class="row"><b>0.52 s</b><span>Vulkan, warmed up</span></div>
+        <p class="note">
+          One 28-second sample, <code>large-v3-turbo</code>, on an RTX 3060.
+          Measured on one machine, not a benchmark suite — your own numbers are
+          the ones that matter, and the compute backend actually in use is shown
+          in the About page.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section id="settings">
+    <div class="wrap">
+      <p class="eyebrow">what you configure</p>
+      <h2>Set it up once, then forget the window.</h2>
+      <p class="lede">
+        The settings follow the system: same typography, same card layout, same
+        light and dark as everything else on the desktop.
+      </p>
+
+      <div class="shots">
+        <figure>
+          <img src="assets/screens/settings-dictation.webp" width="1200" height="840" loading="lazy"
+               alt="Tapybara settings, Dictation page: hotkey, microphone picker, insertion options and safety limits">
+          <figcaption><b>Dictation.</b> Choose the hotkey by pressing it, and pick which microphone rather than accepting whatever Windows calls default. Text can be inserted or only copied.</figcaption>
+        </figure>
+
+        <figure>
+          <img src="assets/screens/settings-models.webp" width="1200" height="840" loading="lazy"
+               alt="Tapybara settings, Models page: models folder, installed models with sizes and delete buttons, and a download list">
+          <figcaption><b>Models.</b> Downloaded from here, so there is no hunting for the right file on a model-hosting site. They live wherever you have room, and the ones you tried and did not keep can be deleted.</figcaption>
+        </figure>
+
+        <figure>
+          <img src="assets/screens/settings-recognition.webp" width="1200" height="840" loading="lazy"
+               alt="Tapybara settings, Recognition page: model selection, idle unload, recognition language and prompt">
+          <figcaption><b>Recognition.</b> Language, and a prompt that biases vocabulary and punctuation style. The model unloads after a period of inactivity, so an idle Tapybara holds no memory.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DETAILS ===================== -->
+  <section id="details">
+    <div class="wrap">
+      <p class="eyebrow">details</p>
+      <h2>Small things that only matter in use.</h2>
+
+      <div class="features">
+        <div class="feature">
+          <h3>Paragraphs from pauses</h3>
+          <p>Whisper does not mark paragraphs, but its segments carry timestamps and a pause is a fair signal that the speaker moved on. Optional, with a threshold.</p>
+        </div>
+        <div class="feature">
+          <h3>Clipboard hygiene</h3>
+          <p>Dictations stay pasteable with <kbd>Ctrl</kbd>+<kbd>V</kbd> but are kept out of the <kbd>Win</kbd>+<kbd>V</kbd> history.</p>
+        </div>
+        <div class="feature">
+          <h3>Escape stays available</h3>
+          <p>Cancelling watches the key through a hook rather than claiming it, so dialogs still close and menus still dismiss while a dictation is running.</p>
+        </div>
+        <div class="feature">
+          <h3>A replacements list</h3>
+          <p>Recognition mangles product names in predictable ways. Fixing them is a line each, including names carrying punctuation like <code>C#</code> or <code>.NET</code>.</p>
+        </div>
+        <div class="feature">
+          <h3>Recent dictations</h3>
+          <p>The last ten sit in the tray menu, in case one landed in the wrong window.</p>
+        </div>
+        <div class="feature">
+          <h3>Portable mode</h3>
+          <p>An empty <code>portable.txt</code> next to the executable moves settings and models beside it, leaving nothing in the system.</p>
+        </div>
+        <div class="feature">
+          <h3>No CUDA toolkit</h3>
+          <p>The Vulkan backend ships inside the graphics driver — NVIDIA, AMD or Intel — so there is nothing extra to install.</p>
+        </div>
+        <div class="feature">
+          <h3>English and Russian interface</h3>
+          <p>Following the system language by default. Recognition covers the 99 languages Whisper knows, detected or pinned to one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== QUICK START ===================== -->
+  <section id="start">
+    <div class="wrap">
+      <p class="eyebrow">quick start</p>
+      <h2>Unzip, fetch a model, press the hotkey.</h2>
+
+      <ol class="steps">
+        <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
+        <li><b>Open Settings › Models</b> from the tray and download one. <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB. Nothing works until this is done.</li>
+        <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>.</li>
+      </ol>
+
+      <p style="color:var(--muted)">Or build it:</p>
+      <pre><span class="c"># Windows, .NET 10 SDK</span>
+git clone https://github.com/keshon/tapybara
+cd tapybara
+build.cmd run</pre>
+
+      <div class="notice">
+        <p><b>Early development.</b> Dictation works end to end and is used daily.
+        Call recording works but is newer and less exercised. If something breaks,
+        the log sits next to the settings file and the issue tracker is open.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CALLS ===================== -->
+  <section id="calls">
+    <div class="wrap">
+      <p class="eyebrow">calls</p>
+      <h2>Two tracks, so nobody has to guess who spoke.</h2>
+
+      <p>
+        A call is recorded as your microphone and your system audio kept
+        separate. That separation does the job speaker diarisation would: in a
+        conversation between two people, who said what follows from which track
+        it landed on, without any voice comparison.
+      </p>
+
+      <p>
+        The two are merged into one chronological <code>transcript.md</code> with
+        timestamps and names. Speech that leaked from the speakers back into the
+        microphone is filtered out, and the transcript records how many lines
+        that removed — an over-eager filter is then visible instead of silent.
+      </p>
+
+      <div class="notice">
+        <p><b>Recording captures the other party too.</b> In many places recording
+        someone without telling them is unlawful, and everything audible on the
+        chosen output device is captured — notifications, music, another meeting
+        — not only the call. Tapybara says this once before the first recording
+        rather than starting quietly.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="eyebrow">faq</p>
+      <h2>Questions worth asking first.</h2>
+
+      <details>
+        <summary>Does any audio leave the machine?</summary>
+        <p>No. Recognition runs locally through whisper.cpp. The only request Tapybara makes is downloading a model when you ask it to, from Hugging Face. There is no telemetry and no server component.</p>
+      </details>
+
+      <details>
+        <summary>Why is no model included?</summary>
+        <p>Models are hundreds of megabytes, and which one suits you depends on your hardware and the language you speak. Bundling one would enlarge the download for everybody and still be the wrong choice for many. The Models page fetches it, and resumes where it left off if the connection drops.</p>
+      </details>
+
+      <details>
+        <summary>Do I need a GPU?</summary>
+        <p>Not strictly, but it is the difference between a second and a minute. Any Vulkan-capable GPU works and the runtime ships in the graphics driver. On CPU, transcription runs at roughly real time, which is fine for a sentence and tiring for a long dictation.</p>
+      </details>
+
+      <details>
+        <summary>How accurate is it?</summary>
+        <p>Good, not perfect. Names and jargon get mangled in predictable ways, which is what the replacements list is for. On silence Whisper sometimes emits phrases it learned from subtitles — "thanks for watching" and similar — and those are filtered out, deliberately conservatively, so an unusual real sentence is kept rather than an occasional artefact removed.</p>
+      </details>
+
+      <details>
+        <summary>Does it work in my editor, browser or chat app?</summary>
+        <p>Text goes in through the clipboard followed by a synthetic <kbd>Ctrl</kbd>+<kbd>V</kbd>, which works everywhere, including Electron and Chromium apps where accessibility-based insertion is accepted and then silently ignored. If the target window runs as administrator and Tapybara does not, Windows blocks the keystroke; the text is still on the clipboard and Tapybara says so.</p>
+      </details>
+
+      <details>
+        <summary>What about languages other than English?</summary>
+        <p>Whisper knows 99. Detection is the default, or one can be pinned. Fine-tunes for a specific language often punctuate better than the stock model — put one in the models folder and it appears in the list.</p>
+      </details>
+
+      <details>
+        <summary>Is there a paid version?</summary>
+        <p>No. MIT licensed, source on GitHub, nothing to sign up for.</p>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="cols">
+        <span>MIT · one maintainer</span>
+        <span>
+          <a href="https://github.com/keshon/tapybara/blob/main/README.md">README</a>
+          ·
+          <a href="https://github.com/keshon/tapybara/blob/main/docs/conventions.md">Conventions</a>
+          ·
+          <a href="https://github.com/keshon/tapybara/releases/latest">Releases</a>
+          ·
+          <a href="https://github.com/keshon/tapybara">GitHub</a>
+        </span>
+      </div>
+      <div class="foot-legal">
+        <span>© 2026 <span style="color:var(--text)">Tapybara</span>. Local voice dictation for Windows, in C#. MIT licensed.</span>
+        <span>Built by <strong>Señor Mega</strong> and best bud <strong>Claude</strong></span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
