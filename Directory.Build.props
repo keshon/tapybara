@@ -1,0 +1,38 @@
+<Project>
+  <!--
+    Directory.Build.props подхватывается MSBuild автоматически для КАЖДОГО
+    проекта в дереве папок. Общие настройки живут здесь, а не копипастятся
+    по .csproj — добавили новый проект, он сразу с теми же правилами.
+  -->
+  <PropertyGroup>
+    <!-- net10.0-windows, а не net10.0: WASAPI, UI Automation и WPF существуют
+         только на Windows. Явный windows-таргет включает анализатор
+         платформенной совместимости и убирает ложные предупреждения CA1416. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Nullable reference types: компилятор отслеживает, где значение может
+         быть null. Главная защита C# от NullReferenceException — включаем
+         сразу, потом включить будет уже дорого. -->
+    <Nullable>enable</Nullable>
+
+    <!-- Неявные using'и: System, System.Linq и т.п. не надо писать в каждом файле. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Предупреждение = ошибка. Жёстко, но в проекте, который живёт годами,
+         это единственный способ не накопить 400 «неважных» варнингов. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Русские строки в UI и в логах: инвариантную глобализацию НЕ включаем,
+         культура ru-RU нужна для форматирования дат в описаниях звонков. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- Централизованные версии пакетов: см. Directory.Packages.props -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <Company>keshon</Company>
+    <Product>TapRecorder</Product>
+  </PropertyGroup>
+</Project>

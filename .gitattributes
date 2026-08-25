@@ -1,0 +1,17 @@
+# Normalise line endings in the repository, check out native on each platform.
+# Without this, contributors on different systems produce diffs that touch
+# every line of a file they barely changed.
+* text=auto
+
+*.cs      text diff=csharp
+*.csproj  text
+*.props   text
+*.slnx    text
+*.xaml    text
+*.md      text
+*.json    text
+
+*.png binary
+*.ico binary
+*.bin binary
+*.wav binary

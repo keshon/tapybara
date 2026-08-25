@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TapRecorder.App/TapRecorder.App.csproj" />
+    <Project Path="src/TapRecorder.Core/TapRecorder.Core.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/TapRecorder.Bench/TapRecorder.Bench.csproj" />
+  </Folder>
+</Solution>
