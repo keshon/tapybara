@@ -2,6 +2,8 @@
 
 [![build](https://github.com/keshon/tapybara/actions/workflows/build.yml/badge.svg)](https://github.com/keshon/tapybara/actions/workflows/build.yml)
 
+**[tapybara.keshon.ru](https://tapybara.keshon.ru/)** · [Download](https://github.com/keshon/tapybara/releases/latest)
+
 Local voice dictation for Windows. Press a hotkey, speak, press it again — your
 words are typed into whatever application has focus.
 

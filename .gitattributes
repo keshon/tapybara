@@ -11,7 +11,8 @@
 *.md      text
 *.json    text
 
-*.png binary
-*.ico binary
+*.png  binary
+*.webp binary
+*.ico  binary
 *.bin binary
 *.wav binary
