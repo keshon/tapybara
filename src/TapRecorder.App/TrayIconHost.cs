@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using TapRecorder.App.Localization;
 using TapRecorder.Core.Dictation;
 
 namespace TapRecorder.App;
@@ -17,13 +18,17 @@ namespace TapRecorder.App;
 public sealed partial class TrayIconHost : IDisposable
 {
     private readonly NotifyIcon _icon;
+    private readonly ToolStripMenuItem _statusItem;
     private readonly ToolStripMenuItem _toggleItem;
+    private readonly ToolStripMenuItem _copyLastItem;
+    private readonly ToolStripMenuItem _retryHotkeyItem;
+    private readonly ToolStripMenuItem _modelsItem;
     private readonly ToolStripMenuItem _autoPasteItem;
     private readonly ToolStripMenuItem _autoStartItem;
-    private readonly ToolStripMenuItem _copyLastItem;
-    private readonly ToolStripMenuItem _modelsItem;
-    private readonly ToolStripMenuItem _statusItem;
-    private readonly ToolStripMenuItem _retryHotkeyItem;
+    private readonly ToolStripMenuItem _settingsItem;
+    private readonly ToolStripMenuItem _modelsFolderItem;
+    private readonly ToolStripMenuItem _exitItem;
+
     private readonly Icon _idleIcon;
     private readonly Icon _activeIcon;
     private readonly Icon _busyIcon;
@@ -40,33 +45,38 @@ public sealed partial class TrayIconHost : IDisposable
         // и без видимого признака «работаю» это выглядит как зависание.
         _busyIcon = CreateDotIcon(Color.FromArgb(255, 176, 32));
 
-        _statusItem = new ToolStripMenuItem("Готов") { Enabled = false };
-        _toggleItem = new ToolStripMenuItem("Начать диктовку", null, (_, _) => ToggleRequested?.Invoke());
-        _copyLastItem = new ToolStripMenuItem("Скопировать последний текст", null, (_, _) => CopyLastRequested?.Invoke())
-        {
-            Enabled = false,
-        };
+        _statusItem = new ToolStripMenuItem { Enabled = false };
 
-        // Обработчик вешаем ОТДЕЛЬНО от создания: лямбда читает состояние
-        // самого пункта, а внутри инициализатора поле ещё не присвоено —
-        // анализатор nullable справедливо на это ругается.
-        // CheckOnClick не включаем: галочку ставит настройка, а не сам клик,
-        // иначе при отказе сохранить настройку меню разошлось бы с реальностью.
-        _autoPasteItem = new ToolStripMenuItem("Вставлять автоматически");
-        _autoPasteItem.Click += (_, _) => AutoPasteToggled?.Invoke(!_autoPasteItem.Checked);
+        _toggleItem = new ToolStripMenuItem();
+        _toggleItem.Click += (_, _) => ToggleRequested?.Invoke();
 
-        _autoStartItem = new ToolStripMenuItem("Запускать при входе в систему");
-        _autoStartItem.Click += (_, _) => AutoStartToggled?.Invoke(!_autoStartItem.Checked);
-
-        _modelsItem = new ToolStripMenuItem("Модель");
+        _copyLastItem = new ToolStripMenuItem { Enabled = false };
+        _copyLastItem.Click += (_, _) => CopyLastRequested?.Invoke();
 
         // Хоткей мог быть занят чужим процессом в момент запуска. Требовать
         // ради этого перезапуск приложения — плохо: даём переиграть на месте.
-        _retryHotkeyItem = new ToolStripMenuItem("Занять горячую клавишу заново", null,
-            (_, _) => RetryHotkeyRequested?.Invoke())
-        {
-            Visible = false,
-        };
+        _retryHotkeyItem = new ToolStripMenuItem { Visible = false };
+        _retryHotkeyItem.Click += (_, _) => RetryHotkeyRequested?.Invoke();
+
+        _modelsItem = new ToolStripMenuItem();
+
+        // Обработчик вешаем ОТДЕЛЬНО от создания: лямбда читает состояние
+        // самого пункта, а внутри инициализатора поле ещё не присвоено.
+        // CheckOnClick не включаем: галочку ставит настройка, а не сам клик.
+        _autoPasteItem = new ToolStripMenuItem();
+        _autoPasteItem.Click += (_, _) => AutoPasteToggled?.Invoke(!_autoPasteItem.Checked);
+
+        _autoStartItem = new ToolStripMenuItem();
+        _autoStartItem.Click += (_, _) => AutoStartToggled?.Invoke(!_autoStartItem.Checked);
+
+        _settingsItem = new ToolStripMenuItem();
+        _settingsItem.Click += (_, _) => SettingsRequested?.Invoke();
+
+        _modelsFolderItem = new ToolStripMenuItem();
+        _modelsFolderItem.Click += (_, _) => OpenModelsFolderRequested?.Invoke();
+
+        _exitItem = new ToolStripMenuItem();
+        _exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(
@@ -81,8 +91,9 @@ public sealed partial class TrayIconHost : IDisposable
             _autoPasteItem,
             _autoStartItem,
             new ToolStripSeparator(),
-            new ToolStripMenuItem("Папка моделей…", null, (_, _) => OpenModelsFolderRequested?.Invoke()),
-            new ToolStripMenuItem("Выход", null, (_, _) => ExitRequested?.Invoke()),
+            _settingsItem,
+            _modelsFolderItem,
+            _exitItem,
         ]);
 
         _icon = new NotifyIcon
@@ -96,19 +107,39 @@ public sealed partial class TrayIconHost : IDisposable
         // Двойной клик по иконке — то же, что хоткей: удобно, когда рук на
         // клавиатуре нет, а надо остановить запись.
         _icon.DoubleClick += (_, _) => ToggleRequested?.Invoke();
+
+        ApplyLanguage();
     }
 
     public event Action? ToggleRequested;
     public event Action? CopyLastRequested;
     public event Action? ExitRequested;
     public event Action? OpenModelsFolderRequested;
+    public event Action? SettingsRequested;
+    public event Action? RetryHotkeyRequested;
     public event Action<bool>? AutoPasteToggled;
     public event Action<bool>? AutoStartToggled;
     public event Action<string>? ModelSelected;
-    public event Action? RetryHotkeyRequested;
 
-    /// <summary>Показать пункт «занять заново» — только когда хоткей не наш.</summary>
-    public void SetHotkeyFailed(bool failed) => _retryHotkeyItem.Visible = failed;
+    /// <summary>Перечитать все надписи из текущего языка.</summary>
+    public void ApplyLanguage()
+    {
+        _copyLastItem.Text = L.S.TrayCopyLast;
+        _retryHotkeyItem.Text = L.S.TrayRetryHotkey;
+        _modelsItem.Text = L.S.TrayModel;
+        _autoPasteItem.Text = L.S.TrayAutoPaste;
+        _autoStartItem.Text = L.S.TrayAutoStart;
+        _settingsItem.Text = L.S.TraySettings;
+        _modelsFolderItem.Text = L.S.TrayModelsFolder;
+        _exitItem.Text = L.S.TrayExit;
+
+        if (string.IsNullOrEmpty(_statusItem.Text))
+        {
+            SetStatus(L.S.StatusReady);
+        }
+
+        ApplyVisualState();
+    }
 
     /// <summary>Отразить состояние диктовки.</summary>
     public void UpdateState(DictationState state)
@@ -143,9 +174,9 @@ public sealed partial class TrayIconHost : IDisposable
 
         _toggleItem.Text = _state switch
         {
-            DictationState.Recording => "Закончить диктовку",
-            DictationState.Transcribing => "Распознаю…",
-            _ => _engineBusy ? "Загружаю модель…" : "Начать диктовку",
+            DictationState.Recording => L.S.TrayStop,
+            DictationState.Transcribing => L.S.TrayTranscribing,
+            _ => _engineBusy ? L.S.TrayLoadingModel : L.S.TrayStart,
         };
 
         _toggleItem.Enabled = _state != DictationState.Transcribing && !_engineBusy;
@@ -172,6 +203,8 @@ public sealed partial class TrayIconHost : IDisposable
 
     public void SetAutoStart(bool enabled) => _autoStartItem.Checked = enabled;
 
+    public void SetHotkeyFailed(bool failed) => _retryHotkeyItem.Visible = failed;
+
     /// <summary>Заполнить подменю выбора модели.</summary>
     public void SetModels(IEnumerable<string> fileNames, string selected)
     {
@@ -191,7 +224,7 @@ public sealed partial class TrayIconHost : IDisposable
 
         if (_modelsItem.DropDownItems.Count == 0)
         {
-            _modelsItem.DropDownItems.Add(new ToolStripMenuItem("Моделей не найдено") { Enabled = false });
+            _modelsItem.DropDownItems.Add(new ToolStripMenuItem(L.S.TrayNoModels) { Enabled = false });
         }
     }
 
@@ -209,10 +242,10 @@ public sealed partial class TrayIconHost : IDisposable
     /// Нарисовать иконку-кружок нужного цвета.
     /// </summary>
     /// <remarks>
-    /// Иконка рисуется, а не лежит файлом: их всего две (покой и запись), и
-    /// генерация избавляет от бинарников в репозитории. HICON, который отдаёт
-    /// <c>GetHicon</c>, не принадлежит .NET — делаем управляемую копию через
-    /// <c>Clone</c> и сразу освобождаем дескриптор, иначе он утекает.
+    /// Иконка рисуется, а не лежит файлом: их всего три, и генерация избавляет
+    /// от бинарников в репозитории. HICON, который отдаёт <c>GetHicon</c>, не
+    /// принадлежит .NET — делаем управляемую копию через <c>Clone</c> и сразу
+    /// освобождаем дескриптор, иначе он утекает.
     /// </remarks>
     private static Icon CreateDotIcon(Color color)
     {

@@ -7,8 +7,7 @@ Everything runs on your machine. No audio, no text, and no telemetry ever
 leaves it, and the app works with no internet connection at all.
 
 > **Status: early development.** Dictation works end to end and is usable
-> daily. Call recording is designed but not implemented yet. The user interface
-> is currently Russian only — see [Roadmap](#roadmap).
+> daily. Call recording is designed but not implemented yet.
 
 ## Why another dictation tool
 
@@ -30,6 +29,13 @@ card it transcribes a minute of speech in about a second.
 - **Clipboard hygiene** — inserted text does not pollute the Windows clipboard
   history (`Win`+`V`).
 - **Switchable models** — pick any ggml Whisper model from the tray menu.
+- **Paragraphs from pauses** — Whisper does not mark paragraphs, but its
+  segments carry timestamps, and a pause is a reliable signal that the speaker
+  moved on. Optional, with a configurable threshold.
+- **Escape cancels** — changed your mind mid-sentence? The audio is discarded.
+- **Settings window** — model, hotkey capture, prompt, replacements, storage.
+- **Portable mode** — keep settings and models next to the executable.
+- **English and Russian** interface, following the system language by default.
 
 ## Requirements
 
@@ -112,6 +118,22 @@ file for now.
 | `excludeFromClipboardHistory` | Keep dictations out of `Win`+`V` |
 | `idleUnloadMinutes` | Unload the model after this much inactivity |
 | `replacements` | Literal text substitutions applied to the result |
+| `splitParagraphsByPauses` | Start a new paragraph after a pause in speech |
+| `paragraphPauseSeconds` | How long a pause has to be |
+| `modelsDirectory` | Where to look for models, if not the default |
+| `uiLanguage` | `en`, `ru`, or absent to follow the system |
+
+### Storage and portable mode
+
+By default, settings and models live in `%APPDATA%\TapRecorder\`. Creating an
+empty file named `TapRecorder.portable` next to the executable switches the
+application to a `Data` folder beside itself instead — useful on a USB stick or
+when you would rather leave nothing behind in the system.
+
+Detection is deliberately file-based rather than a setting: reading a setting
+would require already knowing where settings live. Switching modes does not
+move existing files, because models are measured in gigabytes and that decision
+belongs to you.
 
 ### Prompts
 
@@ -240,13 +262,15 @@ Russian by design.
 
 ## Roadmap
 
-- Settings window: model picker, hotkey capture, prompt and replacement editing
 - Model downloads from a Hugging Face URL
+- Import and export of the replacements dictionary, so vocabularies can be
+  shared. Shipping preset dictionaries is deliberately **not** planned: a
+  replacement fires without understanding context, and a wrong entry in a
+  preset silently corrupts text for someone who never opened the list.
 - Push-to-talk in addition to toggle
 - Voice activity detection to trim silence
 - Streaming recognition so the tail latency approaches zero
 - Dictation history
-- English user interface
 - **Call recording**: microphone and system audio captured as separate
   channels, automatic transcription with speaker labels, and summaries
 

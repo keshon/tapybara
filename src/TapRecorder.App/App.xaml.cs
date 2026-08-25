@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using TapRecorder.App.Localization;
 using TapRecorder.Core.Dictation;
 using TapRecorder.Core.Settings;
 using TapRecorder.Core.Speech;
@@ -48,6 +50,9 @@ public partial class App : Application, IDisposable
     /// <summary>Хоткей отмены. Живёт только пока идёт диктовка.</summary>
     private HotkeyListener? _cancelHotkey;
 
+    /// <summary>Окно настроек. Оно одно: второе рассинхронизировалось бы с первым.</summary>
+    private SettingsWindow? _settingsWindow;
+
     /// <summary>Что показать на пилюле при возврате в покой.</summary>
     private string? _idleNote;
 
@@ -66,6 +71,7 @@ public partial class App : Application, IDisposable
         }
 
         _settings = SettingsStore.Load();
+        L.Use(_settings.UiLanguage);
 
         _overlay = new OverlayWindow();
         _overlay.Clicked += () => _ = ToggleAsync();
@@ -79,6 +85,7 @@ public partial class App : Application, IDisposable
         _tray.AutoStartToggled += OnAutoStartToggled;
         _tray.ModelSelected += OnModelSelected;
         _tray.RetryHotkeyRequested += StartHotkey;
+        _tray.SettingsRequested += OpenSettings;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _elapsedTimer.Tick += (_, _) =>
@@ -129,10 +136,10 @@ public partial class App : Application, IDisposable
 
         if (modelPath is null)
         {
-            _tray!.SetStatus("Модель не найдена");
+            _tray!.SetStatus(L.S.StatusModelMissing);
             _tray.ShowBalloon(
-                "Нет модели распознавания",
-                $"Положи ggml-модель в {AppPaths.DefaultModelsDirectory} и выбери её в меню.");
+                L.S.NotifyNoModelTitle,
+                string.Format(CultureInfo.CurrentCulture, L.S.NotifyNoModelBody, AppPaths.DefaultModelsDirectory));
             return;
         }
 
@@ -159,17 +166,17 @@ public partial class App : Application, IDisposable
         _controller.TextReady += text => OnUi(() => OnTextReady(text));
         _controller.Status += status => OnUi(() => _tray!.SetStatus(status));
 
-        _tray!.SetStatus("Загружаю модель…");
+        _tray!.SetStatus(L.S.StatusLoadingModel);
 
         try
         {
             var timer = Stopwatch.StartNew();
             await _engine.LoadAsync().ConfigureAwait(true);
-            _tray.SetStatus($"Готов · {WhisperEngine.LoadedRuntime} · {timer.Elapsed.TotalSeconds:F1} с");
+            _tray.SetStatus($"{L.S.StatusReady} · {WhisperEngine.LoadedRuntime} · {timer.Elapsed.TotalSeconds:F1} {L.S.Seconds}");
         }
         catch (Exception ex)
         {
-            _tray.SetStatus($"Модель не загрузилась: {ex.Message}");
+            _tray.SetStatus(string.Format(CultureInfo.CurrentCulture, L.S.StatusModelLoadFailed, ex.Message));
         }
     }
 
@@ -195,11 +202,10 @@ public partial class App : Application, IDisposable
         catch (Exception ex)
         {
             _tray!.SetHotkeyFailed(true);
-            _tray.SetStatus($"Хоткей {_settings.Hotkey} занят другим приложением");
+            _tray!.SetStatus(string.Format(CultureInfo.CurrentCulture, L.S.StatusHotkeyBusy, _settings.Hotkey));
             _tray.ShowBalloon(
-                "Горячая клавиша занята",
-                ex.Message + Environment.NewLine
-                + "Освободи её и выбери в меню «Занять горячую клавишу заново».");
+                L.S.NotifyHotkeyBusyTitle,
+                ex.Message + Environment.NewLine + L.S.NotifyHotkeyBusyHint);
         }
     }
 
@@ -209,7 +215,7 @@ public partial class App : Application, IDisposable
     {
         if (_controller is null)
         {
-            _tray!.SetStatus("Модель ещё загружается — подожди немного");
+            _tray!.SetStatus(L.S.StatusModelStillLoading);
             return;
         }
 
@@ -244,7 +250,7 @@ public partial class App : Application, IDisposable
                 // «Вставлено» через миг после её появления.
                 if (!_resultFlashed && _overlay!.IsVisible)
                 {
-                    _overlay.FlashAndHide(_idleNote ?? "Готово");
+                    _overlay.FlashAndHide(_idleNote ?? L.S.PillDone);
                 }
 
                 break;
@@ -261,12 +267,12 @@ public partial class App : Application, IDisposable
             if (_settings.AutoPaste)
             {
                 TextInserter.PasteViaClipboard(text, _settings.ExcludeFromClipboardHistory);
-                _overlay!.FlashAndHide("✓ Вставлено");
+                _overlay!.FlashAndHide(L.S.PillInserted);
             }
             else
             {
                 ClipboardWriter.SetText(text, _settings.ExcludeFromClipboardHistory);
-                _overlay!.FlashAndHide("✓ В буфере — Ctrl+V");
+                _overlay!.FlashAndHide(L.S.PillClipboardOnly);
             }
 
             _tray.SetStatus(Preview(text));
@@ -275,7 +281,7 @@ public partial class App : Application, IDisposable
         {
             // Текст уже в буфере: вставка могла не пройти из-за окна с правами
             // администратора. Пользователь не должен потерять надиктованное.
-            _overlay!.FlashAndHide("В буфере — Ctrl+V");
+            _overlay!.FlashAndHide(L.S.PillClipboardOnly);
             _tray.SetStatus(ex.Message);
         }
     }
@@ -288,7 +294,7 @@ public partial class App : Application, IDisposable
         }
 
         ClipboardWriter.SetText(text, _settings.ExcludeFromClipboardHistory);
-        _tray!.SetStatus($"В буфере: {Preview(text)}");
+        _tray!.SetStatus(string.Format(CultureInfo.CurrentCulture, L.S.StatusInClipboard, Preview(text)));
     }
 
     /// <summary>
@@ -331,8 +337,106 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        _idleNote = "Отменено";
+        _idleNote = L.S.PillCancelled;
         await _controller.CancelAsync();
+    }
+
+    // --- окно настроек -----------------------------------------------------
+
+    private void OpenSettings()
+    {
+        if (_settingsWindow is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+
+        var window = new SettingsWindow(_settings, AvailableModels());
+        window.SettingsChanged += OnSettingsChanged;
+        window.HotkeyCaptureChanged += OnHotkeyCaptureChanged;
+        window.LanguageChanged += OnLanguageChanged;
+        window.Closed += (_, _) => _settingsWindow = null;
+
+        _settingsWindow = window;
+        window.Show();
+    }
+
+    /// <summary>
+    /// Настройка изменилась. Пересобираем ровно то, на что она влияет.
+    /// </summary>
+    /// <remarks>
+    /// Сравнение со старым значением здесь не формальность: перезагрузка
+    /// модели занимает секунды, и делать её на каждое переключение галочки
+    /// «вставлять автоматически» было бы издевательством.
+    /// </remarks>
+    private void OnSettingsChanged(AppSettings updated)
+    {
+        AppSettings previous = _settings;
+        UpdateSettings(updated);
+
+        if (!Equals(previous.Hotkey, updated.Hotkey))
+        {
+            StartHotkey();
+        }
+
+        bool engineAffected =
+            previous.ModelFileName != updated.ModelFileName
+            || previous.ModelsDirectory != updated.ModelsDirectory
+            || previous.Language != updated.Language
+            || previous.Prompt != updated.Prompt
+            || previous.IdleUnloadMinutes != updated.IdleUnloadMinutes;
+
+        RefreshTrayFromSettings();
+
+        if (engineAffected)
+        {
+            _ = RebuildEngineAsync();
+        }
+    }
+
+    /// <summary>
+    /// На время записи нового сочетания глобальный хоткей снимается.
+    /// </summary>
+    /// <remarks>
+    /// Иначе нажатие текущего сочетания перехватила бы система и запустила
+    /// диктовку вместо того, чтобы дать окну настроек его записать.
+    /// </remarks>
+    private void OnHotkeyCaptureChanged(bool capturing)
+    {
+        if (capturing)
+        {
+            _hotkey?.Dispose();
+            _hotkey = null;
+        }
+        else
+        {
+            StartHotkey();
+        }
+    }
+
+    /// <summary>Сменился язык: перечитать надписи и пересобрать окно настроек.</summary>
+    private void OnLanguageChanged()
+    {
+        _tray!.ApplyLanguage();
+        RefreshTrayFromSettings();
+
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Close();
+            OpenSettings();
+        }
+    }
+
+    private IReadOnlyList<string> AvailableModels()
+    {
+        string? directory = ModelLocator.FindModelsDirectory(_settings.ModelsDirectory);
+        return directory is null
+            ? []
+            : [.. Directory.EnumerateFiles(directory, "ggml-*.bin")
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .Where(name => !name.Contains("silero", StringComparison.OrdinalIgnoreCase))
+                .Order()];
     }
 
     // --- настройки ---------------------------------------------------------
@@ -364,16 +468,7 @@ public partial class App : Application, IDisposable
 
     private void RefreshTrayFromSettings()
     {
-        string? modelsDirectory = ModelLocator.FindModelsDirectory(_settings.ModelsDirectory);
-        IEnumerable<string> models = modelsDirectory is null
-            ? []
-            : Directory.EnumerateFiles(modelsDirectory, "ggml-*.bin")
-                .Select(Path.GetFileName)
-                .OfType<string>()
-                .Where(name => !name.Contains("silero", StringComparison.OrdinalIgnoreCase))
-                .Order();
-
-        _tray!.SetModels(models, _settings.ModelFileName);
+        _tray!.SetModels(AvailableModels(), _settings.ModelFileName);
         _tray.SetAutoPaste(_settings.AutoPaste);
         _tray.SetAutoStart(AutoStart.IsEnabled);
     }

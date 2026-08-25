@@ -38,6 +38,25 @@ public sealed record AppSettings
     /// <summary>Сочетание клавиш для старта и остановки диктовки.</summary>
     public HotkeyCombo Hotkey { get; init; } = HotkeyCombo.Default;
 
+    /// <summary>
+    /// Разбивать текст на абзацы по паузам в речи.
+    /// </summary>
+    /// <remarks>
+    /// Whisper абзацы не размечает, но у его сегментов есть тайминги, и пауза
+    /// хорошо соответствует смене мысли. Точность таймингов у разных моделей
+    /// разная, поэтому это переключатель, а не поведение по умолчанию без права
+    /// отказа.
+    /// </remarks>
+    public bool SplitParagraphsByPauses { get; init; } = true;
+
+    /// <summary>Пауза в секундах, начиная с которой начинается новый абзац.</summary>
+    public double ParagraphPauseSeconds { get; init; } = 1.5;
+
+    /// <summary>Пауза для разбивки с учётом переключателя.</summary>
+    public TimeSpan EffectiveParagraphPause => SplitParagraphsByPauses
+        ? TimeSpan.FromSeconds(Math.Max(0.2, ParagraphPauseSeconds))
+        : TimeSpan.Zero;
+
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;
 
