@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using TapRecorder.App.Localization;
 using TapRecorder.Core.Windows;
 using Color = System.Windows.Media.Color;
 using Rectangle = System.Windows.Shapes.Rectangle;
@@ -67,7 +68,8 @@ public partial class OverlayWindow : Window
         RecordingPanel.Visibility = Visibility.Collapsed;
         NoteText.Visibility = Visibility.Collapsed;
         TranscribingText.Visibility = Visibility.Visible;
-        TranscribingText.Text = $"Распознаю… {percent}%";
+        TranscribingText.Text = string.Format(
+            System.Globalization.CultureInfo.CurrentCulture, L.S.PillTranscribing, percent);
     }
 
     /// <summary>Показать короткое сообщение и спрятать пилюлю.</summary>

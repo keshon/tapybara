@@ -189,7 +189,7 @@ public sealed class DictationController : IAsyncDisposable
                 .TranscribeAsync(samples, progress, cancellation.Token)
                 .ConfigureAwait(false);
 
-            Publish(string.Join(' ', segments.Select(s => s.Text)).Trim());
+            Publish(segments);
         }
         catch (OperationCanceledException)
         {
@@ -203,10 +203,11 @@ public sealed class DictationController : IAsyncDisposable
         }
     }
 
-    private void Publish(string rawText)
+    private void Publish(IReadOnlyList<TranscriptSegment> segments)
     {
         AppSettings settings = _settings();
-        string text = TextPostProcessor.ApplyReplacements(rawText, settings.Replacements);
+        string joined = TextPostProcessor.JoinSegments(segments, settings.EffectiveParagraphPause);
+        string text = TextPostProcessor.ApplyReplacements(joined, settings.Replacements);
 
         if (text.Length == 0 || TextPostProcessor.IsHallucination(text))
         {

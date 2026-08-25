@@ -70,6 +70,48 @@ public static partial class TextPostProcessor
         return Markers.Any(marker => normalized.Contains(marker, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Склеить сегменты в текст, восстановив абзацы по паузам в речи.
+    /// </summary>
+    /// <param name="segments">Сегменты с таймингами, как их отдал whisper.</param>
+    /// <param name="paragraphPause">
+    /// Пауза, начиная с которой ставится новый абзац.
+    /// <see cref="TimeSpan.Zero"/> — не разбивать вовсе.
+    /// </param>
+    /// <remarks>
+    /// Whisper не размечает абзацы: он отдаёт сегменты с пунктуацией внутри
+    /// предложений, и всё. Но у сегментов есть тайминги, а пауза — самый
+    /// честный сигнал смены мысли: человек останавливается, переходя к
+    /// следующему пункту. Просто склеив сегменты пробелом, мы выбрасываем эту
+    /// информацию и превращаем десятиминутную диктовку в одну простыню.
+    /// <para>
+    /// Границы сегментов часто приходятся на середину предложения, поэтому
+    /// внутри абзаца соединяем пробелом, а не переводом строки.
+    /// </para>
+    /// </remarks>
+    public static string JoinSegments(IReadOnlyList<TranscriptSegment> segments, TimeSpan paragraphPause)
+    {
+        if (segments.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (i > 0)
+            {
+                TimeSpan gap = segments[i].Start - segments[i - 1].End;
+                bool newParagraph = paragraphPause > TimeSpan.Zero && gap >= paragraphPause;
+                builder.Append(newParagraph ? "\n\n" : " ");
+            }
+
+            builder.Append(segments[i].Text);
+        }
+
+        return builder.ToString().Trim();
+    }
+
     /// <summary>Применить пользовательский словарь замен.</summary>
     /// <remarks>
     /// Замена идёт по границам слова и без учёта регистра: «юджайл» → «YouGile»
