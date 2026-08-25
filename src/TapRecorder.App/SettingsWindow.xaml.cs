@@ -16,6 +16,7 @@ using Wpf.Ui.Controls;
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
 using Color = System.Windows.Media.Color;
+using ColorConverter = System.Windows.Media.ColorConverter;
 using ComboBox = System.Windows.Controls.ComboBox;
 using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -51,6 +52,9 @@ public partial class SettingsWindow : FluentWindow
     private TextBox _modelsFolderBox = null!;
     private bool _capturingHotkey;
 
+    /// <summary>Страница, в которую построители складывают карточки.</summary>
+    private StackPanel _page = new();
+
     public SettingsWindow(AppSettings settings, IReadOnlyList<string> models)
     {
         _settings = settings;
@@ -64,12 +68,59 @@ public partial class SettingsWindow : FluentWindow
         FooterHint.Text = string.Format(
             CultureInfo.CurrentCulture, L.S.FooterStoragePath, AppPaths.DataDirectory);
 
-        BuildRecognitionSection();
-        BuildInputSection();
-        BuildTextSection();
-        BuildStorageSection();
-        BuildInterfaceSection();
+        AddSection(L.S.SectionRecognition, SymbolRegular.BrainCircuit24, "#4FC3F7", BuildRecognitionSection);
+        AddSection(L.S.SectionInput, SymbolRegular.Options24, "#B388FF", BuildInputSection);
+        AddSection(L.S.SectionText, SymbolRegular.TextParagraph24, "#4DD0C4", BuildTextSection);
+        AddSection(L.S.SectionStorage, SymbolRegular.FolderOpen24, "#FFB74D", BuildStorageSection);
+        AddSection(L.S.SectionInterface, SymbolRegular.LocalLanguage24, "#81C784", BuildInterfaceSection);
+
+        SectionList.SelectedIndex = 0;
     }
+
+    /// <summary>Одна страница настроек и пункт бокового меню для неё.</summary>
+    /// <param name="title">Заголовок: и в меню, и над содержимым страницы.</param>
+    /// <param name="icon">Значок пункта.</param>
+    /// <param name="accent">
+    /// Цвет значка. В системных настройках каждый раздел окрашен по-своему —
+    /// это не украшение, а способ узнавать нужный пункт периферийным зрением,
+    /// не вчитываясь в подписи.
+    /// </param>
+    /// <param name="build">Построитель карточек страницы.</param>
+    private void AddSection(string title, SymbolRegular icon, string accent, Action build)
+    {
+        _page = new StackPanel();
+        build();
+
+        var label = new StackPanel { Orientation = Orientation.Horizontal };
+        label.Children.Add(new SymbolIcon
+        {
+            Symbol = icon,
+            FontSize = 18,
+            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(accent)),
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+        });
+
+        label.Children.Add(new TextBlock
+        {
+            Text = title,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+        });
+
+        SectionList.Items.Add(new ListBoxItem { Content = label, Tag = new SectionPage(title, _page) });
+    }
+
+    /// <summary>Показать страницу выбранного раздела.</summary>
+    private void OnSectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SectionList.SelectedItem is ListBoxItem { Tag: SectionPage page })
+        {
+            PageTitle.Text = page.Title;
+            PageHost.Content = page.Content;
+        }
+    }
+
+    private sealed record SectionPage(string Title, StackPanel Content);
 
     /// <summary>Настройки изменились — вызывающий код решает, что пересобирать.</summary>
     public event Action<AppSettings>? SettingsChanged;
@@ -91,8 +142,6 @@ public partial class SettingsWindow : FluentWindow
 
     private void BuildRecognitionSection()
     {
-        AddCaption(L.S.SectionRecognition);
-
         var modelBox = new ComboBox { Width = ControlColumnWidth };
         foreach (string model in _models)
         {
@@ -171,8 +220,6 @@ public partial class SettingsWindow : FluentWindow
 
     private void BuildInputSection()
     {
-        AddCaption(L.S.SectionInput);
-
         _hotkeyButton = new Button { Content = _settings.Hotkey.ToString(), Width = ControlColumnWidth };
         _hotkeyButton.Click += (_, _) => BeginHotkeyCapture();
         AddCard(SymbolRegular.Options24, L.S.FieldHotkey, L.S.FieldHotkeyHint, _hotkeyButton);
@@ -194,8 +241,6 @@ public partial class SettingsWindow : FluentWindow
 
     private void BuildTextSection()
     {
-        AddCaption(L.S.SectionText);
-
         AddToggleCard(
             SymbolRegular.TextParagraph24,
             L.S.FieldSplitParagraphs,
@@ -234,8 +279,6 @@ public partial class SettingsWindow : FluentWindow
 
     private void BuildStorageSection()
     {
-        AddCaption(L.S.SectionStorage);
-
         _modelsFolderBox = new TextBox
         {
             Text = ModelLocator.FindModelsDirectory(_settings.ModelsDirectory) ?? AppPaths.DefaultModelsDirectory,
@@ -282,8 +325,6 @@ public partial class SettingsWindow : FluentWindow
 
     private void BuildInterfaceSection()
     {
-        AddCaption(L.S.SectionInterface);
-
         var languageBox = new ComboBox { Width = ControlColumnWidth };
         languageBox.Items.Add(L.S.FieldUiLanguageAuto);
         languageBox.Items.Add(L.S.LanguageEnglish);
@@ -396,18 +437,10 @@ public partial class SettingsWindow : FluentWindow
 
     // --- построители карточек ----------------------------------------------
 
-    private void AddCaption(string text) => Sections.Children.Add(new TextBlock
-    {
-        Text = text,
-        FontSize = 15,
-        FontWeight = FontWeights.SemiBold,
-        Margin = new Thickness(2, 22, 0, 8),
-    });
-
     /// <summary>Карточка «иконка, заголовок с описанием — контрол справа».</summary>
     private void AddCard(SymbolRegular icon, string title, string? description, UIElement control)
     {
-        Sections.Children.Add(new CardControl
+        _page.Children.Add(new CardControl
         {
             Icon = new SymbolIcon { Symbol = icon },
             Header = BuildHeader(title, description),
@@ -465,7 +498,7 @@ public partial class SettingsWindow : FluentWindow
             content.Children.Add(trailing);
         }
 
-        Sections.Children.Add(new Border
+        _page.Children.Add(new Border
         {
             Background = ThemeBrush("CardBackgroundFillColorDefaultBrush", Colors.Transparent),
             BorderBrush = ThemeBrush("CardStrokeColorDefaultBrush", Colors.Gray),
