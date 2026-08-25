@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Whisper.net.Logger;
 using TapRecorder.Core.Audio;
 using TapRecorder.Core.Calls;
+using TapRecorder.Core.Settings;
 using TapRecorder.Core.Speech;
 using TapRecorder.Core.Windows;
 
@@ -89,6 +90,16 @@ switch (command)
         CheckWindowsIntegration();
         break;
 
+    case "transcribe":
+        if (positional.Length < 2)
+        {
+            Console.Error.WriteLine("Укажи папку звонка: bench transcribe <папка>");
+            return 1;
+        }
+
+        await TranscribeCallAsync(positional[1]);
+        break;
+
     case "call":
         await RecordCallAsync(positional.Length > 1
             ? double.Parse(positional[1], CultureInfo.InvariantCulture)
@@ -104,6 +115,7 @@ switch (command)
               bench run <модель> [файл.wav]  распознать и показать тайминги
               bench dictate [модель]         живая диктовка по глобальному хоткею
               bench call [секунды]           записать звонок в два канала
+              bench transcribe <папка>       собрать транскрипт записанного звонка
 
             Модель задаётся куском имени файла: `bench run podlodka`.
 
@@ -209,6 +221,48 @@ async Task RunAsync(string modelHint, string wavPath)
     Console.WriteLine();
     Console.WriteLine($"Загрузка + прогрев: {loadTimer.Elapsed.TotalSeconds,6:F2} с");
     Console.WriteLine($"Распознавание:      {runTimer.Elapsed.TotalSeconds,6:F2} с  ({rtf:F1}× реального времени)");
+}
+
+/// <summary>
+/// Собрать транскрипт ранее записанного звонка.
+/// </summary>
+async Task TranscribeCallAsync(string callDirectory)
+{
+    CallSession? session = CallMeta.Load(callDirectory);
+    if (session is null)
+    {
+        Console.Error.WriteLine($"В {callDirectory} нет meta.json — это не папка звонка.");
+        return;
+    }
+
+    string modelPath = ResolveModel("podlodka");
+    await using var engine = new WhisperEngine(new WhisperEngineOptions
+    {
+        ModelPath = modelPath,
+        Language = "ru",
+        Prompt = promptOption,
+    });
+
+    Console.WriteLine($"Модель: {Path.GetFileName(modelPath)}");
+    Console.Write("Прогреваю движок… ");
+    await engine.LoadAsync();
+    Console.WriteLine(WhisperEngine.LoadedRuntime);
+
+    var transcriber = new CallTranscriber(engine, () => new AppSettings
+    {
+        MyName = "Я",
+        OtherSideName = "Собеседник",
+    });
+
+    var timer = Stopwatch.StartNew();
+    var progress = new Progress<string>(step => Console.WriteLine($"  {step}"));
+    string path = await transcriber.TranscribeAsync(session, progress);
+    timer.Stop();
+
+    Console.WriteLine();
+    Console.WriteLine($"Транскрипт: {path}  ({timer.Elapsed.TotalSeconds:F1} с)");
+    Console.WriteLine();
+    Console.WriteLine(await File.ReadAllTextAsync(path));
 }
 
 /// <summary>
