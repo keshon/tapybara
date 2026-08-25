@@ -9,12 +9,23 @@ namespace TapRecorder.Core.Settings;
 /// </remarks>
 public static class ModelLocator
 {
-    /// <summary>Найти папку моделей: %APPDATA%, рядом с exe, затем корень репозитория.</summary>
-    public static string? FindModelsDirectory()
+    /// <summary>
+    /// Найти папку моделей.
+    /// </summary>
+    /// <param name="overrideDirectory">
+    /// Путь, заданный пользователем в настройках. Если он указан и существует,
+    /// побеждает всё остальное.
+    /// </param>
+    public static string? FindModelsDirectory(string? overrideDirectory = null)
     {
-        if (Directory.Exists(SettingsStore.ModelsDirectory))
+        if (!string.IsNullOrWhiteSpace(overrideDirectory) && Directory.Exists(overrideDirectory))
         {
-            return SettingsStore.ModelsDirectory;
+            return overrideDirectory;
+        }
+
+        if (Directory.Exists(AppPaths.DefaultModelsDirectory))
+        {
+            return AppPaths.DefaultModelsDirectory;
         }
 
         string beside = Path.Combine(AppContext.BaseDirectory, "models");
@@ -27,9 +38,9 @@ public static class ModelLocator
     }
 
     /// <summary>Полный путь к модели по имени файла, или null, если её нет.</summary>
-    public static string? Resolve(string modelFileName)
+    public static string? Resolve(string modelFileName, string? overrideDirectory = null)
     {
-        string? directory = FindModelsDirectory();
+        string? directory = FindModelsDirectory(overrideDirectory);
         if (directory is null)
         {
             return null;
@@ -40,9 +51,9 @@ public static class ModelLocator
     }
 
     /// <summary>Любая доступная ggml-модель — запасной вариант, если настроенной нет.</summary>
-    public static string? ResolveAnyAvailable()
+    public static string? ResolveAnyAvailable(string? overrideDirectory = null)
     {
-        string? directory = FindModelsDirectory();
+        string? directory = FindModelsDirectory(overrideDirectory);
         if (directory is null)
         {
             return null;
