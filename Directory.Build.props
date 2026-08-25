@@ -32,6 +32,7 @@
     <!-- Централизованные версии пакетов: см. Directory.Packages.props -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
+    <Version>0.1.0</Version>
     <Company>keshon</Company>
     <Product>TapRecorder</Product>
   </PropertyGroup>

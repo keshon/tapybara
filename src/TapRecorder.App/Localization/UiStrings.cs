@@ -62,6 +62,7 @@ public sealed record UiStrings
     public required string SectionText { get; init; }
     public required string SectionStorage { get; init; }
     public required string SectionInterface { get; init; }
+    public required string SectionAbout { get; init; }
 
     public required string FieldModel { get; init; }
     public required string FieldRecognitionLanguage { get; init; }
@@ -96,6 +97,16 @@ public sealed record UiStrings
     public required string Minutes { get; init; }
     public required string Seconds { get; init; }
     public required string FooterStoragePath { get; init; }
+    public required string AboutTagline { get; init; }
+    public required string AboutVersion { get; init; }
+    public required string AboutAuthors { get; init; }
+    public required string AboutAuthorsValue { get; init; }
+    public required string AboutRuntime { get; init; }
+    public required string AboutRuntimeHint { get; init; }
+    public required string AboutLicense { get; init; }
+    public required string AboutComponents { get; init; }
+    public required string ButtonCopyDiagnostics { get; init; }
+    public required string DiagnosticsCopied { get; init; }
 
     public static UiStrings English { get; } = new()
     {
@@ -138,6 +149,7 @@ public sealed record UiStrings
         SectionText = "Text",
         SectionStorage = "Storage",
         SectionInterface = "Interface",
+        SectionAbout = "About",
 
         FieldModel = "Model",
         FieldRecognitionLanguage = "Recognition language",
@@ -172,6 +184,16 @@ public sealed record UiStrings
         Minutes = "min",
         Seconds = "s",
         FooterStoragePath = "Settings and models are stored in {0}",
+        AboutTagline = "Local voice dictation. Everything runs on this machine — no audio and no text ever leave it.",
+        AboutVersion = "Version",
+        AboutAuthors = "Made by",
+        AboutAuthorsValue = "Señor Mega and his best bud, Claude",
+        AboutRuntime = "Compute backend",
+        AboutRuntimeHint = "Which native library whisper.cpp actually loaded",
+        AboutLicense = "License",
+        AboutComponents = "Built on whisper.cpp, Whisper.net, NAudio and WPF-UI.",
+        ButtonCopyDiagnostics = "Copy diagnostics",
+        DiagnosticsCopied = "Diagnostics copied to the clipboard",
     };
 
     public static UiStrings Russian { get; } = new()
@@ -215,6 +237,7 @@ public sealed record UiStrings
         SectionText = "Текст",
         SectionStorage = "Хранение",
         SectionInterface = "Интерфейс",
+        SectionAbout = "О программе",
 
         FieldModel = "Модель",
         FieldRecognitionLanguage = "Язык распознавания",
@@ -249,6 +272,16 @@ public sealed record UiStrings
         Minutes = "мин",
         Seconds = "с",
         FooterStoragePath = "Настройки и модели хранятся в {0}",
+        AboutTagline = "Локальная голосовая диктовка. Всё считается на этой машине — ни звук, ни текст никуда не уходят.",
+        AboutVersion = "Версия",
+        AboutAuthors = "Авторы",
+        AboutAuthorsValue = "Señor Mega and his best bud, Claude",
+        AboutRuntime = "Вычислительный бэкенд",
+        AboutRuntimeHint = "Какая нативная библиотека whisper.cpp реально загрузилась",
+        AboutLicense = "Лицензия",
+        AboutComponents = "Работает на whisper.cpp, Whisper.net, NAudio и WPF-UI.",
+        ButtonCopyDiagnostics = "Скопировать диагностику",
+        DiagnosticsCopied = "Диагностика скопирована в буфер обмена",
     };
 }
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -8,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using TapRecorder.App.Localization;
 using TapRecorder.Core.Settings;
+using TapRecorder.Core.Speech;
 using TapRecorder.Core.Windows;
 using Wpf.Ui.Controls;
 
@@ -73,6 +75,7 @@ public partial class SettingsWindow : FluentWindow
         AddSection(L.S.SectionText, SymbolRegular.TextParagraph24, "#4DD0C4", BuildTextSection);
         AddSection(L.S.SectionStorage, SymbolRegular.FolderOpen24, "#FFB74D", BuildStorageSection);
         AddSection(L.S.SectionInterface, SymbolRegular.LocalLanguage24, "#81C784", BuildInterfaceSection);
+        AddSection(L.S.SectionAbout, SymbolRegular.Options24, "#90A4AE", BuildAboutSection);
 
         SectionList.SelectedIndex = 0;
     }
@@ -358,6 +361,83 @@ public partial class SettingsWindow : FluentWindow
         AddCard(SymbolRegular.LocalLanguage24, L.S.FieldUiLanguage, description: null, languageBox);
     }
 
+    private void BuildAboutSection()
+    {
+        var tagline = new TextBlock
+        {
+            Text = L.S.AboutTagline,
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.8,
+            Margin = new Thickness(2, 0, 0, 14),
+        };
+
+        _page.Children.Add(tagline);
+
+        AddCard(SymbolRegular.Options24, L.S.AboutVersion, description: null, ValueText(AppVersion));
+
+        AddCard(SymbolRegular.Options24, L.S.AboutAuthors, description: null, ValueText(L.S.AboutAuthorsValue));
+
+        // Бэкенд показываем именно здесь: библиотека молча откатывается с GPU
+        // на CPU, если нативную сборку не удалось загрузить, и без этой строки
+        // разница в скорости в полсотни раз выглядит необъяснимой.
+        AddCard(
+            SymbolRegular.BrainCircuit24,
+            L.S.AboutRuntime,
+            L.S.AboutRuntimeHint,
+            ValueText(WhisperEngine.LoadedRuntime));
+
+        AddCard(SymbolRegular.Options24, L.S.AboutLicense, description: null, ValueText("MIT"));
+
+        var copy = new Button
+        {
+            Content = L.S.ButtonCopyDiagnostics,
+            MinWidth = 180,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        copy.Click += (_, _) =>
+        {
+            ClipboardWriter.SetText(BuildDiagnostics(), excludeFromHistory: false);
+            copy.Content = L.S.DiagnosticsCopied;
+        };
+
+        AddStackedCard(
+            SymbolRegular.ArrowReset24,
+            "TapRecorder",
+            L.S.AboutComponents,
+            copy,
+            trailing: null);
+    }
+
+    /// <summary>Сводка окружения — чтобы её можно было приложить к отчёту об ошибке.</summary>
+    private string BuildDiagnostics()
+    {
+        var builder = new StringBuilder();
+        builder.Append("TapRecorder ").AppendLine(AppVersion);
+        builder.Append("OS: ").AppendLine(Environment.OSVersion.VersionString);
+        builder.Append("Runtime: ").AppendLine(Environment.Version.ToString());
+        builder.Append("Backend: ").AppendLine(WhisperEngine.LoadedRuntime);
+        builder.Append("Model: ").AppendLine(_settings.ModelFileName);
+        builder.Append("Language: ").AppendLine(_settings.Language);
+        builder.Append("Data: ").AppendLine(AppPaths.DataDirectory);
+        builder.Append("Portable: ").AppendLine(AppPaths.IsPortable ? "yes" : "no");
+        return builder.ToString();
+    }
+
+    private static string AppVersion =>
+        Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
+
+    private static TextBlock ValueText(string text) => new()
+    {
+        Text = text,
+        Opacity = 0.75,
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = ControlColumnWidth,
+        TextAlignment = TextAlignment.Right,
+        VerticalAlignment = System.Windows.VerticalAlignment.Center,
+    };
+
     // --- захват сочетания клавиш -------------------------------------------
 
     private void BeginHotkeyCapture()
@@ -625,6 +705,25 @@ public partial class SettingsWindow : FluentWindow
     {
         _settings = settings;
         SettingsChanged?.Invoke(settings);
+    }
+
+    /// <summary>
+    /// Не давать окну разворачиваться на весь экран.
+    /// </summary>
+    /// <remarks>
+    /// Кнопку разворота мы убрали, но остаются двойной клик по заголовку и
+    /// Win+Стрелка вверх. Содержимое — колонка карточек фиксированной ширины,
+    /// на 27 дюймах во весь экран это выглядело бы полосой текста посреди
+    /// пустоты. Ширину ограничивает MaxWidth, высота свободна.
+    /// </remarks>
+    protected override void OnStateChanged(EventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        base.OnStateChanged(e);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
