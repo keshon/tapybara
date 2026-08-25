@@ -82,6 +82,9 @@ public sealed record AppSettings
     /// </remarks>
     public bool NormalizeAudio { get; init; } = true;
 
+    /// <summary>Куда складывать записи звонков. <c>null</c> — папка по умолчанию.</summary>
+    public string? CallsDirectory { get; init; }
+
     /// <summary>Как подписывать свои реплики в транскрипте звонка.</summary>
     public string MyName { get; init; } = "Me";
 

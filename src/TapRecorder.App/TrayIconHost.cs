@@ -27,6 +27,8 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly ToolStripMenuItem _autoStartItem;
     private readonly ToolStripMenuItem _settingsItem;
     private readonly ToolStripMenuItem _modelsFolderItem;
+    private readonly ToolStripMenuItem _recordCallItem;
+    private readonly ToolStripMenuItem _callsFolderItem;
     private readonly ToolStripMenuItem _exitItem;
 
     private readonly Icon _idleIcon;
@@ -35,6 +37,7 @@ public sealed partial class TrayIconHost : IDisposable
 
     private DictationState _state = DictationState.Idle;
     private bool _engineBusy;
+    private bool _recordingCall;
 
     public TrayIconHost()
     {
@@ -75,6 +78,12 @@ public sealed partial class TrayIconHost : IDisposable
         _modelsFolderItem = new ToolStripMenuItem();
         _modelsFolderItem.Click += (_, _) => OpenModelsFolderRequested?.Invoke();
 
+        _recordCallItem = new ToolStripMenuItem();
+        _recordCallItem.Click += (_, _) => RecordCallRequested?.Invoke();
+
+        _callsFolderItem = new ToolStripMenuItem();
+        _callsFolderItem.Click += (_, _) => OpenCallsFolderRequested?.Invoke();
+
         _exitItem = new ToolStripMenuItem();
         _exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
@@ -86,6 +95,8 @@ public sealed partial class TrayIconHost : IDisposable
             _toggleItem,
             _copyLastItem,
             new ToolStripSeparator(),
+            _recordCallItem,
+            new ToolStripSeparator(),
             _retryHotkeyItem,
             _modelsItem,
             _autoPasteItem,
@@ -93,6 +104,7 @@ public sealed partial class TrayIconHost : IDisposable
             new ToolStripSeparator(),
             _settingsItem,
             _modelsFolderItem,
+            _callsFolderItem,
             _exitItem,
         ]);
 
@@ -115,6 +127,8 @@ public sealed partial class TrayIconHost : IDisposable
     public event Action? CopyLastRequested;
     public event Action? ExitRequested;
     public event Action? OpenModelsFolderRequested;
+    public event Action? OpenCallsFolderRequested;
+    public event Action? RecordCallRequested;
     public event Action? SettingsRequested;
     public event Action? RetryHotkeyRequested;
     public event Action<bool>? AutoPasteToggled;
@@ -131,6 +145,7 @@ public sealed partial class TrayIconHost : IDisposable
         _autoStartItem.Text = L.S.TrayAutoStart;
         _settingsItem.Text = L.S.TraySettings;
         _modelsFolderItem.Text = L.S.TrayModelsFolder;
+        _callsFolderItem.Text = L.S.TrayCallsFolder;
         _exitItem.Text = L.S.TrayExit;
 
         if (string.IsNullOrEmpty(_statusItem.Text))
@@ -145,6 +160,13 @@ public sealed partial class TrayIconHost : IDisposable
     public void UpdateState(DictationState state)
     {
         _state = state;
+        ApplyVisualState();
+    }
+
+    /// <summary>Идёт ли запись звонка.</summary>
+    public void SetRecordingCall(bool recording)
+    {
+        _recordingCall = recording;
         ApplyVisualState();
     }
 
@@ -169,8 +191,11 @@ public sealed partial class TrayIconHost : IDisposable
         {
             DictationState.Recording => _activeIcon,
             DictationState.Transcribing => _busyIcon,
+            _ when _recordingCall => _activeIcon,
             _ => _engineBusy ? _busyIcon : _idleIcon,
         };
+
+        _recordCallItem.Text = _recordingCall ? L.S.TrayStopRecording : L.S.TrayStartRecording;
 
         _toggleItem.Text = _state switch
         {

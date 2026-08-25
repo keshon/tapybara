@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using TapRecorder.App.Localization;
+using TapRecorder.Core.Calls;
 using TapRecorder.Core.Dictation;
 using TapRecorder.Core.Settings;
 using TapRecorder.Core.Speech;
@@ -53,6 +54,10 @@ public partial class App : Application, IDisposable
     /// <summary>Окно настроек. Оно одно: второе рассинхронизировалось бы с первым.</summary>
     private SettingsWindow? _settingsWindow;
 
+    private readonly CallRecorder _callRecorder = new();
+    private SpeechDetector? _detector;
+    private CallTranscriber? _callTranscriber;
+
     /// <summary>Что показать на пилюле при возврате в покой.</summary>
     private string? _idleNote;
 
@@ -86,6 +91,8 @@ public partial class App : Application, IDisposable
         _tray.ModelSelected += OnModelSelected;
         _tray.RetryHotkeyRequested += StartHotkey;
         _tray.SettingsRequested += OpenSettings;
+        _tray.RecordCallRequested += () => _ = ToggleCallRecordingAsync();
+        _tray.OpenCallsFolderRequested += OpenCallsFolder;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _elapsedTimer.Tick += (_, _) =>
@@ -93,6 +100,14 @@ public partial class App : Application, IDisposable
             if (_controller is { State: DictationState.Recording } controller)
             {
                 _overlay!.UpdateElapsed(controller.Elapsed);
+            }
+
+            if (_callRecorder.IsRecording)
+            {
+                _tray!.SetStatus(string.Format(
+                    CultureInfo.CurrentCulture,
+                    L.S.StatusRecordingCall,
+                    Stamp(_callRecorder.Elapsed)));
             }
         };
 
@@ -158,6 +173,25 @@ public partial class App : Application, IDisposable
             Prompt = _settings.Prompt,
             IdleUnloadAfter = TimeSpan.FromMinutes(_settings.IdleUnloadMinutes),
         });
+
+        SpeechDetector? detector = null;
+        if (_settings.UseVoiceActivityDetection)
+        {
+            string? vadPath = ModelLocator.ResolveVadModel(_settings.VadModelFileName, _settings.ModelsDirectory);
+            if (vadPath is not null)
+            {
+                detector = new SpeechDetector(new SpeechDetectorOptions
+                {
+                    ModelPath = vadPath,
+                    Threshold = (float)_settings.VadThreshold,
+                });
+            }
+        }
+
+        _detector = detector;
+        _callTranscriber = new CallTranscriber(
+            new SpeechTranscriber(_engine, detector, _settings.NormalizeAudio),
+            () => _settings);
 
         _controller = new DictationController(_engine, () => _settings);
         _controller.StateChanged += state => OnUi(() => OnStateChanged(state));
@@ -233,17 +267,17 @@ public partial class App : Application, IDisposable
                 _idleNote = null;
                 _resultFlashed = false;
                 _overlay!.ShowRecording(_settings.Hotkey.ToString());
-                _elapsedTimer!.Start();
+                UpdateElapsedTimer();
                 StartCancelHotkey();
                 break;
 
             case DictationState.Transcribing:
-                _elapsedTimer!.Stop();
+                UpdateElapsedTimer();
                 _overlay!.ShowTranscribing(0);
                 break;
 
             case DictationState.Idle:
-                _elapsedTimer!.Stop();
+                UpdateElapsedTimer();
                 StopCancelHotkey();
 
                 // Порядок событий: TextReady приходит РАНЬШЕ перехода в покой,
@@ -341,6 +375,106 @@ public partial class App : Application, IDisposable
         _idleNote = L.S.PillCancelled;
         await _controller.CancelAsync();
     }
+
+    // --- запись звонков ----------------------------------------------------
+
+    /// <summary>Начать запись звонка, если стоим; закончить и распознать, если пишем.</summary>
+    private async Task ToggleCallRecordingAsync()
+    {
+        try
+        {
+            if (!_callRecorder.IsRecording)
+            {
+                _callRecorder.Start(CallsDirectory());
+                _tray!.SetRecordingCall(true);
+                UpdateElapsedTimer();
+                return;
+            }
+
+            CallSession? session = await _callRecorder.StopAsync();
+            _tray!.SetRecordingCall(false);
+            UpdateElapsedTimer();
+
+            if (session is not null)
+            {
+                await TranscribeCallAsync(session);
+            }
+        }
+        catch (Exception ex)
+        {
+            _tray!.SetRecordingCall(false);
+            _tray.SetStatus(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Распознать записанный звонок.
+    /// </summary>
+    /// <remarks>
+    /// Запись уже на диске, поэтому сбой распознавания её не теряет: звонок
+    /// можно будет разобрать позже, а не переживать разговор заново.
+    /// </remarks>
+    private async Task TranscribeCallAsync(CallSession session)
+    {
+        if (_callTranscriber is not { } transcriber)
+        {
+            _tray!.SetStatus(L.S.StatusModelStillLoading);
+            return;
+        }
+
+        _tray!.SetStatus(L.S.StatusTranscribingCall);
+        _tray.SetEngineBusy(true);
+        try
+        {
+            string path = await transcriber.TranscribeAsync(session);
+            _tray.SetStatus(string.Format(
+                CultureInfo.CurrentCulture, L.S.StatusCallSaved, Path.GetFileName(session.Directory)));
+            _tray.ShowBalloon(L.S.NotifyCallReadyTitle, path);
+        }
+        catch (Exception ex)
+        {
+            _tray.SetStatus(ex.Message);
+        }
+        finally
+        {
+            _tray.SetEngineBusy(false);
+        }
+    }
+
+    private string CallsDirectory() => _settings.CallsDirectory ?? AppPaths.DefaultCallsDirectory;
+
+    private void OpenCallsFolder()
+    {
+        string directory = CallsDirectory();
+        Directory.CreateDirectory(directory);
+        Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
+    }
+
+    /// <summary>
+    /// Таймер тикает, пока идёт хоть что-то с секундомером.
+    /// </summary>
+    /// <remarks>
+    /// Диктовка и запись звонка независимы и могут идти одновременно. Пусть
+    /// решение о таймере принимается в одном месте: иначе конец диктовки
+    /// останавливал бы счётчик идущей записи звонка.
+    /// </remarks>
+    private void UpdateElapsedTimer()
+    {
+        bool needed = _callRecorder.IsRecording
+                      || _controller is { State: DictationState.Recording };
+
+        if (needed)
+        {
+            _elapsedTimer!.Start();
+        }
+        else
+        {
+            _elapsedTimer!.Stop();
+        }
+    }
+
+    private static string Stamp(TimeSpan elapsed) =>
+        $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
 
     // --- окно настроек -----------------------------------------------------
 
@@ -506,6 +640,13 @@ public partial class App : Application, IDisposable
             _engine = null;
             await engine.DisposeAsync().ConfigureAwait(true);
         }
+
+        _callTranscriber = null;
+        if (_detector is { } detector)
+        {
+            _detector = null;
+            await detector.DisposeAsync().ConfigureAwait(true);
+        }
     }
 
     /// <summary>
@@ -543,6 +684,9 @@ public partial class App : Application, IDisposable
         _hotkey = null;
 
         StopCancelHotkey();
+
+        // Запись звонка на выходе не бросаем: файлы дописываются и закрываются.
+        _callRecorder.Dispose();
 
         DisposeEngineAndControllerOnExit();
 

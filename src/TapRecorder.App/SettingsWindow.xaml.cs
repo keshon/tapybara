@@ -75,6 +75,7 @@ public partial class SettingsWindow : FluentWindow
         AddSection(L.S.SectionText, SymbolRegular.TextParagraph24, "#4DD0C4", BuildTextSection);
         AddSection(L.S.SectionStorage, SymbolRegular.FolderOpen24, "#FFB74D", BuildStorageSection);
         AddSection(L.S.SectionInterface, SymbolRegular.LocalLanguage24, "#81C784", BuildInterfaceSection);
+        AddSection(L.S.SectionCalls, SymbolRegular.Mic24, "#F06292", BuildCallsSection);
         AddSection(L.S.SectionAbout, SymbolRegular.Options24, "#90A4AE", BuildAboutSection);
 
         SectionList.SelectedIndex = 0;
@@ -219,6 +220,111 @@ public partial class SettingsWindow : FluentWindow
                 _settings.IdleUnloadMinutes,
                 L.S.Minutes,
                 value => Apply(_settings with { IdleUnloadMinutes = Math.Clamp((int)value, 1, 240) })));
+
+        AddToggleCard(
+            SymbolRegular.Mic24,
+            L.S.FieldUseVad,
+            L.S.FieldUseVadHint,
+            _settings.UseVoiceActivityDetection,
+            value => Apply(_settings with { UseVoiceActivityDetection = value }));
+
+        IReadOnlyList<string> vadModels = ModelLocator.ListVadModels(_settings.ModelsDirectory);
+        if (vadModels.Count > 0)
+        {
+            var vadBox = new ComboBox { Width = ControlColumnWidth };
+            foreach (string model in vadModels)
+            {
+                vadBox.Items.Add(PrettyModelName(model));
+            }
+
+            int selectedVad = vadModels.ToList().FindIndex(
+                m => string.Equals(m, _settings.VadModelFileName, StringComparison.OrdinalIgnoreCase));
+            vadBox.SelectedIndex = selectedVad >= 0 ? selectedVad : 0;
+            vadBox.SelectionChanged += (_, _) =>
+            {
+                if (vadBox.SelectedIndex >= 0 && vadBox.SelectedIndex < vadModels.Count)
+                {
+                    Apply(_settings with { VadModelFileName = vadModels[vadBox.SelectedIndex] });
+                }
+            };
+
+            AddCard(SymbolRegular.BrainCircuit24, L.S.FieldVadModel, description: null, vadBox);
+        }
+
+        AddCard(
+            SymbolRegular.Options24,
+            L.S.FieldVadThreshold,
+            L.S.FieldVadThresholdHint,
+            NumberField(
+                _settings.VadThreshold,
+                string.Empty,
+                value => Apply(_settings with { VadThreshold = Math.Clamp(value, 0.05, 0.95) })));
+
+        AddToggleCard(
+            SymbolRegular.TextAlignLeft24,
+            L.S.FieldNormalize,
+            L.S.FieldNormalizeHint,
+            _settings.NormalizeAudio,
+            value => Apply(_settings with { NormalizeAudio = value }));
+    }
+
+    private void BuildCallsSection()
+    {
+        var callsFolderBox = new TextBox
+        {
+            Text = _settings.CallsDirectory ?? AppPaths.DefaultCallsDirectory,
+            IsReadOnly = true,
+        };
+
+        var browse = new Button { Content = L.S.ButtonBrowse, MinWidth = 110, Margin = new Thickness(0, 0, 8, 0) };
+        browse.Click += (_, _) =>
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = callsFolderBox.Text };
+            if (dialog.ShowDialog(this) == true)
+            {
+                callsFolderBox.Text = dialog.FolderName;
+                Apply(_settings with { CallsDirectory = dialog.FolderName });
+            }
+        };
+
+        var open = new Button { Content = L.S.ButtonOpen, MinWidth = 110 };
+        open.Click += (_, _) =>
+        {
+            Directory.CreateDirectory(callsFolderBox.Text);
+            Process.Start(new ProcessStartInfo(callsFolderBox.Text) { UseShellExecute = true });
+        };
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        buttons.Children.Add(browse);
+        buttons.Children.Add(open);
+
+        AddStackedCard(SymbolRegular.FolderOpen24, L.S.FieldCallsFolder, description: null, callsFolderBox, buttons);
+
+        AddCard(
+            SymbolRegular.Mic24,
+            L.S.FieldMyName,
+            L.S.FieldMyNameHint,
+            TextField(_settings.MyName, value => Apply(_settings with { MyName = value })));
+
+        AddCard(
+            SymbolRegular.ClipboardPaste24,
+            L.S.FieldOtherSideName,
+            description: null,
+            TextField(_settings.OtherSideName, value => Apply(_settings with { OtherSideName = value })));
+
+        AddCard(
+            SymbolRegular.LocalLanguage24,
+            L.S.FieldOtherSideLanguage,
+            L.S.FieldOtherSideLanguageHint,
+            TextField(
+                _settings.OtherSideLanguage,
+                value => Apply(_settings with { OtherSideLanguage = value.ToLowerInvariant() })));
     }
 
     private void BuildInputSection()
@@ -615,6 +721,31 @@ public partial class SettingsWindow : FluentWindow
         }
 
         return panel;
+    }
+
+    /// <summary>Однострочное поле, применяющее значение по потере фокуса.</summary>
+    /// <remarks>
+    /// Именно по потере фокуса, а не по каждому нажатию клавиши: иначе
+    /// настройка сохранялась бы на каждую букву, а промежуточные обрывки
+    /// вроде «Со» успели бы попасть в транскрипт.
+    /// </remarks>
+    private static TextBox TextField(string initial, Action<string> onChange)
+    {
+        var box = new TextBox { Width = ControlColumnWidth, Text = initial };
+        box.LostFocus += (_, _) =>
+        {
+            string value = box.Text.Trim();
+            if (value.Length > 0)
+            {
+                onChange(value);
+            }
+            else
+            {
+                box.Text = initial;
+            }
+        };
+
+        return box;
     }
 
     /// <summary>Поле для числа с подписью единиц измерения.</summary>
