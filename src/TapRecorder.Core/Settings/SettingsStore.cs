@@ -15,15 +15,10 @@ public static class SettingsStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    /// <summary>Папка с данными приложения. Создаётся при первом обращении.</summary>
-    public static string DataDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "TapRecorder");
+    /// <summary>Папка с данными приложения — с учётом портативного режима.</summary>
+    public static string DataDirectory => AppPaths.DataDirectory;
 
-    /// <summary>Папка с моделями распознавания.</summary>
-    public static string ModelsDirectory { get; } = Path.Combine(DataDirectory, "models");
-
-    public static string SettingsPath { get; } = Path.Combine(DataDirectory, "settings.json");
+    public static string SettingsPath => AppPaths.SettingsPath;
 
     /// <summary>Прочитать настройки. Битый или отсутствующий файл — это значения по умолчанию.</summary>
     public static AppSettings Load()
@@ -56,7 +51,7 @@ public static class SettingsStore
     /// </remarks>
     public static void Save(AppSettings settings)
     {
-        Directory.CreateDirectory(DataDirectory);
+        Directory.CreateDirectory(AppPaths.DataDirectory);
 
         string temp = SettingsPath + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));

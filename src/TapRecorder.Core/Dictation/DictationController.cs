@@ -102,8 +102,37 @@ public sealed class DictationController : IAsyncDisposable
         }
     }
 
-    /// <summary>Отменить идущее распознавание — текст не нужен.</summary>
-    public void CancelTranscription() => _transcribeCancellation?.Cancel();
+    /// <summary>
+    /// Отменить диктовку и выбросить записанное.
+    /// </summary>
+    /// <remarks>
+    /// Отмена — не то же самое, что остановка. Остановка распознаёт записанное,
+    /// отмена выбрасывает его: пользователь передумал, и вставлять ему в текст
+    /// ничего не надо. Работает и во время записи, и во время распознавания.
+    /// </remarks>
+    public async Task CancelAsync()
+    {
+        if (State == DictationState.Transcribing)
+        {
+            _transcribeCancellation?.Cancel();
+            return;
+        }
+
+        if (State != DictationState.Recording || !await _busy.WaitAsync(0).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            await ResetToIdleAsync().ConfigureAwait(false);
+            Status?.Invoke("Диктовка отменена");
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
 
     private void StartRecording()
     {

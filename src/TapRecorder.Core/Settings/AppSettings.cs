@@ -12,8 +12,22 @@ public sealed record AppSettings
     /// </remarks>
     public string ModelFileName { get; init; } = "ggml-podlodka-turbo-q8_0.bin";
 
-    /// <summary>Язык распознавания.</summary>
+    /// <summary>Язык распознавания. Не ограничен двумя — whisper знает 99.</summary>
     public string Language { get; init; } = "ru";
+
+    /// <summary>
+    /// Язык интерфейса: <c>"en"</c>, <c>"ru"</c> или <c>null</c> — по системной локали.
+    /// </summary>
+    public string? UiLanguage { get; init; }
+
+    /// <summary>
+    /// Папка с моделями, заданная пользователем. <c>null</c> — папка по умолчанию
+    /// внутри данных приложения.
+    /// </summary>
+    /// <remarks>
+    /// Модели весят гигабайты, и держать их на системном диске хочется не всем.
+    /// </remarks>
+    public string? ModelsDirectory { get; init; }
 
     /// <summary>
     /// Подсказка словаря. Влияет не только на термины, но и на стиль:

@@ -26,11 +26,19 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly ToolStripMenuItem _retryHotkeyItem;
     private readonly Icon _idleIcon;
     private readonly Icon _activeIcon;
+    private readonly Icon _busyIcon;
+
+    private DictationState _state = DictationState.Idle;
+    private bool _engineBusy;
 
     public TrayIconHost()
     {
         _idleIcon = CreateDotIcon(Color.FromArgb(210, 210, 215));
         _activeIcon = CreateDotIcon(Color.FromArgb(255, 77, 77));
+
+        // Третий цвет нужен не для красоты: загрузка модели занимает секунды,
+        // и без видимого признака «работаю» это выглядит как зависание.
+        _busyIcon = CreateDotIcon(Color.FromArgb(255, 176, 32));
 
         _statusItem = new ToolStripMenuItem("Готов") { Enabled = false };
         _toggleItem = new ToolStripMenuItem("Начать диктовку", null, (_, _) => ToggleRequested?.Invoke());
@@ -102,18 +110,50 @@ public sealed partial class TrayIconHost : IDisposable
     /// <summary>Показать пункт «занять заново» — только когда хоткей не наш.</summary>
     public void SetHotkeyFailed(bool failed) => _retryHotkeyItem.Visible = failed;
 
-    /// <summary>Отразить состояние диктовки в иконке и пункте меню.</summary>
+    /// <summary>Отразить состояние диктовки.</summary>
     public void UpdateState(DictationState state)
     {
-        _icon.Icon = state == DictationState.Recording ? _activeIcon : _idleIcon;
-        _toggleItem.Text = state switch
+        _state = state;
+        ApplyVisualState();
+    }
+
+    /// <summary>Движок занят: грузится или переключается модель.</summary>
+    public void SetEngineBusy(bool busy)
+    {
+        _engineBusy = busy;
+        ApplyVisualState();
+    }
+
+    /// <summary>
+    /// Свести состояние диктовки и занятость движка к одной картинке.
+    /// </summary>
+    /// <remarks>
+    /// Единая точка вычисления вида: два независимых флага, каждый из которых
+    /// правит иконку сам по себе, неизбежно разъезжаются — второй затирает
+    /// первый в зависимости от порядка вызовов.
+    /// </remarks>
+    private void ApplyVisualState()
+    {
+        _icon.Icon = _state switch
+        {
+            DictationState.Recording => _activeIcon,
+            DictationState.Transcribing => _busyIcon,
+            _ => _engineBusy ? _busyIcon : _idleIcon,
+        };
+
+        _toggleItem.Text = _state switch
         {
             DictationState.Recording => "Закончить диктовку",
             DictationState.Transcribing => "Распознаю…",
-            _ => "Начать диктовку",
+            _ => _engineBusy ? "Загружаю модель…" : "Начать диктовку",
         };
 
-        _toggleItem.Enabled = state != DictationState.Transcribing;
+        _toggleItem.Enabled = _state != DictationState.Transcribing && !_engineBusy;
+
+        // Меню моделей во время переключения тоже блокируем: второй выбор,
+        // пришедший поверх незавершённого первого, оставил бы настройку и
+        // реально загруженную модель разными.
+        _modelsItem.Enabled = !_engineBusy && _state == DictationState.Idle;
     }
 
     /// <summary>Строка состояния вверху меню и всплывающая подсказка иконки.</summary>
@@ -207,5 +247,6 @@ public sealed partial class TrayIconHost : IDisposable
         _icon.Dispose();
         _idleIcon.Dispose();
         _activeIcon.Dispose();
+        _busyIcon.Dispose();
     }
 }

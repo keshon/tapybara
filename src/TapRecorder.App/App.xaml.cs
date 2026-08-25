@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -32,6 +33,9 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private const string InstanceMutexName = @"Local\TapRecorder.SingleInstance";
 
+    /// <summary>Виртуальный код клавиши Escape.</summary>
+    private const ushort VirtualKeyEscape = 0x1B;
+
     private Mutex? _instanceMutex;
     private AppSettings _settings = new();
     private WhisperEngine? _engine;
@@ -40,6 +44,15 @@ public partial class App : Application, IDisposable
     private TrayIconHost? _tray;
     private OverlayWindow? _overlay;
     private DispatcherTimer? _elapsedTimer;
+
+    /// <summary>Хоткей отмены. Живёт только пока идёт диктовка.</summary>
+    private HotkeyListener? _cancelHotkey;
+
+    /// <summary>Что показать на пилюле при возврате в покой.</summary>
+    private string? _idleNote;
+
+    /// <summary>Вспышка с результатом уже показана — не перетирать её.</summary>
+    private bool _resultFlashed;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -77,8 +90,8 @@ public partial class App : Application, IDisposable
         };
 
         RefreshTrayFromSettings();
-        BuildEngineAndController();
         StartHotkey();
+        _ = RebuildEngineAsync();
     }
 
     // --- сборка движка -----------------------------------------------------
@@ -90,19 +103,36 @@ public partial class App : Application, IDisposable
     /// Вызывается заново при смене модели: движок держит загруженную модель,
     /// и подменить её у живого объекта нельзя — проще пересобрать.
     /// </remarks>
-    private void BuildEngineAndController()
+    private async Task RebuildEngineAsync()
     {
-        DisposeEngineAndController();
+        _tray!.SetEngineBusy(true);
+        try
+        {
+            await RebuildEngineCoreAsync();
+        }
+        finally
+        {
+            _tray.SetEngineBusy(false);
+        }
+    }
 
-        string? modelPath = ModelLocator.Resolve(_settings.ModelFileName)
-                            ?? ModelLocator.ResolveAnyAvailable();
+    private async Task RebuildEngineCoreAsync()
+    {
+        // ВАЖНО: освобождение асинхронное. Синхронное ожидание здесь морозило
+        // весь интерфейс: движок держит семафор всё время прогрева, а прогрев
+        // после смены модели занимает секунды — иконка в трее переставала
+        // отвечать, и это выглядело как зависание приложения.
+        await DisposeEngineAndControllerAsync();
+
+        string? modelPath = ModelLocator.Resolve(_settings.ModelFileName, _settings.ModelsDirectory)
+                            ?? ModelLocator.ResolveAnyAvailable(_settings.ModelsDirectory);
 
         if (modelPath is null)
         {
             _tray!.SetStatus("Модель не найдена");
             _tray.ShowBalloon(
                 "Нет модели распознавания",
-                $"Положи ggml-модель в {SettingsStore.ModelsDirectory} и выбери её в меню.");
+                $"Положи ggml-модель в {AppPaths.DefaultModelsDirectory} и выбери её в меню.");
             return;
         }
 
@@ -129,23 +159,17 @@ public partial class App : Application, IDisposable
         _controller.TextReady += text => OnUi(() => OnTextReady(text));
         _controller.Status += status => OnUi(() => _tray!.SetStatus(status));
 
-        _tray!.SetStatus("Прогреваю модель…");
-        WarmUpAsync();
-    }
+        _tray!.SetStatus("Загружаю модель…");
 
-    /// <summary>Прогрев в фоне: к первой диктовке движок уже готов.</summary>
-    private async void WarmUpAsync()
-    {
-        WhisperEngine engine = _engine!;
         try
         {
             var timer = Stopwatch.StartNew();
-            await engine.LoadAsync().ConfigureAwait(true);
-            _tray!.SetStatus($"Готов · {WhisperEngine.LoadedRuntime} · {timer.Elapsed.TotalSeconds:F1} с");
+            await _engine.LoadAsync().ConfigureAwait(true);
+            _tray.SetStatus($"Готов · {WhisperEngine.LoadedRuntime} · {timer.Elapsed.TotalSeconds:F1} с");
         }
         catch (Exception ex)
         {
-            _tray!.SetStatus($"Модель не загрузилась: {ex.Message}");
+            _tray.SetStatus($"Модель не загрузилась: {ex.Message}");
         }
     }
 
@@ -185,7 +209,7 @@ public partial class App : Application, IDisposable
     {
         if (_controller is null)
         {
-            _tray!.ShowBalloon("Нечем распознавать", "Сначала выбери модель в меню.");
+            _tray!.SetStatus("Модель ещё загружается — подожди немного");
             return;
         }
 
@@ -199,8 +223,11 @@ public partial class App : Application, IDisposable
         switch (state)
         {
             case DictationState.Recording:
+                _idleNote = null;
+                _resultFlashed = false;
                 _overlay!.ShowRecording(_settings.Hotkey.ToString());
                 _elapsedTimer!.Start();
+                StartCancelHotkey();
                 break;
 
             case DictationState.Transcribing:
@@ -210,12 +237,14 @@ public partial class App : Application, IDisposable
 
             case DictationState.Idle:
                 _elapsedTimer!.Stop();
+                StopCancelHotkey();
 
-                // Если текст уже готов, вспышку показал OnTextReady — не
-                // затираем её. Прячем только когда показывать нечего.
-                if (_overlay!.IsVisible)
+                // Порядок событий: TextReady приходит РАНЬШЕ перехода в покой,
+                // поэтому без этой проверки «Готово» затирало бы вспышку
+                // «Вставлено» через миг после её появления.
+                if (!_resultFlashed && _overlay!.IsVisible)
                 {
-                    _overlay.FlashAndHide("Готово");
+                    _overlay.FlashAndHide(_idleNote ?? "Готово");
                 }
 
                 break;
@@ -225,6 +254,7 @@ public partial class App : Application, IDisposable
     private void OnTextReady(string text)
     {
         _tray!.SetLastTextAvailable(true);
+        _resultFlashed = true;
 
         try
         {
@@ -261,6 +291,50 @@ public partial class App : Application, IDisposable
         _tray!.SetStatus($"В буфере: {Preview(text)}");
     }
 
+    /// <summary>
+    /// Занять Escape на время диктовки.
+    /// </summary>
+    /// <remarks>
+    /// Escape перехватывается ТОЛЬКО пока идёт диктовка и отпускается сразу
+    /// после. Держать такую ходовую клавишу постоянно нельзя — мы отняли бы её
+    /// у всей системы ради функции, которая нужна несколько секунд в час.
+    /// </remarks>
+    private void StartCancelHotkey()
+    {
+        StopCancelHotkey();
+
+        try
+        {
+            var listener = new HotkeyListener(new HotkeyCombo(HotkeyModifiers.None, VirtualKeyEscape));
+            listener.Pressed += () => OnUi(() => _ = CancelAsync());
+            listener.Start();
+            _cancelHotkey = listener;
+        }
+        catch (Win32Exception)
+        {
+            // Escape занят кем-то ещё — не повод ронять диктовку.
+            // Остановить её всё равно можно хоткеем или кликом по пилюле.
+            _cancelHotkey = null;
+        }
+    }
+
+    private void StopCancelHotkey()
+    {
+        _cancelHotkey?.Dispose();
+        _cancelHotkey = null;
+    }
+
+    private async Task CancelAsync()
+    {
+        if (_controller is null)
+        {
+            return;
+        }
+
+        _idleNote = "Отменено";
+        await _controller.CancelAsync();
+    }
+
     // --- настройки ---------------------------------------------------------
 
     private void OnAutoPasteToggled(bool enabled)
@@ -279,7 +353,7 @@ public partial class App : Application, IDisposable
     {
         UpdateSettings(_settings with { ModelFileName = fileName });
         RefreshTrayFromSettings();
-        BuildEngineAndController();
+        _ = RebuildEngineAsync();
     }
 
     private void UpdateSettings(AppSettings settings)
@@ -290,7 +364,7 @@ public partial class App : Application, IDisposable
 
     private void RefreshTrayFromSettings()
     {
-        string? modelsDirectory = ModelLocator.FindModelsDirectory();
+        string? modelsDirectory = ModelLocator.FindModelsDirectory(_settings.ModelsDirectory);
         IEnumerable<string> models = modelsDirectory is null
             ? []
             : Directory.EnumerateFiles(modelsDirectory, "ggml-*.bin")
@@ -306,7 +380,8 @@ public partial class App : Application, IDisposable
 
     private void OpenModelsFolder()
     {
-        string directory = ModelLocator.FindModelsDirectory() ?? SettingsStore.ModelsDirectory;
+        string directory = ModelLocator.FindModelsDirectory(_settings.ModelsDirectory)
+                           ?? AppPaths.DefaultModelsDirectory;
         Directory.CreateDirectory(directory);
         Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
     }
@@ -322,14 +397,32 @@ public partial class App : Application, IDisposable
         return flat.Length <= 50 ? flat : flat[..50] + "…";
     }
 
-    private void DisposeEngineAndController()
+    private async Task DisposeEngineAndControllerAsync()
     {
-        _controller?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _controller = null;
+        if (_controller is { } controller)
+        {
+            _controller = null;
+            await controller.DisposeAsync().ConfigureAwait(true);
+        }
 
-        _engine?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _engine = null;
+        if (_engine is { } engine)
+        {
+            _engine = null;
+            await engine.DisposeAsync().ConfigureAwait(true);
+        }
     }
+
+    /// <summary>
+    /// Освобождение движка при выходе.
+    /// </summary>
+    /// <remarks>
+    /// Здесь блокировка допустима — приложение уже закрывается, — но с
+    /// ограничением по времени: если распознавание зависло, выход не должен
+    /// висеть вместе с ним. Незакрытый контекст на выходе процесса
+    /// операционная система уберёт сама.
+    /// </remarks>
+    private void DisposeEngineAndControllerOnExit() =>
+        DisposeEngineAndControllerAsync().Wait(TimeSpan.FromSeconds(3));
 
     protected override void OnExit(ExitEventArgs e)
     {
@@ -353,7 +446,9 @@ public partial class App : Application, IDisposable
         _hotkey?.Dispose();
         _hotkey = null;
 
-        DisposeEngineAndController();
+        StopCancelHotkey();
+
+        DisposeEngineAndControllerOnExit();
 
         _tray?.Dispose();
         _tray = null;
