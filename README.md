@@ -359,6 +359,10 @@ over to Vulkan anyway. If you have the toolkit:
 build.cmd publish cuda
 ```
 
+House rules — naming, concurrency contracts, what a comment is for, what is
+frozen and why — are in [`docs/conventions.md`](docs/conventions.md). Read that
+before a first change.
+
 Development notes in Russian, including a walkthrough of the C# used here, are
 in [`docs/csharp-notes.ru.md`](docs/csharp-notes.ru.md). Code comments are in
 Russian by design.
