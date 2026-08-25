@@ -74,7 +74,11 @@ jobs:
       contents: write
 
     steps:
+      # fetch-depth: 0 — чтобы был сам объект тега: текст релиза берётся из
+      # его тела, а при поверхностном клоне его просто нет.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -138,6 +142,43 @@ jobs:
           path: ${{ env.ZIP_NAME }}
           retention-days: 30
 
+      # Текст релиза — из тела аннотированного тега. Это единственное место,
+      # где его пишет человек: список коммитов, сгенерированный GitHub, отвечает
+      # на вопрос «что делали», а читателю релиза нужен ответ на «что мне это
+      # даёт». Если тег лёгкий, генерация остаётся как запасной вариант.
+      - name: Read release notes from the tag
+        if: steps.version.outputs.isRelease == 'True'
+        id: notes
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $body = (git tag -l --format='%(contents:body)' $tag | Out-String).Trim()
+          $hasBody = -not [string]::IsNullOrWhiteSpace($body)
+
+          # Массив строк, а не here-string: содержимое here-string в PowerShell
+          # обязано начинаться с нулевой колонки, а YAML на нулевой колонке
+          # считает строку концом блока. Разделитель "---" внутри такого блока
+          # ломает весь файл, причём молча — парсер видит второй документ.
+          $install = @(
+            '---'
+            ''
+            'Self-contained build for Windows x64 - .NET is not required on the target machine.'
+            ''
+            'Unzip anywhere and run `Tapybara.exe`. On first launch, open **Settings > Models**'
+            'and download a recognition model; nothing works until you do.'
+            ''
+            'For a portable install, put an empty file named `portable.txt` next to the'
+            'executable - settings and models then live in a `Data` folder beside it instead'
+            'of in `%APPDATA%`.'
+          ) -join "`n"
+
+          if ($hasBody) { $full = $body + "`n`n" + $install } else { $full = $install }
+
+          "hasBody=$hasBody" >> $env:GITHUB_OUTPUT
+          "body<<TAPYBARA_NOTES" >> $env:GITHUB_OUTPUT
+          $full >> $env:GITHUB_OUTPUT
+          "TAPYBARA_NOTES" >> $env:GITHUB_OUTPUT
+
       # Релиз создаётся только по тегу вида v1.2.3. Модели в поставку не
       # входят — приложение скачивает их само из «Настройки › Модели».
       - name: Release
@@ -145,14 +186,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ZIP_NAME }}
-          generate_release_notes: true
-          body: |
-            Self-contained build for Windows x64 — .NET is not required on the target machine.
-
-            Unzip anywhere and run `Tapybara.exe`. On first launch, open
-            **Settings › Models** and download a recognition model; nothing works
-            until you do.
-
-            For a portable install, put an empty file named `portable.txt` next to
-            the executable — settings and models then live in a `Data` folder
-            beside it instead of in `%APPDATA%`.
+          body: ${{ steps.notes.outputs.body }}
+          generate_release_notes: ${{ steps.notes.outputs.hasBody != 'True' }}
