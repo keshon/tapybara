@@ -66,7 +66,7 @@ public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposab
 
             if (warmUpGpu && !_warmedUp)
             {
-                await TranscribeLockedAsync(WarmUpSignal(), progress: null, cancellationToken)
+                await TranscribeLockedAsync(WarmUpSignal(), progress: null, language: null, cancellationToken)
                     .ConfigureAwait(false);
                 _warmedUp = true;
             }
@@ -81,9 +81,14 @@ public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposab
     /// <param name="samples">Звук в формате <see cref="Audio.MicrophoneCapture"/>.</param>
     /// <param name="progress">Прогресс 0–100. Приходит из рабочего потока whisper.</param>
     /// <param name="cancellationToken">Отмена. whisper.cpp прерывается между окнами, не мгновенно.</param>
+    /// <param name="language">
+    /// Переопределить язык на этот прогон. Нужно для звонков: свой язык
+    /// известен, а язык собеседника — нет.
+    /// </param>
     public async Task<IReadOnlyList<TranscriptSegment>> TranscribeAsync(
         ReadOnlyMemory<float> samples,
         IProgress<int>? progress = null,
+        string? language = null,
         CancellationToken cancellationToken = default)
     {
         if (samples.IsEmpty)
@@ -94,7 +99,7 @@ public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposab
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await TranscribeLockedAsync(samples, progress, cancellationToken).ConfigureAwait(false);
+            return await TranscribeLockedAsync(samples, progress, language, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -135,12 +140,13 @@ public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposab
     private async Task<IReadOnlyList<TranscriptSegment>> TranscribeLockedAsync(
         ReadOnlyMemory<float> samples,
         IProgress<int>? progress,
+        string? language,
         CancellationToken cancellationToken)
     {
         WhisperFactory factory = EnsureLoaded();
 
         WhisperProcessorBuilder builder = factory.CreateBuilder()
-            .WithLanguage(options.Language)
+            .WithLanguage(language ?? options.Language)
             .WithGreedySamplingStrategy()
             .WithThreads(options.EffectiveThreads)
             // Ключевая строка. По умолчанию whisper передаёт текст предыдущего

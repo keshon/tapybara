@@ -186,7 +186,7 @@ public sealed class DictationController : IAsyncDisposable
         {
             var progress = new Progress<int>(p => ProgressChanged?.Invoke(p));
             IReadOnlyList<TranscriptSegment> segments = await _engine
-                .TranscribeAsync(samples, progress, cancellation.Token)
+                .TranscribeAsync(samples, progress, cancellationToken: cancellation.Token)
                 .ConfigureAwait(false);
 
             Publish(segments);
