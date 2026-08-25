@@ -57,14 +57,14 @@ public static class BleedFilter
     /// <summary>Убрать из микрофонного канала то, что на самом деле сказали собеседники.</summary>
     /// <param name="micSegments">Распознанное в микрофонном канале.</param>
     /// <param name="systemSegments">Распознанное в системном канале.</param>
-    /// <param name="micSamples">Сэмплы микрофонного канала.</param>
-    /// <param name="systemSamples">Сэмплы системного канала.</param>
+    /// <param name="micEnergy">Огибающая громкости микрофонного канала.</param>
+    /// <param name="systemEnergy">Огибающая громкости системного канала.</param>
     /// <param name="marginDb">Порог разницы уровней в децибелах.</param>
     public static Result Apply(
         IReadOnlyList<TranscriptSegment> micSegments,
         IReadOnlyList<TranscriptSegment> systemSegments,
-        float[] micSamples,
-        float[] systemSamples,
+        EnergyEnvelope micEnergy,
+        EnergyEnvelope systemEnergy,
         double marginDb = DefaultMarginDb)
     {
         if (micSegments.Count == 0)
@@ -72,8 +72,8 @@ public static class BleedFilter
             return new Result([], 0, 0);
         }
 
-        double[] micLevels = [.. micSegments.Select(s => LevelDb(micSamples, s))];
-        double[] systemLevels = [.. systemSegments.Select(s => LevelDb(systemSamples, s))];
+        double[] micLevels = [.. micSegments.Select(s => micEnergy.LevelDb(s.Start, s.End))];
+        double[] systemLevels = [.. systemSegments.Select(s => systemEnergy.LevelDb(s.Start, s.End))];
 
         // Опорная громкость каждого канала — 85-й перцентиль его сегментов.
         // Сравнивать абсолютные уровни нельзя: каналы усилены по-разному, и
@@ -96,7 +96,7 @@ public static class BleedFilter
             }
 
             double micRelative = micLevels[i] - micReference;
-            double systemRelative = LevelDb(systemSamples, segment) - systemReference;
+            double systemRelative = systemEnergy.LevelDb(segment.Start, segment.End) - systemReference;
 
             bool systemActive = systemRelative > SystemActiveDb;
             bool muchQuieter = micRelative - systemRelative < -marginDb;
@@ -117,9 +117,18 @@ public static class BleedFilter
     private static bool IsTextEcho(TranscriptSegment segment, IReadOnlyList<TranscriptSegment> others)
     {
         double duration = Math.Max((segment.End - segment.Start).TotalSeconds, 0.1);
+        string normalized = Normalize(segment.Text);
 
         foreach (TranscriptSegment other in others)
         {
+            // Дальние по времени отсеиваем ДО сравнения строк: расстояние
+            // Левенштейна стоит квадрат длины, а на часовом разговоре пар
+            // «каждый с каждым» набираются десятки тысяч.
+            if (other.Start > segment.End)
+            {
+                break;
+            }
+
             double overlap = Math.Min(segment.End.TotalSeconds, other.End.TotalSeconds)
                              - Math.Max(segment.Start.TotalSeconds, other.Start.TotalSeconds);
 
@@ -128,33 +137,13 @@ public static class BleedFilter
                 continue;
             }
 
-            if (Similarity(Normalize(segment.Text), Normalize(other.Text)) >= SimilarityThreshold)
+            if (Similarity(normalized, Normalize(other.Text)) >= SimilarityThreshold)
             {
                 return true;
             }
         }
 
         return false;
-    }
-
-    /// <summary>Средний уровень фрагмента в децибелах.</summary>
-    private static double LevelDb(float[] samples, TranscriptSegment segment)
-    {
-        int from = Math.Clamp((int)(segment.Start.TotalSeconds * AudioCapture.TargetSampleRate), 0, samples.Length);
-        int to = Math.Clamp((int)(segment.End.TotalSeconds * AudioCapture.TargetSampleRate), from, samples.Length);
-
-        if (to <= from)
-        {
-            return -100;
-        }
-
-        double sum = 0;
-        for (int i = from; i < to; i++)
-        {
-            sum += (double)samples[i] * samples[i];
-        }
-
-        return 20 * Math.Log10(Math.Sqrt(sum / (to - from)) + 1e-9);
     }
 
     private static double? Percentile(double[] values, double percentile)
@@ -186,7 +175,7 @@ public static class BleedFilter
     /// SequenceMatcher в .NET нет, но для порога «это одна и та же фраза»
     /// разница между метриками несущественна.
     /// </remarks>
-    private static double Similarity(string a, string b)
+    internal static double Similarity(string a, string b)
     {
         if (a.Length == 0 && b.Length == 0)
         {

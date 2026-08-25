@@ -14,9 +14,37 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!--
+                    Значение здесь — лишь стартовое: настоящую тему ставит
+                    SystemTheme.Apply при запуске, по настройке пользователя
+                    или по теме Windows. Раньше тут было жёсткое Dark, и на
+                    светлой системе окно настроек выглядело чужим.
+                -->
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                Шрифты как в «Параметрах» Windows 11.
+
+                Там используется семейство Segoe UI Variable: начертание Text
+                для основного текста и Display для крупных заголовков — у него
+                другие пропорции, рассчитанные на большой кегль. WPF по
+                умолчанию берёт обычный Segoe UI, и разница видна сразу, если
+                поставить окна рядом.
+
+                Запасное семейство через запятую обязательно: на Windows 10
+                Segoe UI Variable нет, и без запасного варианта WPF молча
+                свалился бы на шрифт по умолчанию.
+            -->
+            <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
+            <FontFamily x:Key="AppDisplayFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
+            <FontFamily x:Key="AppSmallFontFamily">Segoe UI Variable Small, Segoe UI</FontFamily>
+
+            <!-- Кегли «Параметров»: тело 14, подпись 12, заголовок страницы 28. -->
+            <system:Double x:Key="AppFontSize" xmlns:system="clr-namespace:System;assembly=System.Runtime">14</system:Double>
+            <system:Double x:Key="AppCaptionFontSize" xmlns:system="clr-namespace:System;assembly=System.Runtime">12</system:Double>
+            <system:Double x:Key="AppTitleFontSize" xmlns:system="clr-namespace:System;assembly=System.Runtime">28</system:Double>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

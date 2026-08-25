@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="Tapybara.app" />
+
+  <!--
+    Манифест нужен ради одной строки — объявления осведомлённости о DPI.
+
+    Без неё процесс считается осведомлённым только о системном масштабе:
+    Windows отдаёт ему один масштаб на все мониторы и растягивает окна на
+    остальных. Для приложения, которое само вычисляет, куда поставить
+    плавающий индикатор на выбранном мониторе, это означает промах на всякой
+    конфигурации, где мониторы масштабированы по-разному.
+
+    PerMonitorV2, а не PerMonitor: вторая версия дополнительно масштабирует
+    неклиентскую область и диалоги, и именно её ждёт WPF.
+  -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+
+      <!-- Пути к моделям могут быть длинными, особенно в портативном режиме
+           на вложенной папке. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 и 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>

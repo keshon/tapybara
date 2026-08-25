@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -40,6 +41,17 @@ public static partial class TextPostProcessor
     ];
 
     /// <summary>
+    /// Скомпилированные шаблоны замен, по одному на пару «откуда → куда».
+    /// </summary>
+    /// <remarks>
+    /// Статический <c>Regex.Replace</c> кладёт шаблон в общий кэш, а тот по
+    /// умолчанию хранит пятнадцать записей. Реальный словарь замен больше, и
+    /// каждая диктовка пересобирала бы их все заново. Здесь шаблон компилируется
+    /// один раз за жизнь процесса.
+    /// </remarks>
+    private static readonly ConcurrentDictionary<string, Regex> ReplacementPatterns = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Теги звука ТОЛЬКО в скобках: [музыка], (аплодисменты), [laughter].
     /// </summary>
     /// <remarks>
@@ -51,7 +63,16 @@ public static partial class TextPostProcessor
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SoundTagRegex { get; }
 
-    /// <summary>Похож ли текст на галлюцинацию, которую нельзя вставлять в поле ввода.</summary>
+    /// <summary>
+    /// Похож ли ФРАГМЕНТ на галлюцинацию, которую нельзя вставлять в поле ввода.
+    /// </summary>
+    /// <remarks>
+    /// Проверять этим целую диктовку нельзя — и это не теоретическое
+    /// замечание. Проверка ищет маркер в любом месте строки, поэтому на
+    /// пятиминутной диктовке, где человек упомянул «подписывайтесь на канал»,
+    /// выбрасывался бы весь текст целиком, а звук к тому моменту уже стёрт.
+    /// Фильтровать надо посегментно: см. <see cref="RemoveHallucinations"/>.
+    /// </remarks>
     public static bool IsHallucination(string text)
     {
         string raw = text.Trim();
@@ -69,6 +90,10 @@ public static partial class TextPostProcessor
 
         return Markers.Any(marker => normalized.Contains(marker, StringComparison.Ordinal));
     }
+
+    /// <summary>Выбросить сегменты-галлюцинации, оставив остальные нетронутыми.</summary>
+    public static IReadOnlyList<TranscriptSegment> RemoveHallucinations(IReadOnlyList<TranscriptSegment> segments) =>
+        [.. segments.Where(s => !IsHallucination(s.Text))];
 
     /// <summary>
     /// Склеить сегменты в текст, восстановив абзацы по паузам в речи.
@@ -119,7 +144,7 @@ public static partial class TextPostProcessor
     /// </remarks>
     public static string ApplyReplacements(string text, IReadOnlyDictionary<string, string> replacements)
     {
-        if (replacements.Count == 0)
+        if (replacements.Count == 0 || text.Length == 0)
         {
             return text;
         }
@@ -132,16 +157,32 @@ public static partial class TextPostProcessor
                 continue;
             }
 
-            result = Regex.Replace(
+            result = PatternFor(from).Replace(
                 result,
-                $@"\b{Regex.Escape(from)}\b",
-                to.Replace("$", "$$", StringComparison.Ordinal), // $ в замене — служебный символ
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-                TimeSpan.FromSeconds(1));
+                to.Replace("$", "$$", StringComparison.Ordinal)); // $ в замене — служебный символ
         }
 
         return result;
     }
+
+    /// <summary>
+    /// Шаблон для одного ключа замены.
+    /// </summary>
+    /// <remarks>
+    /// Не <c>\bКЛЮЧ\b</c>, хотя так пишут везде. <c>\b</c> — это граница между
+    /// буквенным и небуквенным символом, и для ключа, который сам кончается
+    /// небуквенным («C#», «C++»), такой границы после него не существует
+    /// НИКОГДА: шаблон не совпадает ни с чем. А это ровно те названия, ради
+    /// которых словарь замен и заводят.
+    /// <para>
+    /// Ретроспективная и опережающая проверки дают то же поведение для обычных
+    /// слов и правильное — для оканчивающихся пунктуацией.
+    /// </para>
+    /// </remarks>
+    private static Regex PatternFor(string from) => ReplacementPatterns.GetOrAdd(from, static key => new Regex(
+        $@"(?<!\w){Regex.Escape(key)}(?!\w)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1)));
 
     /// <summary>Привести к виду «только буквы, цифры и пробелы, нижний регистр».</summary>
     private static string Normalize(string text)

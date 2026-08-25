@@ -1,8 +1,10 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using Tapybara.App.Localization;
 using Tapybara.Core.Audio;
+using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Speech;
 using Wpf.Ui.Controls;
 
@@ -30,12 +32,15 @@ public partial class VadTestWindow : FluentWindow
 
     private readonly string _vadModelPath;
     private readonly bool _normalize;
-    private bool _busy;
+    private readonly string? _microphoneDeviceId;
 
-    public VadTestWindow(string vadModelPath, bool normalize)
+    private CancellationTokenSource? _run;
+
+    public VadTestWindow(string vadModelPath, bool normalize, string? microphoneDeviceId)
     {
         _vadModelPath = vadModelPath;
         _normalize = normalize;
+        _microphoneDeviceId = microphoneDeviceId;
 
         InitializeComponent();
 
@@ -50,15 +55,22 @@ public partial class VadTestWindow : FluentWindow
     /// <summary>Подобранный порог, если пользователь его принял.</summary>
     public double? AcceptedThreshold { get; private set; }
 
+    private bool IsBusy => _run is not null;
+
     private async void OnStartClick(object sender, RoutedEventArgs e)
     {
-        if (_busy)
+        // Повторное нажатие во время работы — это остановка. Раньше кнопка
+        // просто блокировалась, и восемь секунд записи было нечем прервать.
+        if (_run is { } running)
         {
+            running.Cancel();
             return;
         }
 
-        _busy = true;
-        StartButton.IsEnabled = false;
+        var cancellation = new CancellationTokenSource();
+        _run = cancellation;
+
+        StartButton.Content = L.S.ButtonStopTest;
         ApplyButton.IsEnabled = false;
         ResultsList.Items.Clear();
         ResultsHeader.Visibility = Visibility.Collapsed;
@@ -66,29 +78,37 @@ public partial class VadTestWindow : FluentWindow
 
         try
         {
-            float[] samples = await RecordSampleAsync();
+            float[] samples = await RecordSampleAsync(cancellation.Token);
 
             StateText.Text = L.S.VadTestAnalyzing;
             LevelBar.Value = 0;
 
-            IReadOnlyList<VadProbe> probes = await VadCalibrator.ProbeAsync(samples, _vadModelPath, _normalize);
+            IReadOnlyList<VadProbe> probes = await VadCalibrator.ProbeAsync(
+                samples, _vadModelPath, _normalize, cancellation.Token);
+
             ShowResults(probes);
+        }
+        catch (OperationCanceledException)
+        {
+            StateText.Text = L.S.VadTestReady;
         }
         catch (Exception ex)
         {
+            AppLog.Error("Подбор порога детектора не удался.", ex);
             StateText.Text = ex.Message;
         }
         finally
         {
-            _busy = false;
-            StartButton.IsEnabled = true;
+            _run = null;
+            cancellation.Dispose();
             StartButton.Content = L.S.ButtonRepeatTest;
+            StartButton.IsEnabled = true;
         }
     }
 
-    private async Task<float[]> RecordSampleAsync()
+    private async Task<float[]> RecordSampleAsync(CancellationToken cancellationToken)
     {
-        using var capture = new MicrophoneCapture();
+        using var capture = new MicrophoneCapture { DeviceId = _microphoneDeviceId };
         capture.LevelChanged += level => Dispatcher.BeginInvoke(() =>
         {
             // Та же шкала в децибелах, что у индикатора диктовки: линейная
@@ -99,16 +119,28 @@ public partial class VadTestWindow : FluentWindow
 
         capture.Start();
 
-        var started = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - started < SampleDuration)
+        try
         {
-            TimeSpan left = SampleDuration - (DateTimeOffset.UtcNow - started);
-            StateText.Text = string.Format(
-                CultureInfo.CurrentCulture, L.S.VadTestSpeakNow, Math.Max(0, (int)left.TotalSeconds + 1));
-            await Task.Delay(200);
-        }
+            var started = DateTimeOffset.UtcNow;
+            while (DateTimeOffset.UtcNow - started < SampleDuration)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-        return await capture.StopAsync();
+                TimeSpan left = SampleDuration - (DateTimeOffset.UtcNow - started);
+                StateText.Text = string.Format(
+                    CultureInfo.CurrentCulture, L.S.VadTestSpeakNow, Math.Max(0, (int)left.TotalSeconds + 1));
+                await Task.Delay(200, cancellationToken);
+            }
+
+            return await capture.StopAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Микрофон закрываем в любом случае: окно могли просто закрыть,
+            // и оставленное открытым устройство висело бы до конца процесса.
+            await capture.StopAsync();
+            throw;
+        }
     }
 
     private void ShowResults(IReadOnlyList<VadProbe> probes)
@@ -171,5 +203,20 @@ public partial class VadTestWindow : FluentWindow
     {
         DialogResult = true;
         Close();
+    }
+
+    /// <summary>Закрытие посреди записи не должно оставлять микрофон открытым.</summary>
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        _run?.Cancel();
+        base.OnClosing(e);
+    }
+
+    /// <summary>Пока идёт измерение, закрывать окно кнопкой «Применить» нечего.</summary>
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        ApplyButton.IsEnabled = false;
+        _ = IsBusy;
     }
 }

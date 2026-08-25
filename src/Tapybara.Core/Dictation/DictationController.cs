@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Tapybara.Core.Audio;
+using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Settings;
 using Tapybara.Core.Speech;
 
@@ -12,6 +13,42 @@ public enum DictationState
     Recording,
     Transcribing,
 }
+
+/// <summary>
+/// О чём контроллер сообщает наружу.
+/// </summary>
+/// <remarks>
+/// Перечисление, а не готовая строка. <c>Core</c> не знает языка интерфейса и
+/// знать не должен: пока он раздавал русский текст, английский пользователь
+/// видел в трее «Диктовка не удалась» — при полностью английском интерфейсе.
+/// Формулировки принадлежат слою, у которого есть словарь.
+/// </remarks>
+public enum DictationNotice
+{
+    /// <summary>Диктовка сорвалась. В <c>Detail</c> — техническая причина.</summary>
+    Failed,
+
+    /// <summary>Модель не загрузилась. В <c>Detail</c> — причина.</summary>
+    ModelLoadFailed,
+
+    /// <summary>Записи меньше полусекунды — распознавать нечего.</summary>
+    TooShort,
+
+    /// <summary>Пользователь отменил.</summary>
+    Cancelled,
+
+    /// <summary>Речи не нашлось.</summary>
+    Empty,
+
+    /// <summary>Сработал предохранитель по длине: запись остановлена сама.</summary>
+    LengthLimitReached,
+
+    /// <summary>Устройство записи отвалилось посреди диктовки.</summary>
+    DeviceLost,
+}
+
+/// <summary>Сообщение наружу: что случилось и, если нужно, подробность.</summary>
+public sealed record DictationStatus(DictationNotice Notice, string? Detail = null);
 
 /// <summary>
 /// Конечный автомат диктовки: хоткей → запись → распознавание → готовый текст.
@@ -30,8 +67,12 @@ public enum DictationState
 /// </remarks>
 public sealed class DictationController : IAsyncDisposable
 {
-    private readonly WhisperEngine _engine;
+    /// <summary>Сколько последних результатов держим для повторной вставки.</summary>
+    private const int HistoryLimit = 10;
+
+    private readonly SpeechTranscriber _transcriber;
     private readonly Func<AppSettings> _settings;
+    private readonly List<string> _history = [];
 
     // Ноль-таймаут при захвате: нажатие хоткея во время распознавания просто
     // игнорируется, а не встаёт в очередь второй записью.
@@ -41,11 +82,12 @@ public sealed class DictationController : IAsyncDisposable
     private Stopwatch? _recordingTimer;
     private CancellationTokenSource? _transcribeCancellation;
     private Timer? _unloadTimer;
+    private Timer? _lengthFuse;
     private bool _disposed;
 
-    public DictationController(WhisperEngine engine, Func<AppSettings> settings)
+    public DictationController(SpeechTranscriber transcriber, Func<AppSettings> settings)
     {
-        _engine = engine;
+        _transcriber = transcriber;
         _settings = settings;
     }
 
@@ -56,7 +98,25 @@ public sealed class DictationController : IAsyncDisposable
     public TimeSpan Elapsed => _recordingTimer?.Elapsed ?? TimeSpan.Zero;
 
     /// <summary>Последний распознанный текст — страховка «скопировать ещё раз».</summary>
-    public string? LastText { get; private set; }
+    public string? LastText => _history.Count > 0 ? _history[0] : null;
+
+    /// <summary>
+    /// Последние результаты, свежий первым.
+    /// </summary>
+    /// <remarks>
+    /// Одной ячейки было мало: две диктовки подряд — и первая невосстановима,
+    /// хотя переспросить её у человека уже нельзя.
+    /// </remarks>
+    public IReadOnlyList<string> History
+    {
+        get
+        {
+            lock (_history)
+            {
+                return [.. _history];
+            }
+        }
+    }
 
     public event Action<DictationState>? StateChanged;
 
@@ -69,8 +129,8 @@ public sealed class DictationController : IAsyncDisposable
     /// <summary>Готовый текст, уже очищенный от галлюцинаций и с применённым словарём.</summary>
     public event Action<string>? TextReady;
 
-    /// <summary>Человекочитаемое сообщение для строки статуса.</summary>
-    public event Action<string>? Status;
+    /// <summary>Что сообщить пользователю. Формулировку выбирает слой интерфейса.</summary>
+    public event Action<DictationStatus>? Status;
 
     /// <summary>Начать диктовку, если стоим; закончить, если пишем.</summary>
     public async Task ToggleAsync()
@@ -93,8 +153,9 @@ public sealed class DictationController : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            AppLog.Error("Диктовка сорвалась.", ex);
             await ResetToIdleAsync().ConfigureAwait(false);
-            Status?.Invoke($"Диктовка не удалась: {ex.Message}");
+            Status?.Invoke(new DictationStatus(DictationNotice.Failed, ex.Message));
         }
         finally
         {
@@ -114,7 +175,18 @@ public sealed class DictationController : IAsyncDisposable
     {
         if (State == DictationState.Transcribing)
         {
-            _transcribeCancellation?.Cancel();
+            // Читаем в локальную переменную: поле обнуляется из другого потока
+            // ровно в тот момент, когда распознавание заканчивается само.
+            CancellationTokenSource? cancellation = Volatile.Read(ref _transcribeCancellation);
+            try
+            {
+                cancellation?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Успело закончиться само — отменять уже нечего.
+            }
+
             return;
         }
 
@@ -126,7 +198,7 @@ public sealed class DictationController : IAsyncDisposable
         try
         {
             await ResetToIdleAsync().ConfigureAwait(false);
-            Status?.Invoke("Диктовка отменена");
+            Status?.Invoke(new DictationStatus(DictationNotice.Cancelled));
         }
         finally
         {
@@ -136,12 +208,16 @@ public sealed class DictationController : IAsyncDisposable
 
     private void StartRecording()
     {
-        var capture = new MicrophoneCapture();
+        AppSettings settings = _settings();
+
+        var capture = new MicrophoneCapture { DeviceId = settings.MicrophoneDeviceId };
         capture.LevelChanged += OnLevel;
+        capture.Failed += OnCaptureFailed;
         capture.Start();
 
         _capture = capture;
         _recordingTimer = Stopwatch.StartNew();
+        StartLengthFuse(settings);
         SetState(DictationState.Recording);
 
         // Модель грузим ПАРАЛЛЕЛЬНО записи: пока пользователь говорит, она уже
@@ -150,13 +226,58 @@ public sealed class DictationController : IAsyncDisposable
         {
             try
             {
-                await _engine.LoadAsync().ConfigureAwait(false);
+                await _transcriber.PrepareAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Status?.Invoke($"Модель не загрузилась: {ex.Message}");
+                AppLog.Error("Модель не загрузилась.", ex);
+                Status?.Invoke(new DictationStatus(DictationNotice.ModelLoadFailed, ex.Message));
             }
         });
+    }
+
+    /// <summary>
+    /// Предохранитель от забытой диктовки.
+    /// </summary>
+    /// <remarks>
+    /// Настройка на это была с самого начала, а таймера под ней не было вовсе.
+    /// Забытая запись росла без предела: около 3,8 МБ в минуту в куче больших
+    /// объектов, а потом час звука одним куском уезжал в модель.
+    /// </remarks>
+    private void StartLengthFuse(AppSettings settings)
+    {
+        StopLengthFuse();
+
+        int minutes = Math.Clamp(settings.MaxDictationMinutes, 1, 24 * 60);
+        _lengthFuse = new Timer(
+            _ => _ = OnLengthLimitAsync(),
+            state: null,
+            TimeSpan.FromMinutes(minutes),
+            Timeout.InfiniteTimeSpan);
+    }
+
+    private void StopLengthFuse()
+    {
+        _lengthFuse?.Dispose();
+        _lengthFuse = null;
+    }
+
+    /// <summary>Время вышло — останавливаем и распознаём то, что записано.</summary>
+    private async Task OnLengthLimitAsync()
+    {
+        if (State != DictationState.Recording)
+        {
+            return;
+        }
+
+        AppLog.Warn("Сработал предохранитель по длине диктовки.");
+        Status?.Invoke(new DictationStatus(DictationNotice.LengthLimitReached));
+        await ToggleAsync().ConfigureAwait(false);
+    }
+
+    private void OnCaptureFailed(Exception error)
+    {
+        Status?.Invoke(new DictationStatus(DictationNotice.DeviceLost, error.Message));
     }
 
     private async Task StopAndTranscribeAsync()
@@ -164,28 +285,30 @@ public sealed class DictationController : IAsyncDisposable
         MicrophoneCapture capture = _capture!;
         _capture = null;
         _recordingTimer?.Stop();
+        StopLengthFuse();
 
         capture.LevelChanged -= OnLevel;
+        capture.Failed -= OnCaptureFailed;
         float[] samples = await capture.StopAsync().ConfigureAwait(false);
         capture.Dispose();
 
-        var duration = TimeSpan.FromSeconds(samples.Length / (double)MicrophoneCapture.TargetSampleRate);
+        var duration = TimeSpan.FromSeconds(samples.Length / (double)AudioCapture.TargetSampleRate);
         if (duration < TimeSpan.FromSeconds(0.5))
         {
             SetState(DictationState.Idle);
-            Status?.Invoke("Слишком коротко — нечего распознавать");
+            Status?.Invoke(new DictationStatus(DictationNotice.TooShort));
             ScheduleUnload();
             return;
         }
 
         SetState(DictationState.Transcribing);
 
-        using var cancellation = new CancellationTokenSource();
-        _transcribeCancellation = cancellation;
+        var cancellation = new CancellationTokenSource();
+        Volatile.Write(ref _transcribeCancellation, cancellation);
         try
         {
             var progress = new Progress<int>(p => ProgressChanged?.Invoke(p));
-            IReadOnlyList<TranscriptSegment> segments = await _engine
+            IReadOnlyList<TranscriptSegment> segments = await _transcriber
                 .TranscribeAsync(samples, progress, cancellationToken: cancellation.Token)
                 .ConfigureAwait(false);
 
@@ -193,11 +316,16 @@ public sealed class DictationController : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            Status?.Invoke("Распознавание отменено");
+            Status?.Invoke(new DictationStatus(DictationNotice.Cancelled));
         }
         finally
         {
-            _transcribeCancellation = null;
+            // Сначала снимаем ссылку, потом освобождаем: наоборот получалась
+            // щель, в которую отмена успевала позвать Cancel() у уже
+            // освобождённого источника.
+            Volatile.Write(ref _transcribeCancellation, null);
+            cancellation.Dispose();
+
             SetState(DictationState.Idle);
             ScheduleUnload();
         }
@@ -206,19 +334,37 @@ public sealed class DictationController : IAsyncDisposable
     private void Publish(IReadOnlyList<TranscriptSegment> segments)
     {
         AppSettings settings = _settings();
-        string joined = TextPostProcessor.JoinSegments(segments, settings.EffectiveParagraphPause);
-        string text = TextPostProcessor.ApplyReplacements(joined, settings.Replacements);
 
-        if (text.Length == 0 || TextPostProcessor.IsHallucination(text))
+        // Галлюцинации отсеиваем ПОСЕГМЕНТНО. Проверка целого текста искала бы
+        // маркер в любом месте, и одна фраза про подписку на канал выбрасывала
+        // бы всю диктовку — вместе со звуком, которого уже нет.
+        IReadOnlyList<TranscriptSegment> clean = TextPostProcessor.RemoveHallucinations(segments);
+
+        string joined = TextPostProcessor.JoinSegments(clean, settings.EffectiveParagraphPause);
+        string text = TextPostProcessor.ApplyReplacements(joined, settings.Replacements).Trim();
+
+        if (text.Length == 0)
         {
-            Status?.Invoke("Пусто — речь не распознана");
+            Status?.Invoke(new DictationStatus(DictationNotice.Empty));
             return;
         }
 
         // Запоминаем ДО вставки: что бы ни случилось дальше, текст можно
         // забрать из меню, а не диктовать заново.
-        LastText = text;
+        Remember(text);
         TextReady?.Invoke(text);
+    }
+
+    private void Remember(string text)
+    {
+        lock (_history)
+        {
+            _history.Insert(0, text);
+            if (_history.Count > HistoryLimit)
+            {
+                _history.RemoveRange(HistoryLimit, _history.Count - HistoryLimit);
+            }
+        }
     }
 
     private void OnLevel(float rms)
@@ -231,10 +377,13 @@ public sealed class DictationController : IAsyncDisposable
 
     private async Task ResetToIdleAsync()
     {
+        StopLengthFuse();
+
         if (_capture is { } capture)
         {
             _capture = null;
             capture.LevelChanged -= OnLevel;
+            capture.Failed -= OnCaptureFailed;
             await capture.StopAsync().ConfigureAwait(false);
             capture.Dispose();
         }
@@ -261,14 +410,26 @@ public sealed class DictationController : IAsyncDisposable
     /// </remarks>
     private void ScheduleUnload()
     {
-        var delay = TimeSpan.FromMinutes(_settings().IdleUnloadMinutes);
+        var delay = TimeSpan.FromMinutes(Math.Clamp(_settings().IdleUnloadMinutes, 1, 24 * 60));
 
         _unloadTimer?.Dispose();
         _unloadTimer = new Timer(
-            _ => _ = _engine.UnloadIfIdleAsync(),
+            _ => _ = UnloadAsync(),
             state: null,
             delay,
             Timeout.InfiniteTimeSpan);
+    }
+
+    private async Task UnloadAsync()
+    {
+        try
+        {
+            await _transcriber.Engine.UnloadIfIdleAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException)
+        {
+            // Приложение закрывается — выгружать уже нечего.
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -279,11 +440,22 @@ public sealed class DictationController : IAsyncDisposable
         }
 
         _disposed = true;
-        _transcribeCancellation?.Cancel();
+
+        try
+        {
+            Volatile.Read(ref _transcribeCancellation)?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Уже завершилось само.
+        }
+
+        StopLengthFuse();
 
         if (_unloadTimer is { } timer)
         {
             await timer.DisposeAsync().ConfigureAwait(false);
+            _unloadTimer = null;
         }
 
         await ResetToIdleAsync().ConfigureAwait(false);

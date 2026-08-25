@@ -1,11 +1,14 @@
+using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Tapybara.App.Localization;
 using Tapybara.Core.Windows;
 using Color = System.Windows.Media.Color;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Point = System.Windows.Point;
 using Rectangle = System.Windows.Shapes.Rectangle;
 using WinFormsScreen = System.Windows.Forms.Screen;
 
@@ -17,7 +20,16 @@ public partial class OverlayWindow : Window
     /// <summary>Сколько столбиков в бегущей волне уровня.</summary>
     private const int BarCount = 22;
 
+    /// <summary>Смещение мыши, после которого клик считается перетаскиванием.</summary>
+    private const double DragThreshold = 4;
+
     private readonly Rectangle[] _bars = new Rectangle[BarCount];
+
+    private System.Windows.Threading.DispatcherTimer? _hideTimer;
+    private Point _pressedAt;
+    private Point _pressedWindowAt;
+    private bool _pressed;
+    private bool _dragged;
 
     public OverlayWindow()
     {
@@ -35,6 +47,12 @@ public partial class OverlayWindow : Window
     /// <summary>Клик по пилюле — то же, что нажать хоткей.</summary>
     public event Action? Clicked;
 
+    /// <summary>Пользователь перетащил пилюлю. Координаты логические.</summary>
+    public event Action<double, double>? Moved;
+
+    /// <summary>Куда пользователь однажды поставил пилюлю. <c>null</c> — по умолчанию.</summary>
+    public (double Left, double Top)? PinnedPosition { get; set; }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -44,42 +62,79 @@ public partial class OverlayWindow : Window
         WindowChrome.MakeNonActivating(new WindowInteropHelper(this).Handle);
     }
 
-    /// <summary>Показать пилюлю в состоянии записи.</summary>
+    /// <summary>Показать пилюлю в состоянии записи диктовки.</summary>
     public void ShowRecording(string hotkeyHint)
     {
-        RecordingPanel.Visibility = Visibility.Visible;
-        TranscribingText.Visibility = Visibility.Collapsed;
-        NoteText.Visibility = Visibility.Collapsed;
-        HotkeyHint.Text = hotkeyHint;
+        ShowPanel(recording: true);
+        RecordingDot.Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0x4D, 0x4D));
+        HotkeyHint.Text = string.Format(CultureInfo.CurrentCulture, L.S.PillHintStop, hotkeyHint);
         ElapsedText.Text = "0:00";
         ResetLevels();
+        Reveal();
+    }
 
-        MoveToActiveScreen();
-
-        // Show(), а не Activate(): активация увела бы фокус с приложения,
-        // в которое пользователь собирается диктовать.
-        Show();
-        Topmost = true; // переутверждаем: полноэкранные окна умеют перекрывать
+    /// <summary>Показать пилюлю в состоянии записи звонка.</summary>
+    /// <remarks>
+    /// Раньше запись звонка не показывалась вовсе — только точка в трее, и та
+    /// того же цвета, что у диктовки. Запись, идущую часами, было буквально
+    /// нечем заметить.
+    /// </remarks>
+    public void ShowCallRecording()
+    {
+        ShowPanel(recording: true);
+        RecordingDot.Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0xB0, 0x20));
+        HotkeyHint.Text = L.S.PillRecordingCall;
+        ElapsedText.Text = "0:00";
+        ResetLevels();
+        Reveal();
     }
 
     /// <summary>Переключить пилюлю в состояние распознавания.</summary>
     public void ShowTranscribing(int percent)
     {
-        RecordingPanel.Visibility = Visibility.Collapsed;
-        NoteText.Visibility = Visibility.Collapsed;
-        TranscribingText.Visibility = Visibility.Visible;
-        TranscribingText.Text = string.Format(
-            System.Globalization.CultureInfo.CurrentCulture, L.S.PillTranscribing, percent);
+        ShowPanel(recording: false);
+        TranscribingPanel.Visibility = Visibility.Visible;
+        TranscribingText.Text = string.Format(CultureInfo.CurrentCulture, L.S.PillTranscribing, percent);
+        CancelHint.Text = L.S.PillHintCancel;
     }
 
     /// <summary>Показать короткое сообщение и спрятать пилюлю.</summary>
     public void FlashAndHide(string note)
     {
-        RecordingPanel.Visibility = Visibility.Collapsed;
-        TranscribingText.Visibility = Visibility.Collapsed;
+        ShowPanel(recording: false);
         NoteText.Visibility = Visibility.Visible;
         NoteText.Text = note;
 
+        // Один таймер на окно, а не новый на каждую вспышку: прежний вариант
+        // плодил по объекту на каждую диктовку и держал их до срабатывания.
+        _hideTimer ??= CreateHideTimer();
+        _hideTimer.Stop();
+        _hideTimer.Start();
+    }
+
+    /// <summary>Спрятать немедленно.</summary>
+    public void HideNow()
+    {
+        _hideTimer?.Stop();
+        Hide();
+    }
+
+    public void UpdateElapsed(TimeSpan elapsed) =>
+        ElapsedText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
+
+    /// <summary>Добавить свежий уровень справа, сдвинув остальные влево.</summary>
+    public void PushLevel(float level)
+    {
+        for (int i = 0; i < BarCount - 1; i++)
+        {
+            _bars[i].Height = _bars[i + 1].Height;
+        }
+
+        _bars[^1].Height = 3 + (Math.Clamp(level, 0, 1) * 18);
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateHideTimer()
+    {
         var timer = new System.Windows.Threading.DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(1200),
@@ -97,21 +152,25 @@ public partial class OverlayWindow : Window
             }
         };
 
-        timer.Start();
+        return timer;
     }
 
-    public void UpdateElapsed(TimeSpan elapsed) =>
-        ElapsedText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
-
-    /// <summary>Добавить свежий уровень справа, сдвинув остальные влево.</summary>
-    public void PushLevel(float level)
+    private void ShowPanel(bool recording)
     {
-        for (int i = 0; i < BarCount - 1; i++)
-        {
-            _bars[i].Height = _bars[i + 1].Height;
-        }
+        _hideTimer?.Stop();
+        RecordingPanel.Visibility = recording ? Visibility.Visible : Visibility.Collapsed;
+        TranscribingPanel.Visibility = Visibility.Collapsed;
+        NoteText.Visibility = Visibility.Collapsed;
+    }
 
-        _bars[^1].Height = 3 + (Math.Clamp(level, 0, 1) * 18);
+    private void Reveal()
+    {
+        MoveIntoPlace();
+
+        // Show(), а не Activate(): активация увела бы фокус с приложения,
+        // в которое пользователь собирается диктовать.
+        Show();
+        Topmost = true; // переутверждаем: полноэкранные окна умеют перекрывать
     }
 
     private void BuildLevelBars()
@@ -146,6 +205,26 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Поставить пилюлю туда, где её ждут.
+    /// </summary>
+    /// <remarks>
+    /// Если пользователь однажды перетащил её — туда, куда поставил, но с
+    /// проверкой, что это место всё ещё на каком-то экране: монитор могли
+    /// отключить, и окно оказалось бы за пределами видимого.
+    /// </remarks>
+    private void MoveIntoPlace()
+    {
+        if (PinnedPosition is { } pinned && IsOnSomeScreen(pinned.Left, pinned.Top))
+        {
+            Left = pinned.Left;
+            Top = pinned.Top;
+            return;
+        }
+
+        MoveToActiveScreen();
+    }
+
+    /// <summary>
     /// Поставить пилюлю сверху по центру того экрана, где сейчас курсор.
     /// </summary>
     /// <remarks>
@@ -154,23 +233,147 @@ public partial class OverlayWindow : Window
     /// </remarks>
     private void MoveToActiveScreen()
     {
-        System.Drawing.Rectangle area = WinFormsScreen
-            .FromPoint(System.Windows.Forms.Control.MousePosition)
-            .WorkingArea;
+        System.Drawing.Point cursor = System.Windows.Forms.Control.MousePosition;
+        System.Drawing.Rectangle area = WinFormsScreen.FromPoint(cursor).WorkingArea;
 
         // WinForms отдаёт физические пиксели, WPF работает в аппаратно-
-        // независимых единицах. Без пересчёта на мониторе со 150% масштабом
-        // пилюля уезжает вправо: 2560/2 логических единиц — это далеко за
-        // серединой экрана шириной 1706 логических единиц.
-        //
-        // VisualTreeHelper.GetDpi, а не PresentationSource.TransformToDevice:
-        // он возвращает осмысленный масштаб и тогда, когда окно ещё не
-        // показано, а не молчаливую единицу.
-        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        // независимых единицах. Масштаб берём У ЦЕЛЕВОГО монитора, а не у
+        // того, на котором окно висит сейчас: при разном масштабе на двух
+        // мониторах это разные числа, и пилюля уезжала мимо.
+        (double scaleX, double scaleY) = ScaleOfMonitorAt(cursor);
 
-        Left = ((area.Left + (area.Width / 2.0)) / dpi.DpiScaleX) - (Width / 2);
-        Top = (area.Top / dpi.DpiScaleY) + 14;
+        // Ширина у окна плавающая (SizeToContent), и на момент первого показа
+        // она может быть ещё не посчитана — пересчитываем принудительно.
+        if (double.IsNaN(Width) || Width <= 0)
+        {
+            Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        }
+
+        double width = ActualWidth > 0 ? ActualWidth : DesiredSize.Width;
+
+        Left = ((area.Left + (area.Width / 2.0)) / scaleX) - (width / 2);
+        Top = (area.Top / scaleY) + 14;
     }
 
-    private void OnPillClick(object sender, MouseButtonEventArgs e) => Clicked?.Invoke();
+    private static bool IsOnSomeScreen(double left, double top)
+    {
+        foreach (WinFormsScreen screen in WinFormsScreen.AllScreens)
+        {
+            (double scaleX, double scaleY) = ScaleOfMonitorAt(
+                new System.Drawing.Point(screen.WorkingArea.Left + 1, screen.WorkingArea.Top + 1));
+
+            double l = screen.WorkingArea.Left / scaleX;
+            double t = screen.WorkingArea.Top / scaleY;
+            double r = screen.WorkingArea.Right / scaleX;
+            double b = screen.WorkingArea.Bottom / scaleY;
+
+            // Достаточно, чтобы левый верхний угол попадал на экран: пилюля
+            // маленькая, и требовать полного вхождения незачем.
+            if (left >= l - 40 && left <= r - 40 && top >= t - 10 && top <= b - 20)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Масштаб конкретного монитора.
+    /// </summary>
+    /// <remarks>
+    /// <c>VisualTreeHelper.GetDpi</c> отвечает про монитор, на котором окно
+    /// находится СЕЙЧАС, а нам нужен тот, куда мы собираемся его поставить.
+    /// На смешанной конфигурации (100% и 150%) это разные числа.
+    /// </remarks>
+    private static (double X, double Y) ScaleOfMonitorAt(System.Drawing.Point point)
+    {
+        const int MonitorDefaultToNearest = 2;
+        const int MdtEffectiveDpi = 0;
+
+        try
+        {
+            nint monitor = MonitorFromPoint(new NativePoint { X = point.X, Y = point.Y }, MonitorDefaultToNearest);
+            if (monitor != nint.Zero && GetDpiForMonitor(monitor, MdtEffectiveDpi, out uint dpiX, out uint dpiY) == 0)
+            {
+                return (dpiX / 96.0, dpiY / 96.0);
+            }
+        }
+        catch (DllNotFoundException)
+        {
+            // Windows 8 и старше — там масштаб общий на систему.
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // То же самое.
+        }
+
+        return (1.0, 1.0);
+    }
+
+    // --- перетаскивание ----------------------------------------------------
+
+    private void OnPillPressed(object sender, MouseButtonEventArgs e)
+    {
+        _pressed = true;
+        _dragged = false;
+        _pressedAt = PointToScreen(e.GetPosition(this));
+        _pressedWindowAt = new Point(Left, Top);
+        Pill.CaptureMouse();
+    }
+
+    private void OnPillMoved(object sender, MouseEventArgs e)
+    {
+        if (!_pressed)
+        {
+            return;
+        }
+
+        Point now = PointToScreen(e.GetPosition(this));
+        double dx = now.X - _pressedAt.X;
+        double dy = now.Y - _pressedAt.Y;
+
+        if (!_dragged && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold)
+        {
+            return;
+        }
+
+        _dragged = true;
+        Left = _pressedWindowAt.X + dx;
+        Top = _pressedWindowAt.Y + dy;
+    }
+
+    private void OnPillReleased(object sender, MouseButtonEventArgs e)
+    {
+        if (!_pressed)
+        {
+            return;
+        }
+
+        _pressed = false;
+        Pill.ReleaseMouseCapture();
+
+        if (_dragged)
+        {
+            PinnedPosition = (Left, Top);
+            Moved?.Invoke(Left, Top);
+            return;
+        }
+
+        // Не перетаскивание — значит клик.
+        Clicked?.Invoke();
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [LibraryImport("user32.dll")]
+    private static partial nint MonitorFromPoint(NativePoint point, uint flags);
+
+    [LibraryImport("shcore.dll")]
+    private static partial int GetDpiForMonitor(nint monitor, int type, out uint dpiX, out uint dpiY);
 }

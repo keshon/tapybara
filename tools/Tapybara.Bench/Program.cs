@@ -30,7 +30,7 @@ string[] valueFlags = ["--prompt", "--vad-threshold", "--lang"];
 List<string> positionalArgs = [];
 string? promptOption = null;
 float? vadThreshold = null;
-string language = "ru";
+string language = "auto";
 for (int i = 0; i < args.Length; i++)
 {
     string arg = args[i];
@@ -70,6 +70,20 @@ if (args.Contains("--verbose"))
 
 string command = positional.Length > 0 ? positional[0].ToLowerInvariant() : "help";
 
+// Верхний перехват на весь разбор команд. Харнесс — инструмент отладки, и
+// стек в консоли вместо внятной строки («модель не читается») отладке мешает.
+try
+{
+    return await RunCommandAsync(command);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Ошибка: {ex.Message}");
+    return 1;
+}
+
+async Task<int> RunCommandAsync(string command)
+{
 switch (command)
 {
     case "models":
@@ -83,21 +97,21 @@ switch (command)
         break;
 
     case "run":
-        if (positional.Length < 2)
-        {
-            Console.Error.WriteLine("Укажи модель: bench run large-v3-turbo");
-            return 1;
-        }
-
-        await RunAsync(positional[1], positional.Length > 2 ? positional[2] : defaultSample);
+        await RunAsync(
+            positional.Length > 1 ? positional[1] : null,
+            positional.Length > 2 ? positional[2] : defaultSample);
         break;
 
     case "dictate":
-        await DictateAsync(positional.Length > 1 ? positional[1] : "podlodka");
+        await DictateAsync(positional.Length > 1 ? positional[1] : null);
         break;
 
     case "check":
         CheckWindowsIntegration();
+        break;
+
+    case "devices":
+        ListDevices();
         break;
 
     case "transcribe":
@@ -131,30 +145,42 @@ switch (command)
             Замер распознавания и проверка диктовки.
 
               bench models                   список моделей в папке models
+              bench devices                  звуковые устройства и их идентификаторы
               bench rec [секунды]            записать образец с микрофона (по умолчанию 20 с)
-              bench run <модель> [файл.wav]  распознать и показать тайминги
+              bench run [модель] [файл.wav]  распознать и показать тайминги
               bench dictate [модель]         живая диктовка по глобальному хоткею
               bench call [секунды]           записать звонок в два канала
               bench transcribe <папка>       собрать транскрипт записанного звонка
               bench vad <файл.wav>           что детектор считает речью в файле
+              bench check                    проверить хоткей и буфер обмена
 
-            Модель задаётся куском имени файла: `bench run podlodka`.
+            Модель задаётся куском имени файла: `bench run turbo`.
+            Без подсказки берётся любая найденная.
 
             Флаги:
-              --prompt "текст"   подсказка словаря (по умолчанию промпта нет)
-              --no-vad           не искать речь детектором перед распознаванием
-              --verbose          нативный лог ggml: какой бэкенд загрузился
+              --prompt "текст"        подсказка словаря (по умолчанию промпта нет)
+              --lang <код>            язык распознавания (по умолчанию auto)
+              --vad-threshold <0..1>  порог детектора речи
+              --no-vad                не искать речь детектором перед распознаванием
+              --verbose               нативный лог ggml: какой бэкенд загрузился
             """);
         break;
 }
 
 return 0;
+}
 
 // --- команды ---------------------------------------------------------------
 
 void ListModels()
 {
     Console.WriteLine($"Папка моделей: {modelsDir}");
+    if (!Directory.Exists(modelsDir))
+    {
+        Console.WriteLine("  папки нет — скачайте модель в приложении или создайте папку вручную");
+        return;
+    }
+
     foreach (string path in Directory.EnumerateFiles(modelsDir, "*.bin").Order())
     {
         double mb = new FileInfo(path).Length / 1024.0 / 1024.0;
@@ -190,7 +216,7 @@ async Task RecordSampleAsync(double seconds)
     Console.WriteLine($"Записано {samples.Length / (double)MicrophoneCapture.TargetSampleRate:F1} с → {defaultSample}");
 }
 
-async Task RunAsync(string modelHint, string wavPath)
+async Task RunAsync(string? modelHint, string wavPath)
 {
     string modelPath = ResolveModel(modelHint);
     if (!File.Exists(wavPath))
@@ -207,10 +233,14 @@ async Task RunAsync(string modelHint, string wavPath)
 
     Console.WriteLine($"Промпт:   {promptOption ?? "нет"}");
 
+    Console.WriteLine($"Язык:     {language}");
+
     await using var engine = new WhisperEngine(new WhisperEngineOptions
     {
         ModelPath = modelPath,
-        Language = "ru",
+        // Язык берём из --lang. Раньше флаг разбирался, но здесь стояла
+        // константа: замер на английском образце всё равно шёл с русским.
+        Language = language,
         // Промпта по умолчанию нет намеренно. Подсказка словаря биасит декодер,
         // и НЕРЕЛЕВАНТНЫЙ промпт делает это во вред: он должен быть настройкой
         // пользователя, а не зашитой в замер константой.
@@ -264,22 +294,19 @@ async Task InspectVadAsync(string wavPath)
     Console.WriteLine($"Пик исходный:      {raw.Max(Math.Abs):F4}");
     Console.WriteLine($"Пик после нормализации: {normalized.Max(Math.Abs):F4}");
 
-    string? vadPath = ModelLocator.ResolveVadModel("ggml-silero-v6.2.0.bin");
+    string? vadPath = ModelLocator.ResolveVadModel(new AppSettings().VadModelFileName);
     if (vadPath is null)
     {
         Console.Error.WriteLine("Модель детектора не найдена.");
         return;
     }
 
+    // Одна модель на все пороги: порог живёт в прогоне, а не в модели.
+    await using var detector = new SpeechDetector(new SpeechDetectorOptions { ModelPath = vadPath });
+
     foreach (float threshold in new[] { 0.5f, 0.35f, 0.2f, 0.1f })
     {
-        await using var detector = new SpeechDetector(new SpeechDetectorOptions
-        {
-            ModelPath = vadPath,
-            Threshold = threshold,
-        });
-
-        IReadOnlyList<SpeechRegion> regions = await detector.DetectAsync(normalized);
+        IReadOnlyList<SpeechRegion> regions = await detector.DetectAsync(normalized, threshold);
         string found = regions.Count == 0
             ? "ничего"
             : string.Join(", ", regions.Select(r => $"{r.Start.TotalSeconds:F1}-{r.End.TotalSeconds:F1}"));
@@ -300,7 +327,7 @@ async Task TranscribeCallAsync(string callDirectory)
         return;
     }
 
-    string modelPath = ResolveModel("podlodka");
+    string modelPath = ResolveModel(null);
     await using var engine = new WhisperEngine(new WhisperEngineOptions
     {
         ModelPath = modelPath,
@@ -317,7 +344,7 @@ async Task TranscribeCallAsync(string callDirectory)
     SpeechDetector? detector = null;
     if (!args.Contains("--no-vad"))
     {
-        string? vadPath = ModelLocator.ResolveVadModel("ggml-silero-v6.2.0.bin");
+        string? vadPath = ModelLocator.ResolveVadModel(new AppSettings().VadModelFileName);
         if (vadPath is null)
         {
             Console.WriteLine("Модель детектора речи не найдена — иду без неё.");
@@ -346,10 +373,11 @@ async Task TranscribeCallAsync(string callDirectory)
         {
             MyName = "Я",
             OtherSideName = "Собеседник",
+            Language = language,
         });
 
     var timer = Stopwatch.StartNew();
-    var progress = new Progress<string>(step => Console.WriteLine($"  {step}"));
+    var progress = new Progress<CallTranscriptionStage>(stage => Console.WriteLine($"  {stage}"));
     string path = await transcriber.TranscribeAsync(session, progress);
     timer.Stop();
 
@@ -390,7 +418,7 @@ async Task RecordCallAsync(double seconds)
     };
 
     Console.WriteLine($"Пишу {seconds:F0} секунд. Говори и включи что-нибудь со звуком.");
-    CallSession session = recorder.Start(callsRoot);
+    CallSession session = recorder.Start(new CallRecordingOptions(callsRoot));
     await Task.Delay(TimeSpan.FromSeconds(seconds));
     CallSession? finished = await recorder.StopAsync();
     Console.WriteLine();
@@ -458,14 +486,14 @@ void CheckWindowsIntegration()
 /// проверить рискованное (глобальный хоткей и вставку в чужое окно) до того,
 /// как вкладываться в WPF.
 /// </summary>
-async Task DictateAsync(string modelHint)
+async Task DictateAsync(string? modelHint)
 {
     string modelPath = ResolveModel(modelHint);
 
     await using var engine = new WhisperEngine(new WhisperEngineOptions
     {
         ModelPath = modelPath,
-        Language = "ru",
+        Language = language,
         Prompt = promptOption,
     });
 
@@ -566,10 +594,25 @@ async Task DictateAsync(string modelHint)
     }
 }
 
-string ResolveModel(string hint)
+/// <summary>
+/// Найти модель по куску имени.
+/// </summary>
+/// <remarks>
+/// Без подсказки берётся любая доступная. Раньше в двух командах стояло имя
+/// личной модели автора: у всех остальных они падали с «нет модели», хотя
+/// модели в папке лежали.
+/// </remarks>
+string ResolveModel(string? hint)
 {
+    if (string.IsNullOrWhiteSpace(hint))
+    {
+        return ModelLocator.ResolveAnyAvailable()
+               ?? throw new FileNotFoundException($"В {modelsDir} нет ни одной модели распознавания.");
+    }
+
     string[] matches = [.. Directory.EnumerateFiles(modelsDir, "*.bin")
-        .Where(p => Path.GetFileName(p).Contains(hint, StringComparison.OrdinalIgnoreCase))];
+        .Where(p => Path.GetFileName(p).Contains(hint, StringComparison.OrdinalIgnoreCase))
+        .Where(p => !Path.GetFileName(p).Contains("silero", StringComparison.OrdinalIgnoreCase))];
 
     return matches.Length switch
     {
@@ -578,6 +621,25 @@ string ResolveModel(string hint)
         _ => throw new InvalidOperationException(
             $"Под «{hint}» подходит несколько: {string.Join(", ", matches.Select(Path.GetFileName))}"),
     };
+}
+
+/// <summary>Звуковые устройства и их идентификаторы — чтобы вписать в настройки.</summary>
+void ListDevices()
+{
+    Console.WriteLine("Входы (микрофоны):");
+    foreach (AudioDeviceInfo device in AudioDevices.Inputs())
+    {
+        Console.WriteLine($"  {(device.IsDefault ? "*" : " ")} {device.Name}");
+        Console.WriteLine($"      {device.Id}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Выходы (с них снимается системный звук):");
+    foreach (AudioDeviceInfo device in AudioDevices.Outputs())
+    {
+        Console.WriteLine($"  {(device.IsDefault ? "*" : " ")} {device.Name}");
+        Console.WriteLine($"      {device.Id}");
+    }
 }
 
 // Утилита ищет папку models относительно корня репозитория, а не рабочей

@@ -14,11 +14,24 @@ namespace Tapybara.Core.Settings;
 /// внутри settings.json. Иначе получилась бы курица с яйцом: чтобы прочитать
 /// настройку, надо знать, где лежит файл настроек.
 /// </para>
+/// <para>
+/// Маркеров признаётся несколько. Основной — <c>portable.txt</c>: так это
+/// сделано в RPCS3 и ещё десятке портативных программ, и человек, знакомый с
+/// приёмом, положит рядом с exe именно его, не читая никакой документации.
+/// Прежнее имя тоже понимается, чтобы у тех, кто уже включил режим, ничего
+/// не сломалось.
+/// </para>
 /// </remarks>
 public static class AppPaths
 {
-    /// <summary>Файл-маркер портативного режима. Пустой — важно лишь его наличие.</summary>
-    private const string PortableMarkerName = "Tapybara.portable";
+    /// <summary>
+    /// Имена файлов-маркеров портативного режима.
+    /// </summary>
+    /// <remarks>
+    /// Содержимое не важно, важно наличие. Первое имя — то, которое создаёт
+    /// сама программа.
+    /// </remarks>
+    private static readonly string[] PortableMarkerNames = ["portable.txt", "Tapybara.portable"];
 
     private const string FolderName = "Tapybara";
 
@@ -26,18 +39,41 @@ public static class AppPaths
     {
         string executableDirectory = AppContext.BaseDirectory;
 
-        PortableMarkerPath = Path.Combine(executableDirectory, PortableMarkerName);
+        ExecutableDirectory = executableDirectory;
+        PortableMarkerPath = Path.Combine(executableDirectory, PortableMarkerNames[0]);
         PortableDataDirectory = Path.Combine(executableDirectory, "Data");
         RoamingDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             FolderName);
 
-        IsPortable = File.Exists(PortableMarkerPath);
+        // Значение фиксируется на всё время работы процесса — см. SetPortable.
+        IsPortable = IsPortableNow;
         DataDirectory = IsPortable ? PortableDataDirectory : RoamingDataDirectory;
     }
 
-    /// <summary>Работает ли приложение в портативном режиме.</summary>
+    /// <summary>Папка, из которой запущено приложение.</summary>
+    public static string ExecutableDirectory { get; }
+
+    /// <summary>
+    /// Работает ли приложение в портативном режиме ПРЯМО СЕЙЧАС.
+    /// </summary>
+    /// <remarks>
+    /// Значение зафиксировано при старте. Именно оно определяет, откуда
+    /// читаются настройки и модели этим запуском.
+    /// </remarks>
     public static bool IsPortable { get; }
+
+    /// <summary>
+    /// Лежит ли маркер рядом с программой в этот момент.
+    /// </summary>
+    /// <remarks>
+    /// Отличается от <see cref="IsPortable"/> сразу после переключения:
+    /// маркер уже создан, но действующие пути остались прежними до
+    /// перезапуска. Переключателю в настройках нужно именно это значение,
+    /// иначе он показывал бы старое положение и выглядел сломанным.
+    /// </remarks>
+    public static bool IsPortableNow =>
+        PortableMarkerNames.Any(name => File.Exists(Path.Combine(ExecutableDirectory, name)));
 
     /// <summary>Действующая папка данных с учётом режима.</summary>
     public static string DataDirectory { get; }
@@ -48,11 +84,23 @@ public static class AppPaths
     /// <summary>Папка данных портативного режима — <c>Data</c> рядом с exe.</summary>
     public static string PortableDataDirectory { get; }
 
-    /// <summary>Путь к файлу-маркеру портативного режима.</summary>
+    /// <summary>Путь к файлу-маркеру, который создаёт сама программа.</summary>
     public static string PortableMarkerPath { get; }
 
     /// <summary>Папка моделей по умолчанию внутри действующей папки данных.</summary>
     public static string DefaultModelsDirectory => Path.Combine(DataDirectory, "models");
+
+    /// <summary>
+    /// Папка моделей по умолчанию для режима, который будет ПОСЛЕ перезапуска.
+    /// </summary>
+    /// <remarks>
+    /// Нужна кнопке «По умолчанию» в настройках: если человек только что
+    /// включил портативный режим, вернуть его к пути от прежнего режима было
+    /// бы издевательством.
+    /// </remarks>
+    public static string PendingDefaultModelsDirectory => Path.Combine(
+        IsPortableNow ? PortableDataDirectory : RoamingDataDirectory,
+        "models");
 
     public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
@@ -92,10 +140,14 @@ public static class AppPaths
                 "Наличие этого файла включает портативный режим:" + Environment.NewLine
                 + "настройки и модели берутся из папки Data рядом с программой." + Environment.NewLine
                 + "Удалите файл, чтобы вернуться к хранению в %APPDATA%\\Tapybara.");
+            return;
         }
-        else
+
+        // Убираем ВСЕ известные маркеры, а не только свой: иначе выключение
+        // не выключало бы режим, если файл положили руками под другим именем.
+        foreach (string name in PortableMarkerNames)
         {
-            File.Delete(PortableMarkerPath);
+            File.Delete(Path.Combine(ExecutableDirectory, name));
         }
     }
 }

@@ -2,12 +2,14 @@
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Width="520" Height="520"
+                 Width="560" Height="560"
                  ResizeMode="NoResize"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
-                 WindowCornerPreference="Round">
+                 WindowCornerPreference="Round"
+                 FontFamily="{StaticResource AppFontFamily}"
+                 FontSize="{StaticResource AppFontSize}">
     <!--
         Подбор порога детектора по образцу голоса. Правильное значение зависит
         от микрофона, комнаты и голоса — его нельзя угадать, но можно измерить.

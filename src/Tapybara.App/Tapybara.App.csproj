@@ -16,8 +16,30 @@
          способ сделать трей в WPF-приложении — своего у WPF просто нет. -->
     <UseWindowsForms>true</UseWindowsForms>
 
-    <!-- Нужен генератору LibraryImport (одна функция DestroyIcon в трее). -->
+    <!-- Нужен генератору LibraryImport: маршалинг, который он пишет за нас,
+         работает с указателями. Без флага сборка падает с SYSLIB1062. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Иконка приложения. Без неё exe, Alt+Tab и закреплённый ярлык
+         показывают стандартную иконку .NET, и приложение выглядит
+         недоделанным ещё до запуска. -->
+    <ApplicationIcon>Assets\Tapybara.ico</ApplicationIcon>
+
+    <!-- Манифест нужен ради объявления PerMonitorV2: приложение само считает,
+         на какой монитор ставить плавающий индикатор, и без этого получает от
+         Windows один масштаб на все мониторы. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Публикуем только под win-x64: нативные библиотеки whisper.cpp для
+         x86 и arm64 иначе едут в вывод мёртвым грузом. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <!-- WFO0003 требует задавать масштабирование через ApplicationHighDpiMode.
+         Это про приложения WinForms, которые вызывают
+         ApplicationConfiguration.Initialize(); у нас WPF, и WinForms подключён
+         ради одного NotifyIcon. Для WPF правильное место — именно манифест. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,10 +50,35 @@
     <PackageReference Include="WPF-UI" />
 
     <!-- Нативные библиотеки whisper.cpp подключает исполняемый проект.
-         Порядок перебора внутри Whisper.net: CUDA → Vulkan → CPU. -->
-    <PackageReference Include="Whisper.net.Runtime.Cuda.Windows" />
+         Порядок перебора внутри Whisper.net: CUDA → Vulkan → CPU.
+
+         CUDA по умолчанию НЕ включаем. Сборка весит 150 МБ и требует
+         cublas64_13.dll из CUDA Toolkit, которого на обычной машине нет, —
+         то есть в подавляющем большинстве установок это 150 МБ, которые
+         загружаются, не находят зависимость и молча уступают Vulkan.
+         Кому нужно: сборка с -p:WithCuda=true. -->
+    <PackageReference Include="Whisper.net.Runtime.Cuda.Windows" Condition="'$(WithCuda)' == 'true'" />
     <PackageReference Include="Whisper.net.Runtime.Vulkan" />
     <PackageReference Include="Whisper.net.Runtime" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Tapybara.ico" />
+    <Resource Include="Assets\Tapybara-128.png" />
+  </ItemGroup>
+
+  <!--
+    Нативные библиотеки whisper.cpp приходят из пакета сразу для трёх
+    архитектур. Публикуем мы только win-x64, и остальные две едут в поставку
+    мёртвым грузом.
+  -->
+  <Target Name="TrimForeignRuntimes" AfterTargets="Publish">
+    <ItemGroup>
+      <ForeignRuntimeFile Include="$(PublishDir)runtimes\win-x86\**\*" />
+      <ForeignRuntimeFile Include="$(PublishDir)runtimes\win-arm64\**\*" />
+    </ItemGroup>
+    <Delete Files="@(ForeignRuntimeFile)" />
+    <RemoveDir Directories="$(PublishDir)runtimes\win-x86;$(PublishDir)runtimes\win-arm64" />
+  </Target>
 
 </Project>

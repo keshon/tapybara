@@ -15,9 +15,14 @@ public static class AudioFile
     {
         using var reader = new AudioFileReader(path);
 
-        ISampleProvider source = reader.WaveFormat.Channels == 1
-            ? reader
-            : new StereoToMonoSampleProvider(reader) { LeftVolume = 0.5f, RightVolume = 0.5f };
+        // Больше двух каналов StereoToMonoSampleProvider не понимает — там
+        // берём первый канал, как и при живом захвате.
+        ISampleProvider source = reader.WaveFormat.Channels switch
+        {
+            1 => reader,
+            2 => new StereoToMonoSampleProvider(reader) { LeftVolume = 0.5f, RightVolume = 0.5f },
+            _ => new MultiplexingSampleProvider([reader], 1),
+        };
 
         if (source.WaveFormat.SampleRate != MicrophoneCapture.TargetSampleRate)
         {
