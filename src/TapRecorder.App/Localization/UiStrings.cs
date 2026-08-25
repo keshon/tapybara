@@ -97,6 +97,20 @@ public sealed record UiStrings
     public required string FieldVadModel { get; init; }
     public required string FieldVadThreshold { get; init; }
     public required string FieldVadThresholdHint { get; init; }
+    public required string ButtonTest { get; init; }
+    public required string ButtonStartTest { get; init; }
+    public required string ButtonRepeatTest { get; init; }
+    public required string ButtonApplyRecommended { get; init; }
+    public required string VadTestTitle { get; init; }
+    public required string VadTestIntro { get; init; }
+    public required string VadTestReady { get; init; }
+    public required string VadTestSpeakNow { get; init; }
+    public required string VadTestAnalyzing { get; init; }
+    public required string VadTestResultsHeader { get; init; }
+    public required string VadTestRow { get; init; }
+    public required string VadTestRecommended { get; init; }
+    public required string VadTestNoSpeech { get; init; }
+    public required string VadTestDone { get; init; }
     public required string FieldNormalize { get; init; }
     public required string FieldNormalizeHint { get; init; }
     public required string FieldCallsFolder { get; init; }
@@ -205,6 +219,20 @@ public sealed record UiStrings
         FieldVadModel = "Speech detector model",
         FieldVadThreshold = "Detector sensitivity",
         FieldVadThresholdHint = "Lower catches quieter speech but also more noise",
+        ButtonTest = "Test…",
+        ButtonStartTest = "Start",
+        ButtonRepeatTest = "Again",
+        ButtonApplyRecommended = "Use recommended",
+        VadTestTitle = "Tune the speech detector",
+        VadTestIntro = "The right sensitivity depends on your microphone, your room and your voice, so there is no single correct value — but it can be measured. Count from one to ten at your usual pace and volume. The detector then runs at several settings, and you can see where it starts losing speech.",
+        VadTestReady = "Ready when you are",
+        VadTestSpeakNow = "Speak now — {0} s left",
+        VadTestAnalyzing = "Measuring…",
+        VadTestResultsHeader = "Speech found at each setting",
+        VadTestRow = "{0:F1} s in {1} fragments",
+        VadTestRecommended = "Recommended: {0:F2} — the strictest setting that still keeps your speech. Stricter means less noise, but a lost word cannot be recovered.",
+        VadTestNoSpeech = "No speech detected. Check that the right microphone is selected and try again.",
+        VadTestDone = "Done",
         FieldNormalize = "Even out loudness before transcribing",
         FieldNormalizeHint = "A microphone placed away from your face records far quieter than normal, and the speech detector decides by loudness.",
         FieldCallsFolder = "Calls folder",
@@ -314,6 +342,20 @@ public sealed record UiStrings
         FieldVadModel = "Модель детектора речи",
         FieldVadThreshold = "Чувствительность детектора",
         FieldVadThresholdHint = "Ниже — ловит более тихую речь, но и больше шума",
+        ButtonTest = "Проверить…",
+        ButtonStartTest = "Начать",
+        ButtonRepeatTest = "Ещё раз",
+        ButtonApplyRecommended = "Применить рекомендацию",
+        VadTestTitle = "Подбор чувствительности детектора",
+        VadTestIntro = "Правильная чувствительность зависит от вашего микрофона, комнаты и голоса, поэтому единственного верного значения не существует — но его можно измерить. Посчитайте вслух от одного до десяти в обычном темпе и с обычной громкостью. Детектор прогонится на нескольких настройках, и будет видно, где он начинает терять речь.",
+        VadTestReady = "Готовы — начинайте",
+        VadTestSpeakNow = "Говорите — осталось {0} с",
+        VadTestAnalyzing = "Измеряю…",
+        VadTestResultsHeader = "Сколько речи найдено на каждой настройке",
+        VadTestRow = "{0:F1} с в {1} фрагментах",
+        VadTestRecommended = "Рекомендуется {0:F2} — самая строгая настройка, которая ещё не теряет вашу речь. Строже — меньше шума, но потерянное слово не восстановить.",
+        VadTestNoSpeech = "Речь не обнаружена. Проверьте, что выбран нужный микрофон, и попробуйте снова.",
+        VadTestDone = "Готово",
         FieldNormalize = "Выравнивать громкость перед распознаванием",
         FieldNormalizeHint = "Микрофон, отодвинутый от лица, пишет в разы тише обычного, а детектор речи решает именно по громкости.",
         FieldCallsFolder = "Папка звонков",

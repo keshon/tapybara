@@ -251,14 +251,7 @@ public partial class SettingsWindow : FluentWindow
             AddCard(SymbolRegular.BrainCircuit24, L.S.FieldVadModel, description: null, vadBox);
         }
 
-        AddCard(
-            SymbolRegular.Options24,
-            L.S.FieldVadThreshold,
-            L.S.FieldVadThresholdHint,
-            NumberField(
-                _settings.VadThreshold,
-                string.Empty,
-                value => Apply(_settings with { VadThreshold = Math.Clamp(value, 0.05, 0.95) })));
+        BuildVadThresholdCard();
 
         AddToggleCard(
             SymbolRegular.TextAlignLeft24,
@@ -266,6 +259,84 @@ public partial class SettingsWindow : FluentWindow
             L.S.FieldNormalizeHint,
             _settings.NormalizeAudio,
             value => Apply(_settings with { NormalizeAudio = value }));
+    }
+
+    /// <summary>
+    /// Чувствительность детектора: значение, подбор по образцу и сброс.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка подбора здесь не украшение. Верное значение зависит от
+    /// микрофона, комнаты и голоса, и совет «подвигай ползунок» перекладывает
+    /// на пользователя задачу, которую программа умеет решить измерением.
+    /// </remarks>
+    private void BuildVadThresholdCard()
+    {
+        var valueBox = new TextBox
+        {
+            Text = _settings.VadThreshold.ToString("F2", CultureInfo.CurrentCulture),
+            Width = 80,
+            TextAlignment = TextAlignment.Right,
+        };
+
+        void SetThreshold(double value)
+        {
+            double clamped = Math.Clamp(value, 0.05, 0.95);
+            valueBox.Text = clamped.ToString("F2", CultureInfo.CurrentCulture);
+            Apply(_settings with { VadThreshold = clamped });
+        }
+
+        valueBox.LostFocus += (_, _) =>
+        {
+            string normalized = valueBox.Text.Replace(',', '.');
+            if (double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
+            {
+                SetThreshold(parsed);
+            }
+            else
+            {
+                valueBox.Text = _settings.VadThreshold.ToString("F2", CultureInfo.CurrentCulture);
+            }
+        };
+
+        var test = new Button { Content = L.S.ButtonTest, MinWidth = 130, Margin = new Thickness(0, 0, 8, 0) };
+        test.Click += (_, _) =>
+        {
+            string? vadPath = ModelLocator.ResolveVadModel(_settings.VadModelFileName, _settings.ModelsDirectory);
+            if (vadPath is null)
+            {
+                return;
+            }
+
+            var window = new VadTestWindow(vadPath, _settings.NormalizeAudio) { Owner = this };
+            if (window.ShowDialog() == true && window.AcceptedThreshold is { } accepted)
+            {
+                SetThreshold(accepted);
+            }
+        };
+
+        var reset = new Button { Content = L.S.ButtonDefault, MinWidth = 130 };
+        reset.Click += (_, _) => SetThreshold(new AppSettings().VadThreshold);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+
+        buttons.Children.Add(test);
+        buttons.Children.Add(reset);
+
+        var row = new StackPanel();
+        row.Children.Add(valueBox);
+        row.Children.Add(buttons);
+
+        AddStackedCard(
+            SymbolRegular.Options24,
+            L.S.FieldVadThreshold,
+            L.S.FieldVadThresholdHint,
+            row,
+            trailing: null);
     }
 
     private void BuildCallsSection()
