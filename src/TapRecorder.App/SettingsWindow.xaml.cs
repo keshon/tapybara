@@ -276,6 +276,10 @@ public partial class SettingsWindow : FluentWindow
             Text = _settings.VadThreshold.ToString("F2", CultureInfo.CurrentCulture),
             Width = 80,
             TextAlignment = TextAlignment.Right,
+
+            // Без явного выравнивания StackPanel центрирует элемент с заданной
+            // шириной, и поле уезжает на середину карточки.
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
         };
 
         void SetThreshold(double value)
