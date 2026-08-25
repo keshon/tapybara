@@ -57,6 +57,14 @@ public sealed record AppSettings
         ? TimeSpan.FromSeconds(Math.Max(0.2, ParagraphPauseSeconds))
         : TimeSpan.Zero;
 
+    /// <summary>Как подписывать свои реплики в транскрипте звонка.</summary>
+    public string MyName { get; init; } = "Me";
+
+    /// <summary>
+    /// Как подписывать реплики из системного канала, когда участники не указаны.
+    /// </summary>
+    public string OtherSideName { get; init; } = "Them";
+
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;
 
