@@ -5,16 +5,14 @@ using NAudio.Wave.SampleProviders;
 namespace TapRecorder.Core.Audio;
 
 /// <summary>
-/// Пишет микрофон в память сразу в том формате, который нужен whisper:
-/// 16 кГц, моно, float32. Длинная диктовка — не проблема: минута ≈ 3.8 МБ,
-/// ограничение длительности — забота вызывающего кода, а не захвата.
+/// Захват звука в память в формате whisper: 16 кГц, моно, float32.
 /// </summary>
 /// <remarks>
-/// Устройство почти всегда отдаёт 48 кГц стерео, поэтому внутри стоит цепочка
-/// NAudio: буфер → сведение в моно → ресемплинг. Ресемплим на лету, а не в
-/// конце, чтобы в памяти лежал уже готовый для распознавания массив.
+/// Базовый класс для микрофона и системного звука: различаются они ровно одним
+/// — каким объектом WASAPI открывается устройство. Всё остальное (сведение в
+/// моно, ресемплинг, накопление, уровень) общее.
 /// </remarks>
-public sealed class MicrophoneCapture : IDisposable
+public abstract class AudioCapture : IDisposable
 {
     /// <summary>Частота дискретизации, на которой работает whisper. Не настраивается.</summary>
     public const int TargetSampleRate = 16_000;
@@ -31,8 +29,20 @@ public sealed class MicrophoneCapture : IDisposable
     private float[] _scratch = [];
     private TaskCompletionSource? _stopped;
 
-    /// <summary>Уровень входа (RMS, 0..~1) на каждую порцию звука от устройства — для индикатора.</summary>
+    /// <summary>Уровень входа (RMS, 0..~1) на каждую порцию звука — для индикатора.</summary>
     public event Action<float>? LevelChanged;
+
+    /// <summary>
+    /// Свежая порция сэмплов в целевом формате.
+    /// </summary>
+    /// <remarks>
+    /// Для записи звонков: позволяет писать на диск по ходу, а не копить
+    /// часовой разговор в памяти. Вызывается из аудио-потока.
+    /// </remarks>
+    public event Action<float[]>? SamplesAvailable;
+
+    /// <summary>Накапливать сэмплы в памяти. Для длинных записей выключается.</summary>
+    public bool KeepInMemory { get; init; } = true;
 
     /// <summary>Сколько уже записано. Читается из любого потока.</summary>
     public TimeSpan Duration
@@ -46,7 +56,10 @@ public sealed class MicrophoneCapture : IDisposable
         }
     }
 
-    /// <summary>Начать захват с устройства по умолчанию.</summary>
+    /// <summary>Открыть устройство WASAPI. Единственное отличие наследников.</summary>
+    protected abstract WasapiCapture CreateDevice();
+
+    /// <summary>Начать захват.</summary>
     public void Start()
     {
         if (_capture is not null)
@@ -54,7 +67,7 @@ public sealed class MicrophoneCapture : IDisposable
             throw new InvalidOperationException("Захват уже идёт — сначала StopAsync().");
         }
 
-        var capture = new WasapiCapture();
+        WasapiCapture capture = CreateDevice();
         WaveFormat deviceFormat = capture.WaveFormat;
 
         // ReadFully = false — важно. По умолчанию BufferedWaveProvider добивает
@@ -69,14 +82,17 @@ public sealed class MicrophoneCapture : IDisposable
         };
 
         _pipeline = new WdlResamplingSampleProvider(ToMono(_deviceBuffer.ToSampleProvider()), TargetSampleRate);
-        _scratch = new float[TargetSampleRate]; // секунда запаса — Read всё равно вернёт сколько есть
+        _scratch = new float[TargetSampleRate]; // секунда запаса — Read вернёт сколько есть
 
         lock (_gate)
         {
             _samples.Clear();
-            // Резерв под ~16 минут: аудио-поток не должен упираться в перевыделение
-            // массива посреди записи.
-            _samples.Capacity = TargetSampleRate * 60 * 16;
+            if (KeepInMemory)
+            {
+                // Резерв под ~16 минут: аудио-поток не должен упираться
+                // в перевыделение массива посреди записи.
+                _samples.Capacity = TargetSampleRate * 60 * 16;
+            }
         }
 
         capture.DataAvailable += OnDataAvailable;
@@ -127,7 +143,7 @@ public sealed class MicrophoneCapture : IDisposable
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e) => _stopped?.TrySetResult();
 
-    /// <summary>Вычитать из цепочки всё, что она готова отдать, и дописать в запись.</summary>
+    /// <summary>Вычитать из цепочки всё, что она готова отдать.</summary>
     private void DrainPipeline()
     {
         if (_pipeline is null)
@@ -140,9 +156,17 @@ public sealed class MicrophoneCapture : IDisposable
         {
             var chunk = _scratch.AsSpan(0, read);
 
-            lock (_gate)
+            if (KeepInMemory)
             {
-                _samples.AddRange(chunk);
+                lock (_gate)
+                {
+                    _samples.AddRange(chunk);
+                }
+            }
+
+            if (SamplesAvailable is { } sink)
+            {
+                sink(chunk.ToArray());
             }
 
             if (LevelChanged is { } handler)
@@ -191,5 +215,30 @@ public sealed class MicrophoneCapture : IDisposable
 
         _pipeline = null;
         _deviceBuffer = null;
+        GC.SuppressFinalize(this);
     }
+}
+
+/// <summary>Микрофон — устройство ввода по умолчанию.</summary>
+public sealed class MicrophoneCapture : AudioCapture
+{
+    protected override WasapiCapture CreateDevice() => new WasapiCapture();
+}
+
+/// <summary>
+/// Системный звук — то, что слышно из колонок: голоса собеседников в звонке.
+/// </summary>
+/// <remarks>
+/// WASAPI loopback: захват того, что уходит на устройство вывода. На Windows
+/// это штатная возможность в одну строку — в macOS-оригинале ради того же
+/// понадобился process tap Core Audio и приватное агрегатное устройство.
+/// <para>
+/// Пишется ВЕСЬ звук системы, включая уведомления и музыку. Сузить до одного
+/// приложения можно через process loopback (Windows 10 2004+) — это отдельная
+/// задача.
+/// </para>
+/// </remarks>
+public sealed class SystemAudioCapture : AudioCapture
+{
+    protected override WasapiCapture CreateDevice() => new WasapiLoopbackCapture();
 }

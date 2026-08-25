@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using Whisper.net.Logger;
 using TapRecorder.Core.Audio;
+using TapRecorder.Core.Calls;
 using TapRecorder.Core.Speech;
 using TapRecorder.Core.Windows;
 
@@ -88,6 +89,12 @@ switch (command)
         CheckWindowsIntegration();
         break;
 
+    case "call":
+        await RecordCallAsync(positional.Length > 1
+            ? double.Parse(positional[1], CultureInfo.InvariantCulture)
+            : 15);
+        break;
+
     default:
         Console.WriteLine("""
             Замер распознавания и проверка диктовки.
@@ -96,6 +103,7 @@ switch (command)
               bench rec [секунды]            записать образец с микрофона (по умолчанию 20 с)
               bench run <модель> [файл.wav]  распознать и показать тайминги
               bench dictate [модель]         живая диктовка по глобальному хоткею
+              bench call [секунды]           записать звонок в два канала
 
             Модель задаётся куском имени файла: `bench run podlodka`.
 
@@ -201,6 +209,62 @@ async Task RunAsync(string modelHint, string wavPath)
     Console.WriteLine();
     Console.WriteLine($"Загрузка + прогрев: {loadTimer.Elapsed.TotalSeconds,6:F2} с");
     Console.WriteLine($"Распознавание:      {runTimer.Elapsed.TotalSeconds,6:F2} с  ({rtf:F1}× реального времени)");
+}
+
+/// <summary>
+/// Запись звонка в два канала: проверка захвата и выравнивания дорожек.
+/// </summary>
+async Task RecordCallAsync(double seconds)
+{
+    string callsRoot = Path.Combine(repoRoot, "temp", "calls");
+    using var recorder = new CallRecorder();
+
+    var lastPrint = Stopwatch.StartNew();
+    recorder.MicLevel += level =>
+    {
+        if (lastPrint.ElapsedMilliseconds < 200)
+        {
+            return;
+        }
+
+        lastPrint.Restart();
+        int bars = (int)Math.Clamp(level * 60, 0, 30);
+        Console.SetCursorPosition(0, Console.CursorTop);
+        Console.Write("  микрофон ["
+                      + new string('#', bars).PadRight(30)
+                      + $"] {recorder.Elapsed.TotalSeconds,5:F1} с");
+    };
+
+    Console.WriteLine($"Пишу {seconds:F0} секунд. Говори и включи что-нибудь со звуком.");
+    CallSession session = recorder.Start(callsRoot);
+    await Task.Delay(TimeSpan.FromSeconds(seconds));
+    CallSession? finished = await recorder.StopAsync();
+    Console.WriteLine();
+
+    if (finished is null)
+    {
+        Console.Error.WriteLine("Запись не состоялась.");
+        return;
+    }
+
+    Console.WriteLine($"Папка: {finished.Directory}");
+    Console.WriteLine($"Длительность по часам: {finished.Duration.TotalSeconds:F2} с");
+    Console.WriteLine();
+
+    // Главная проверка: дорожки обязаны совпадать по длине. Системный канал
+    // не отдаёт данных в тишине, и без добивания он оказался бы короче.
+    foreach ((string label, string path) in new[]
+             {
+                 ("микрофон", finished.MicPath),
+                 ("система ", finished.SystemPath),
+             })
+    {
+        float[] samples = AudioFile.ReadMono16k(path);
+        double duration = samples.Length / (double)AudioCapture.TargetSampleRate;
+        double peak = samples.Length == 0 ? 0 : samples.Max(Math.Abs);
+        double mb = new FileInfo(path).Length / 1024.0 / 1024.0;
+        Console.WriteLine($"  {label}: {duration,6:F2} с, пик {peak:F3}, {mb:F2} МБ");
+    }
 }
 
 /// <summary>

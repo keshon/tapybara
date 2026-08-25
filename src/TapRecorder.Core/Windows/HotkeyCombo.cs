@@ -44,25 +44,28 @@ public sealed record HotkeyCombo(HotkeyModifiers Modifiers, ushort VirtualKey)
 
     public override string ToString()
     {
+        // Без пробелов вокруг плюса: «Ctrl+Alt+D» — принятая в Windows запись,
+        // и она заметно короче. В меню трея ширина считается по самому длинному
+        // пункту, так что лишние пробелы там стоят реального места.
         var text = new StringBuilder();
         if (Modifiers.HasFlag(HotkeyModifiers.Control))
         {
-            text.Append("Ctrl + ");
+            text.Append("Ctrl+");
         }
 
         if (Modifiers.HasFlag(HotkeyModifiers.Alt))
         {
-            text.Append("Alt + ");
+            text.Append("Alt+");
         }
 
         if (Modifiers.HasFlag(HotkeyModifiers.Shift))
         {
-            text.Append("Shift + ");
+            text.Append("Shift+");
         }
 
         if (Modifiers.HasFlag(HotkeyModifiers.Win))
         {
-            text.Append("Win + ");
+            text.Append("Win+");
         }
 
         return text.Append(KeyName(VirtualKey)).ToString();
