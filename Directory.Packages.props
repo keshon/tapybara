@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    Central Package Management: версия каждого пакета задаётся ОДИН раз здесь,
+    а в .csproj остаётся только <PackageReference Include="..." /> без Version.
+    Иначе в многопроектной солюшене неизбежно разъезжаются версии одного
+    пакета между проектами — и ловится это уже в рантайме.
+  -->
+  <ItemGroup>
+    <!-- whisper.cpp под .NET: сам биндинг + нативные библиотеки отдельными пакетами -->
+    <PackageVersion Include="Whisper.net" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime.Cuda.Windows" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+
+    <!-- Fluent-тема и контролы в стиле Windows 11 поверх WPF -->
+    <PackageVersion Include="WPF-UI" Version="4.3.0" />
+
+    <!-- WASAPI: захват микрофона и loopback системного звука -->
+    <PackageVersion Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+</Project>
