@@ -20,7 +20,7 @@ request to somebody's server.
 **[tapybara.keshon.ru](https://tapybara.keshon.ru/)** ·
 [Download](https://github.com/keshon/tapybara/releases/latest)
 
-## What it does well
+## What it's like to use
 
 - Press the hotkey from anywhere and the text lands where you were already
   typing. It is inserted, not left on the clipboard for you to paste, and the
@@ -91,7 +91,7 @@ One sample on one machine, not a benchmark suite. Which backend is actually in
 use is shown in Settings › About — the library falls back silently from GPU to
 CPU, and a fiftyfold difference in speed is otherwise inexplicable.
 
-## Under the hood
+## How it works
 
 ```
 hotkey ─► microphone ─► speech detection ─► Whisper ─► post-processing ─► insertion
@@ -170,4 +170,4 @@ git push origin v0.3.0
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](LICENSE) © Innokentiy Sokolov (Señor Mega / Big M)
