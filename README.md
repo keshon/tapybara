@@ -8,11 +8,11 @@ Local voice dictation for Windows, written in C#. Press a hotkey, speak, press
 it again — the text is inserted where your caret already was, in whatever
 application has focus.
 
-Windows ships dictation of its own, but it is cloud-backed and its quality
-outside English is mediocre. Both follow from where the model lives. Tapybara
-runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) on your own GPU
-instead, which makes the recording a local file that is deleted rather than a
-request to somebody's server.
+Windows ships dictation of its own, and the one you reach for with `Win+H` does
+the recognition on Microsoft's servers. Tapybara runs
+[whisper.cpp](https://github.com/ggerganov/whisper.cpp) on your own GPU instead,
+which makes the recording a local file that is deleted rather than a request to
+somebody's server.
 
 > **Status: early development.** Dictation works end to end and is used daily.
 > Call recording works but is newer and less exercised.
