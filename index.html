@@ -78,16 +78,40 @@
     --line:      #E7DBCD;
     --text:      #1F1913;
     --muted:     #6E5D4D;
-    --faint:     #93826F;
+    /* --faint не опускать светлее: на кремовом фоне 4.5:1 упирается сюда. */
+    --faint:     #7A6754;
     --accent:    #8A5A2B;
-    --accent-2:  #A96F36;
+    --accent-2:  #8F5C2C;
     --accent-bg: rgba(138, 90, 43, .08);
+    /*
+      Цвет текста на акцентной заливке — токеном, а не правилом внутри
+      тёмной темы: то правило стояло в файле выше .btn-primary и по порядку
+      каскада проигрывало ему, оставляя белые буквы на светло-песочной
+      кнопке.
+    */
+    --on-accent: #FFFFFF;
+    /*
+      --pill-bg не переопределяется в тёмной теме намеренно: этот же цвет
+      запечён фоном в pill-*.webp, и любой другой вылезет прямоугольником
+      вокруг картинки. В тёмной теме подложку выделяет рамка, а не заливка.
+    */
     --pill-bg:   #17120E;
     --code-bg:   #241D16;
     --code-text: #EFE6DA;
     --code-dim:  #A08D7C;
     --shadow:    0 1px 2px rgba(31, 25, 19, .05), 0 10px 30px rgba(31, 25, 19, .08);
     --measure:   66ch;
+
+    /*
+      Пять размеров на всю страницу. До этого их было девять, и половина
+      отличалась на полпикселя — иерархии это не давало, а расходиться при
+      правках успевало.
+    */
+    --t-xs:      14px;
+    --t-sm:      16px;
+    --t-md:      18px;
+    --t-lg:      20px;
+    --t-label:   12px;
   }
 
   /*
@@ -103,17 +127,32 @@
       --line:      #34291F;
       --text:      #F5EFE8;
       --muted:     #A6947F;
-      --faint:     #7D6D5C;
+      --faint:     #968472;
       --accent:    #D2A272;
       --accent-2:  #E4B98A;
       --accent-bg: rgba(210, 162, 114, .10);
+      --on-accent: #17120E;
       --code-bg:   #100C09;
       --code-text: #EFE6DA;
-      --code-dim:  #8A7967;
+      --code-dim:  #8E7D6B;
       --shadow:    0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .34);
     }
 
-    .btn-primary { color: #17120E; }
+    /*
+      Подложка индикатора совпадает по цвету с фоном страницы, поэтому в
+      тёмной теме её держит рамка. Тень на равном фоне не видна — только
+      грязнит края.
+    */
+    .pill-stage { border-color: var(--line); box-shadow: none; }
+
+    /*
+      Скриншоты настроек сняты в светлой теме Windows, и на почти чёрной
+      странице это три белых прожектора. Приглушаем, возвращая полную
+      яркость под курсором.
+    */
+    .shots figure img { filter: brightness(.86); transition: filter .18s ease; }
+    .shots figure:hover img,
+    .shots figure a:focus-visible img { filter: none; }
   }
 
   * { box-sizing: border-box; }
@@ -129,7 +168,7 @@
     background: var(--ground);
     color: var(--text);
     font-family: "Source Sans 3", "Segoe UI Variable Text", system-ui, "Segoe UI", sans-serif;
-    font-size: 18px;
+    font-size: var(--t-md);
     line-height: 1.62;
     -webkit-font-smoothing: antialiased;
   }
@@ -145,53 +184,139 @@
   code, kbd, .mono { font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; }
   code { font-size: .88em; }
 
+  /*
+    Вся страница про сочетание клавиш, так что клавиши на ней и выглядят
+    клавишами. Одним шрифтом это не читается.
+  */
+  kbd {
+    display: inline-block;
+    padding: .1em .38em;
+    font-size: .82em; line-height: 1.5;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
   a { color: var(--accent-2); text-underline-offset: 3px; }
   a:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 4px; }
 
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
-  section { padding: 84px 0; border-top: 1px solid var(--line); }
+  /* scroll-margin — чтобы липкая шапка не накрывала заголовок при переходе по якорю. */
+  section { padding: 84px 0; border-top: 1px solid var(--line); scroll-margin-top: 70px; }
+
+  /*
+    Каждая вторая секция уходит на другую подложку. Семь одинаковых полос,
+    разделённых волоском, читаются как одна длинная — глазу не за что
+    зацепиться, чтобы понять, что раздел сменился.
+  */
+  section.band { background: var(--surface-2); border-top-color: transparent; }
+  /* Смена подложки уже разделяет секции — волосок поверх неё лишний. */
+  section.band + section { border-top-color: transparent; }
+
+  /*
+    Колонка текста — 66ch, обёртка — 1080px, и справа оставалось 43% пустоты
+    под волоском во всю ширину. Сюда уходит то, что и так было в секции:
+    таблица замеров, предупреждение, врезка.
+  */
+  /*
+    minmax(0, 1fr), а не 1fr: у одноколоночной сетки минимум иначе считается
+    по max-content, и <pre> с длинной строкой git clone растягивал колонку
+    шире экрана — вместе с ней разъезжалась вся страница.
+  */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 34px; align-items: start; }
+  @media (min-width: 900px) {
+    .split { grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 56px; }
+  }
+  .split > .aside { min-width: 0; }
+  .split > .main > :last-child { margin-bottom: 0; }
 
   .eyebrow {
     font-family: "JetBrains Mono", monospace;
-    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    font-size: var(--t-label); letter-spacing: .16em; text-transform: uppercase;
     color: var(--accent); margin-bottom: 16px;
   }
 
   h2 { font-size: clamp(27px, 3.8vw, 37px); line-height: 1.15; margin-bottom: 16px; }
-  .lede { font-size: 19px; color: var(--muted); max-width: var(--measure); margin: 0 0 30px; }
+  .lede { font-size: var(--t-lg); color: var(--muted); max-width: var(--measure); margin: 0 0 30px; }
   p { max-width: var(--measure); }
+
+  /* ---------- sticky header ---------- */
+
+  /*
+    Кнопка загрузки лежала на 812-м пикселе — на ноутбучном экране её никто
+    не видел, и до самого подвала другой не было. Здесь она едет со
+    страницей, а заодно появляется навигация по восьми экранам текста.
+  */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  @supports not (backdrop-filter: blur(2px)) {
+    .topbar { background: var(--ground); }
+  }
+  .topbar .wrap { display: flex; align-items: center; gap: 20px; height: 58px; }
+  .topbar .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-weight: 700; font-size: var(--t-md); letter-spacing: -0.02em;
+    color: var(--text); text-decoration: none;
+  }
+  .topbar .brand img { width: 26px; height: 26px; border-radius: 7px; }
+  .topbar nav { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+  /* Только .nav-link: голое `nav a` перебивало по весу цвет кнопки. */
+  .topbar nav a.nav-link {
+    color: var(--muted); text-decoration: none; font-size: var(--t-sm);
+  }
+  .topbar nav a.nav-link:hover { color: var(--text); }
+  .topbar .btn { padding: 8px 16px; font-size: var(--t-sm); }
+  @media (max-width: 780px) {
+    .topbar nav a.nav-link { display: none; }
+  }
 
   /* ---------- hero ---------- */
 
-  .hero { padding: 76px 0 72px; text-align: center; }
-  .hero img.logo { width: 84px; height: 84px; }
+  .hero { padding: 58px 0 68px; text-align: center; }
+  .hero img.logo { width: 76px; height: 76px; }
   .hero .kicker {
     font-family: "JetBrains Mono", monospace;
-    font-size: 12px; letter-spacing: .14em; color: var(--faint);
-    margin: 20px 0 0;
+    font-size: 13px; letter-spacing: .14em; color: var(--muted);
+    margin: 18px 0 0;
     /* p наследует measure в 66ch, а моноширинный с разрядкой в неё не влезает
        и переносится посреди строки, теряя центровку. */
     max-width: none;
   }
-  .hero h1 { font-size: clamp(40px, 6.6vw, 62px); line-height: 1.04; margin: 16px 0 20px; }
+  /* Иначе на узком экране строка рвётся по разделителю и точка повисает. */
+  .hero .kicker span { white-space: nowrap; }
+  .hero h1 { font-size: clamp(40px, 6.6vw, 62px); line-height: 1.04; margin: 14px 0 20px; }
   .hero p.intro {
-    font-size: 19px; color: var(--muted);
-    max-width: 62ch; margin: 0 auto 38px; text-align: left;
+    font-size: var(--t-lg); color: var(--muted);
+    max-width: 56ch; margin: 0 auto 32px; text-align: left;
+  }
+  .hero .cta-note {
+    font-size: var(--t-xs); color: var(--faint);
+    margin: 16px 0 46px; max-width: none;
   }
 
   .pill-stage {
     background: var(--pill-bg);
+    border: 1px solid transparent;
     border-radius: 18px;
     padding: 44px 24px;
-    margin: 0 auto 34px;
+    margin: 0 auto;
     max-width: 720px;
     box-shadow: var(--shadow);
   }
+  .pill-stage.stage-below { margin-top: 40px; }
   .pill-stage img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
   .pill-stage .caption {
     font-family: "JetBrains Mono", monospace;
-    font-size: 12px; color: var(--code-dim);
+    font-size: var(--t-label); color: var(--code-dim);
     margin: 26px 0 0; letter-spacing: .04em; max-width: none;
   }
 
@@ -199,66 +324,117 @@
   .btn {
     display: inline-flex; align-items: center; gap: 9px;
     padding: 13px 26px; border-radius: 10px;
-    font-weight: 600; font-size: 17px; text-decoration: none;
+    font-weight: 600; font-size: var(--t-md); text-decoration: none;
     border: 1px solid transparent; transition: transform .12s ease, filter .12s ease;
   }
   .btn:hover { transform: translateY(-1px); filter: brightness(1.06); }
-  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary { background: var(--accent); color: var(--on-accent); }
   .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--line); }
 
   /* ---------- cards ---------- */
 
-  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  /*
+    auto-fit ронял три шага в две колонки на планшете, и третий оставался
+    один. Пронумерованная последовательность так ломается заметнее всего.
+  */
+  .grid3 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  @media (min-width: 860px) { .grid3 { grid-template-columns: repeat(3, 1fr); } }
   .card {
     background: var(--surface); border: 1px solid var(--line);
     border-radius: 14px; padding: 26px 24px;
   }
-  .card h3 { font-size: 19px; margin-bottom: 9px; }
-  .card p { color: var(--muted); font-size: 16.5px; margin: 0; max-width: none; }
+  .card h3 { font-size: var(--t-lg); margin-bottom: 9px; }
+  .card p { color: var(--muted); font-size: var(--t-sm); margin: 0; max-width: none; }
   .card .n {
-    font-family: "JetBrains Mono", monospace; font-size: 12px;
+    font-family: "JetBrains Mono", monospace; font-size: var(--t-label);
     color: var(--accent); letter-spacing: .12em; margin: 0 0 12px; max-width: none;
   }
 
   /* ---------- measured numbers ---------- */
 
-  .measured { margin-top: 30px; border-top: 1px solid var(--line); }
-  .measured .row {
-    display: flex; gap: 18px; align-items: baseline;
-    padding: 13px 0; border-bottom: 1px solid var(--line);
-    font-size: 16.5px;
+  /*
+    Разница между 26.2 и 0.52 секунды — самое убедительное, что есть на
+    странице, и она стояла строкой мелкого моноширинного текста. Полоса
+    показывает те же числа в масштабе; у последней она почти исчезает, и
+    это ровно то, что нужно показать.
+  */
+  .measured {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px 22px 20px;
   }
-  .measured .row b {
+  .measured h3 {
     font-family: "JetBrains Mono", monospace; font-weight: 600;
-    color: var(--text); min-width: 108px;
+    font-size: var(--t-label); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 18px;
   }
-  .measured .row span { color: var(--muted); }
-  .measured .note { font-size: 14.5px; color: var(--faint); margin: 14px 0 0; }
+  .measured .row + .row { margin-top: 16px; }
+  .measured .row b {
+    display: block;
+    font-family: "JetBrains Mono", monospace; font-weight: 600;
+    font-size: var(--t-lg); color: var(--text); line-height: 1.2;
+  }
+  .measured .row span {
+    display: block; color: var(--muted);
+    font-size: var(--t-xs); line-height: 1.45; margin-top: 2px;
+  }
+  .measured .track {
+    height: 6px; margin-top: 9px; border-radius: 3px;
+    background: var(--accent-bg); overflow: hidden;
+  }
+  .measured .track i {
+    display: block; height: 100%; border-radius: 3px;
+    background: var(--faint); min-width: 4px;
+  }
+  .measured .row.best b { color: var(--accent); }
+  .measured .row.best .track i { background: var(--accent); }
+  .measured .note {
+    font-size: var(--t-xs); color: var(--faint); max-width: none;
+    margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--line);
+  }
 
   /* ---------- shots ---------- */
 
-  .shots { display: grid; gap: 26px; }
+  /*
+    Три снимка во всю ширину занимали треть страницы и повторяли друг друга
+    силуэтом. Рядом с подписью каждый вдвое ниже, а правый столбец перестаёт
+    пустовать.
+  */
+  .shots { display: grid; gap: 40px; }
+  .shots figure { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (min-width: 900px) {
+    .shots figure {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 290px);
+      gap: 32px; align-items: center;
+    }
+  }
   figure { margin: 0; }
   figure img {
     width: 100%; height: auto; display: block;
     border-radius: 12px; border: 1px solid var(--line);
     box-shadow: var(--shadow); background: var(--surface);
   }
-  figcaption { margin-top: 12px; font-size: 15.5px; color: var(--muted); max-width: var(--measure); }
-  figcaption b { color: var(--text); font-weight: 600; }
+  /* На телефоне текст в окне настроек нечитаем в принципе — по тапу открывается оригинал. */
+  .shots figure a { display: block; border-radius: 12px; }
+  figcaption { font-size: var(--t-sm); color: var(--muted); max-width: var(--measure); }
+  figcaption b { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; }
 
   /* ---------- features ---------- */
 
-  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 20px 32px; }
-  .feature h3 { font-size: 17.5px; margin-bottom: 6px; }
-  .feature p { color: var(--muted); font-size: 16px; margin: 0; max-width: none; }
+  /*
+    Восемь пунктов в три колонки — это 3+3+2 и дыра в последнем ряду. В две
+    колонки ряды закрываются ровно, и строка выходит ближе к комфортной.
+  */
+  .features { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px 40px; }
+  @media (min-width: 760px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  .feature h3 { font-size: var(--t-md); margin-bottom: 6px; }
+  .feature p { color: var(--muted); font-size: var(--t-sm); margin: 0; max-width: none; }
 
   /* ---------- code ---------- */
 
   pre {
     background: var(--code-bg); color: var(--code-text);
     border-radius: 12px; padding: 20px 22px; overflow-x: auto;
-    font-family: "JetBrains Mono", monospace; font-size: 14.5px; line-height: 1.7;
+    font-family: "JetBrains Mono", monospace; font-size: var(--t-xs); line-height: 1.7;
     margin: 0 0 20px;
   }
   pre .c { color: var(--code-dim); }
@@ -266,63 +442,107 @@
   ol.steps { max-width: var(--measure); color: var(--muted); padding-left: 22px; margin: 0 0 26px; }
   ol.steps li { margin-bottom: 10px; }
   ol.steps b { color: var(--text); }
+  .sub { color: var(--muted); margin: 0 0 14px; }
 
   /* ---------- faq ---------- */
 
   details { border-bottom: 1px solid var(--line); padding: 18px 0; }
   details summary {
-    cursor: pointer; font-weight: 600; font-size: 18px;
+    cursor: pointer; font-weight: 600; font-size: var(--t-md);
     list-style: none; display: flex; justify-content: space-between; gap: 16px;
   }
   details summary::-webkit-details-marker { display: none; }
   details summary::after { content: "+"; color: var(--accent); font-family: "JetBrains Mono", monospace; }
   details[open] summary::after { content: "−"; }
-  details p { margin: 14px 0 0; color: var(--muted); font-size: 16.5px; }
+  details p { margin: 14px 0 0; color: var(--muted); font-size: var(--t-sm); }
 
   /* ---------- notice ---------- */
 
   .notice {
     background: var(--accent-bg); border: 1px solid var(--line);
     border-left: 3px solid var(--accent);
-    border-radius: 10px; padding: 18px 22px; margin-top: 26px;
+    border-radius: 10px; padding: 18px 22px;
   }
-  .notice p { margin: 0; font-size: 16.5px; color: var(--muted); max-width: none; }
+  .notice p { margin: 0; font-size: var(--t-sm); color: var(--muted); max-width: none; }
   .notice b { color: var(--text); }
+
+  /* ---------- closing call to action ---------- */
+
+  /*
+    Восемь тысяч пикселей текста заканчивались списком ссылок в подвале.
+    Дочитавшему нужно куда-то нажать.
+  */
+  .close-cta {
+    background: var(--code-bg); color: var(--code-text);
+    border-top: 0; text-align: center;
+  }
+  .close-cta h2 { color: var(--code-text); margin-bottom: 12px; }
+  .close-cta p {
+    color: var(--code-dim); font-size: var(--t-lg);
+    max-width: 48ch; margin: 0 auto 30px;
+  }
+  .close-cta .btn-ghost {
+    background: transparent; color: var(--code-text);
+    border-color: rgba(239, 230, 218, .28);
+  }
+  .close-cta .cta-note {
+    font-size: var(--t-xs); color: var(--code-dim);
+    margin: 18px 0 0; max-width: none;
+  }
 
   /* ---------- footer ---------- */
 
-  footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
+  footer { border-top: 0; padding: 40px 0 56px; }
   footer .cols {
     display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap;
-    font-size: 15.5px; color: var(--muted);
+    font-size: var(--t-sm); color: var(--muted);
   }
   footer .cols a { color: var(--muted); text-decoration: none; }
   footer .cols a:hover { color: var(--accent-2); text-decoration: underline; }
   .foot-legal {
     display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap;
     margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line);
-    font-size: 14.5px; color: var(--faint);
+    font-size: var(--t-xs); color: var(--faint);
   }
   .foot-legal strong { color: var(--muted); font-weight: 600; }
+  .foot-legal .mark { color: var(--muted); }
 
   @media (max-width: 640px) {
-    body { font-size: 17px; }
+    :root { --t-md: 17px; --t-lg: 19px; }
     section { padding: 60px 0; }
     .pill-stage { padding: 30px 16px; }
-    .measured .row { flex-direction: column; gap: 2px; }
+    .hero { padding: 40px 0 52px; }
   }
   </style>
 </head>
 
 <body>
 
-  <!-- ===================== HERO ===================== -->
-  <header class="hero">
+  <!-- ===================== TOP BAR ===================== -->
+  <div class="topbar">
     <div class="wrap">
-      <img class="logo" src="assets/icon-512.png" width="84" height="84"
+      <a class="brand" href="#top">
+        <img src="assets/icon-512.png" width="26" height="26" alt="">
+        Tapybara
+      </a>
+      <nav>
+        <a class="nav-link" href="#how">How it works</a>
+        <a class="nav-link" href="#local">Why local</a>
+        <a class="nav-link" href="#start">Quick start</a>
+        <a class="nav-link" href="#faq">FAQ</a>
+        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download</a>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ===================== HERO ===================== -->
+  <header class="hero" id="top">
+    <div class="wrap">
+      <img class="logo" src="assets/icon-512.png" width="76" height="76"
            alt="Tapybara icon: a microphone on a capybara-brown disc">
 
-      <p class="kicker">voice dictation · windows · whisper.cpp · open source</p>
+      <!-- Разделитель уезжает в начало следующего куска, иначе строка кончается точкой. -->
+      <p class="kicker"><span>voice dictation</span> <span>· windows</span> <span>· whisper.cpp</span> <span>· open source</span></p>
 
       <h1>Dictation that never leaves the machine.</h1>
 
@@ -333,15 +553,16 @@
         GPU, so the audio is never uploaded and there is no account involved.
       </p>
 
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">GitHub</a>
+      </div>
+      <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+
       <div class="pill-stage">
         <img src="assets/screens/pill-recording.webp" width="472" height="110"
              alt="The Tapybara indicator: a red recording dot, a live microphone waveform, elapsed time, and the hint Ctrl+Alt+D to stop">
         <p class="caption">the indicator, floating above every window while you talk</p>
-      </div>
-
-      <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
-        <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">GitHub</a>
       </div>
     </div>
   </header>
@@ -374,7 +595,7 @@
         </div>
       </div>
 
-      <div class="pill-stage" style="margin-top:34px">
+      <div class="pill-stage stage-below">
         <img src="assets/screens/pill-transcribing.webp" width="372" height="110"
              alt="The indicator while transcribing: Transcribing… 64%, with the hint Esc to cancel">
         <p class="caption">recognition runs after you stop, not while you speak</p>
@@ -383,43 +604,62 @@
   </section>
 
   <!-- ===================== WHY LOCAL ===================== -->
-  <section id="local">
+  <section id="local" class="band">
     <div class="wrap">
       <p class="eyebrow">why local</p>
       <h2>The model runs where the audio is.</h2>
 
-      <p>
-        Windows has dictation built in. It is cloud-backed, and its quality for
-        languages other than English is mediocre — both of which follow from
-        where the model lives rather than from anything unfixable. Running
-        whisper.cpp yourself moves the work to your own GPU, which makes the
-        recording a local file that is deleted rather than a request to
-        somebody's server.
-      </p>
+      <div class="split">
+        <div class="main">
+          <p>
+            Windows has dictation built in. It is cloud-backed, and its quality for
+            languages other than English is mediocre — both of which follow from
+            where the model lives rather than from anything unfixable. Running
+            whisper.cpp yourself moves the work to your own GPU, which makes the
+            recording a local file that is deleted rather than a request to
+            somebody's server.
+          </p>
 
-      <p>
-        It also means you choose the model. Language-specific fine-tunes exist
-        and are often markedly better than the general one for their language,
-        and swapping to one is a file in a folder.
-      </p>
+          <p>
+            It also means you choose the model. Language-specific fine-tunes exist
+            and are often markedly better than the general one for their language,
+            and swapping to one is a file in a folder.
+          </p>
 
-      <p>
-        The trade is real and worth stating plainly. You download a model once —
-        several hundred megabytes of it — and you need a GPU for this to feel
-        instant. On CPU it runs at roughly the speed you spoke, which is usable
-        for a sentence and tedious for a paragraph.
-      </p>
+          <p>
+            The trade is real and worth stating plainly. You download a model once —
+            several hundred megabytes of it — and you need a GPU for this to feel
+            instant. On CPU it runs at roughly the speed you spoke, which is usable
+            for a sentence and tedious for a paragraph.
+          </p>
+        </div>
 
-      <div class="measured">
-        <div class="row"><b>26.2 s</b><span>CPU, an i5-9600KF</span></div>
-        <div class="row"><b>12.6 s</b><span>Vulkan, first run — the driver is compiling shaders</span></div>
-        <div class="row"><b>0.52 s</b><span>Vulkan, warmed up</span></div>
-        <p class="note">
-          One 28-second sample, <code>large-v3-turbo</code>, on an RTX 3060.
-          Measured on one machine, not a benchmark suite — your own numbers are
-          the ones that matter, and the compute backend actually in use is shown
-          in the About page.
-        </p>
+        <div class="aside">
+          <div class="measured">
+            <h3>28 s of speech</h3>
+            <div class="row">
+              <b>26.2 s</b>
+              <span>CPU, an i5-9600KF</span>
+              <div class="track"><i style="width:100%"></i></div>
+            </div>
+            <div class="row">
+              <b>12.6 s</b>
+              <span>Vulkan, first run — the driver is compiling shaders</span>
+              <div class="track"><i style="width:48%"></i></div>
+            </div>
+            <div class="row best">
+              <b>0.52 s</b>
+              <span>Vulkan, warmed up</span>
+              <div class="track"><i style="width:2%"></i></div>
+            </div>
+            <p class="note">
+              One 28-second sample, <code>large-v3-turbo</code>, on an RTX 3060.
+              Measured on one machine, not a benchmark suite — your own numbers are
+              the ones that matter, and the compute backend actually in use is shown
+              in the About page.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -436,20 +676,26 @@
 
       <div class="shots">
         <figure>
-          <img src="assets/screens/settings-dictation.webp" width="1200" height="840" loading="lazy"
-               alt="Tapybara settings, Dictation page: hotkey, microphone picker, insertion options and safety limits">
+          <a href="assets/screens/settings-dictation.webp">
+            <img src="assets/screens/settings-dictation.webp" width="1200" height="840" loading="lazy"
+                 alt="Tapybara settings, Dictation page: hotkey, microphone picker, insertion options and safety limits">
+          </a>
           <figcaption><b>Dictation.</b> Choose the hotkey by pressing it, and pick which microphone rather than accepting whatever Windows calls default. Text can be inserted or only copied.</figcaption>
         </figure>
 
         <figure>
-          <img src="assets/screens/settings-models.webp" width="1200" height="840" loading="lazy"
-               alt="Tapybara settings, Models page: models folder, installed models with sizes and delete buttons, and a download list">
+          <a href="assets/screens/settings-models.webp">
+            <img src="assets/screens/settings-models.webp" width="1200" height="840" loading="lazy"
+                 alt="Tapybara settings, Models page: models folder, installed models with sizes and delete buttons, and a download list">
+          </a>
           <figcaption><b>Models.</b> Downloaded from here, so there is no hunting for the right file on a model-hosting site. They live wherever you have room, and the ones you tried and did not keep can be deleted.</figcaption>
         </figure>
 
         <figure>
-          <img src="assets/screens/settings-recognition.webp" width="1200" height="840" loading="lazy"
-               alt="Tapybara settings, Recognition page: model selection, idle unload, recognition language and prompt">
+          <a href="assets/screens/settings-recognition.webp">
+            <img src="assets/screens/settings-recognition.webp" width="1200" height="840" loading="lazy"
+                 alt="Tapybara settings, Recognition page: model selection, idle unload, recognition language and prompt">
+          </a>
           <figcaption><b>Recognition.</b> Language, and a prompt that biases vocabulary and punctuation style. The model unloads after a period of inactivity, so an idle Tapybara holds no memory.</figcaption>
         </figure>
       </div>
@@ -457,7 +703,7 @@
   </section>
 
   <!-- ===================== DETAILS ===================== -->
-  <section id="details">
+  <section id="details" class="band">
     <div class="wrap">
       <p class="eyebrow">details</p>
       <h2>Small things that only matter in use.</h2>
@@ -505,52 +751,64 @@
       <p class="eyebrow">quick start</p>
       <h2>Unzip, fetch a model, press the hotkey.</h2>
 
-      <ol class="steps">
-        <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
-        <li><b>Open Settings › Models</b> from the tray and download one. <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB. Nothing works until this is done.</li>
-        <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>.</li>
-      </ol>
+      <div class="split">
+        <div class="main">
+          <ol class="steps">
+            <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
+            <li><b>Open Settings › Models</b> from the tray and download one. <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB. Nothing works until this is done.</li>
+            <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>.</li>
+          </ol>
 
-      <p style="color:var(--muted)">Or build it:</p>
-      <pre><span class="c"># Windows, .NET 10 SDK</span>
+          <p class="sub">Or build it:</p>
+          <pre><span class="c"># Windows, .NET 10 SDK</span>
 git clone https://github.com/keshon/tapybara
 cd tapybara
 build.cmd run</pre>
+        </div>
 
-      <div class="notice">
-        <p><b>Early development.</b> Dictation works end to end and is used daily.
-        Call recording works but is newer and less exercised. If something breaks,
-        the log sits next to the settings file and the issue tracker is open.</p>
+        <div class="aside">
+          <div class="notice">
+            <p><b>Early development.</b> Dictation works end to end and is used daily.
+            Call recording works but is newer and less exercised. If something breaks,
+            the log sits next to the settings file and the issue tracker is open.</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- ===================== CALLS ===================== -->
-  <section id="calls">
+  <section id="calls" class="band">
     <div class="wrap">
       <p class="eyebrow">calls</p>
       <h2>Two tracks, so nobody has to guess who spoke.</h2>
 
-      <p>
-        A call is recorded as your microphone and your system audio kept
-        separate. That separation does the job speaker diarisation would: in a
-        conversation between two people, who said what follows from which track
-        it landed on, without any voice comparison.
-      </p>
+      <div class="split">
+        <div class="main">
+          <p>
+            A call is recorded as your microphone and your system audio kept
+            separate. That separation does the job speaker diarisation would: in a
+            conversation between two people, who said what follows from which track
+            it landed on, without any voice comparison.
+          </p>
 
-      <p>
-        The two are merged into one chronological <code>transcript.md</code> with
-        timestamps and names. Speech that leaked from the speakers back into the
-        microphone is filtered out, and the transcript records how many lines
-        that removed — an over-eager filter is then visible instead of silent.
-      </p>
+          <p>
+            The two are merged into one chronological <code>transcript.md</code> with
+            timestamps and names. Speech that leaked from the speakers back into the
+            microphone is filtered out, and the transcript records how many lines
+            that removed — an over-eager filter is then visible instead of silent.
+          </p>
+        </div>
 
-      <div class="notice">
-        <p><b>Recording captures the other party too.</b> In many places recording
-        someone without telling them is unlawful, and everything audible on the
-        chosen output device is captured — notifications, music, another meeting
-        — not only the call. Tapybara says this once before the first recording
-        rather than starting quietly.</p>
+        <div class="aside">
+          <div class="notice">
+            <p><b>Recording captures the other party too.</b> In many places recording
+            someone without telling them is unlawful, and everything audible on the
+            chosen output device is captured — notifications, music, another meeting
+            — not only the call. Tapybara says this once before the first recording
+            rather than starting quietly.</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -598,6 +856,22 @@ build.cmd run</pre>
     </div>
   </section>
 
+  <!-- ===================== CLOSING CTA ===================== -->
+  <section class="close-cta">
+    <div class="wrap">
+      <h2>Keep the audio on your own machine.</h2>
+      <p>
+        One executable, one model you pick yourself, and nothing that talks to a
+        server on your behalf.
+      </p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
+      </div>
+      <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+    </div>
+  </section>
+
   <footer>
     <div class="wrap">
       <div class="cols">
@@ -615,7 +889,7 @@ build.cmd run</pre>
         </span>
       </div>
       <div class="foot-legal">
-        <span>© 2026 <span style="color:var(--text)">Tapybara</span>. Local voice dictation for Windows, in C#. MIT licensed.</span>
+        <span>© 2026 <span class="mark">Tapybara</span>. Local voice dictation for Windows, in C#. MIT licensed.</span>
         <span>Built by <strong>Señor Mega</strong> and best bud <strong>Claude</strong></span>
       </div>
     </div>
