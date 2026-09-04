@@ -406,21 +406,25 @@ kbd {
 
 /* --- герой ---------------------------------------------------------------- */
 
-.hero { position: relative; padding: clamp(48px, 7vw, 92px) 0 0; overflow: hidden; }
+/*
+   Один центрированный столбец. Второй столбец здесь был, и в нём стояла живая
+   осциллограмма с кнопкой микрофона — идея красивая и на практике пустая:
+   посетитель не понимал, зачем она, а первый экран должен отвечать на «что это
+   и зачем», а не показывать фокус. Осталось то, что и так всё объясняет:
+   заголовок, довод, две кнопки и снимок настоящего индикатора.
+*/
 
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 46%);
-  gap: clamp(28px, 5vw, 72px);
-  align-items: center;
-}
-@media (max-width: 980px) {
-  .hero-grid { grid-template-columns: 1fr; }
+.hero {
+  position: relative;
+  padding: clamp(52px, 8vw, 104px) 0 0;
+  overflow: hidden;
+  text-align: center;
 }
 
 .kicker {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px 14px;
   margin: 0 0 26px;
   max-width: none;
@@ -429,7 +433,7 @@ kbd {
 .kicker span::after { content: " ·"; color: var(--line); margin-left: 12px; }
 .kicker span:last-child::after { content: ""; }
 
-h1 { font-size: var(--t-hero); max-width: 13ch; }
+h1 { font-size: var(--t-hero); max-width: 16ch; margin: 0 auto; }
 h1 .lit {
   color: var(--accent);
   font-variation-settings: "wdth" 78;
@@ -438,61 +442,27 @@ h1 .lit {
 .hero-lede {
   font-size: clamp(19px, 2vw, 22px);
   color: var(--muted);
-  margin: 26px 0 30px;
-  max-width: 54ch;
+  margin: 28px auto 32px;
+  max-width: 58ch;
 }
 .hero-lede strong { color: var(--text); font-weight: 600; }
 
-.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-.cta-note { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--faint); letter-spacing: .04em; }
-
-/* --- живая осциллограмма --------------------------------------------------- */
-
-.listen { max-width: 480px; }
-.listen-box {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 3px;
-  padding: 22px 20px;
-}
-.listen-bars { display: flex; align-items: center; gap: 3px; height: 110px; }
-.listen-bars i {
-  flex: 1 1 auto;
-  min-width: 2px;
-  height: 4px;
-  border-radius: 1px;
-  background: var(--accent);
-  opacity: .75;
-}
-.listen-note {
-  margin: 14px 0 0;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--faint);
-  max-width: 44ch;
-}
-.mic-btn {
-  margin-top: 16px;
-  background: transparent;
-  border: 1px dashed var(--line);
-  color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  padding: 10px 16px;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: border-color .15s ease, color .15s ease;
-}
-.mic-btn:hover { border-color: var(--accent); color: var(--accent); }
-.mic-btn[data-live="1"] { border-style: solid; border-color: var(--rec); color: var(--rec); }
+.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 16px; }
+.cta-note { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--faint); letter-spacing: .04em; margin-inline: auto; }
 
 /* --- индикатор под героем ------------------------------------------------- */
 
-.pill-stage { margin-top: clamp(32px, 5vw, 64px); text-align: center; }
-.pill-stage img { margin: 0 auto; border-radius: 26px; }
+.pill-stage { margin-top: clamp(36px, 5vw, 68px); text-align: center; }
+
+/* Скругление здесь было в 26 пикселей — под форму самой пилюли на снимке.
+   Но снимок — это прямоугольная площадка, на которой пилюля лежит, и мягкий
+   овал вокруг неё спорил со всей остальной страницей, где радиусы в два-три
+   пикселя. Площадка теперь и выглядит площадкой. */
+.pill-stage img {
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
 .caption {
   margin: 14px auto 0;
   font-family: "JetBrains Mono", monospace;
@@ -675,7 +645,10 @@ section.plain { border-top: 0; }
 
 .shots { display: grid; gap: 40px; }
 .shots figure { margin: 0; }
-.shots img { border: 1px solid var(--line); border-radius: 4px; }
+/* Крупный снимок держит больший радиус, мелкие — меньший: у скругления
+   должен быть один и тот же оптический вес, а он зависит от размера кадра. */
+.shots img { border: 1px solid var(--line); border-radius: 6px; }
+.shots figure:first-child img { border-radius: 10px; }
 .shots figcaption { margin-top: 14px; font-size: 16.5px; color: var(--muted); max-width: 68ch; }
 .shots figcaption b { color: var(--text); }
 @media (min-width: 940px) { .shots { grid-template-columns: repeat(2, 1fr); } .shots figure:first-child { grid-column: 1 / -1; } }
@@ -784,38 +757,22 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
 <!-- ======================= HERO ======================= -->
 <header class="hero" id="top">
   <div class="wrap">
-    <div class="hero-grid">
-      <div>
-        <p class="kicker"><span>voice dictation</span><span>call transcripts</span><span>windows</span><span>open source</span></p>
+    <p class="kicker"><span>voice dictation</span><span>call transcripts</span><span>windows</span><span>open source</span></p>
 
-        <h1>Your voice never <span class="lit">leaves the room</span>.</h1>
+    <h1>Your voice never <span class="lit">leaves the room</span>.</h1>
 
-        <p class="hero-lede">
-          Press a hotkey, speak, press it again. The text appears where your caret
-          already was — in your editor, your browser, your chat window. Whisper runs
-          on <strong>your own GPU</strong>, so nothing is uploaded and there is no
-          account to make.
-        </p>
+    <p class="hero-lede">
+      Press a hotkey, speak, press it again. The text appears where your caret
+      already was — in your editor, your browser, your chat window. Whisper runs
+      on <strong>your own GPU</strong>, so nothing is uploaded and there is no
+      account to make.
+    </p>
 
-        <div class="cta">
-          <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
-          <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
-        </div>
-        <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
-      </div>
-
-      <div class="listen">
-        <div class="listen-box">
-          <div class="listen-bars" id="listenBars"></div>
-        </div>
-        <button class="mic-btn" id="micBtn" type="button">Let it hear you</button>
-        <p class="listen-note" id="micNote">
-          A live waveform, idling. Press the button and it follows your voice —
-          measured in this tab, sent nowhere, gone when you close it. That is the
-          whole product in one sentence.
-        </p>
-      </div>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
+      <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
     </div>
+    <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
 
     <div class="pill-stage">
       <img src="assets/screens/pill-recording.webp" width="472" height="110" loading="lazy"
@@ -1232,103 +1189,6 @@ build.cmd run</pre>
   "use strict";
 
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* =========================================================================
-     Живая осциллограмма в первом экране.
-
-     По умолчанию дышит холостой волной; по кнопке начинает следовать голосу
-     посетителя. Звук считается здесь же, через AnalyserNode, и никуда не
-     уходит — страница ПОКАЗЫВАЕТ обещание продукта вместо того, чтобы его
-     декларировать.
-     ========================================================================= */
-
-  var LISTEN_BARS = 56;
-  var host = document.getElementById("listenBars");
-  var bars = [];
-  var live = 0;              /* 0..1 — насколько громко прямо сейчас */
-  var phase = 0;
-
-  if (host) {
-    for (var b = 0; b < LISTEN_BARS; b++) {
-      var el = document.createElement("i");
-      host.appendChild(el);
-      bars.push(el);
-    }
-  }
-
-  function drawBars() {
-    for (var i = 0; i < bars.length; i++) {
-      var t = i / (bars.length - 1);
-      /* Три несовпадающие волны: одна выглядит механической, три — дыханием. */
-      var idle = Math.sin(phase + t * 9.0) * 0.34
-               + Math.sin(phase * 0.62 + t * 3.7) * 0.26
-               + Math.sin(phase * 1.9 + t * 19.0) * 0.14;
-
-      /* Постоянная неровность на столбик: ровный ряд читается как индикатор
-         загрузки, а не как звук. Значение детерминированное — волна не должна
-         дрожать случайно от кадра к кадру. */
-      var grain = 0.55 + 0.45 * Math.abs(Math.sin(i * 12.9898));
-
-      var voice = live * (0.45 + 0.55 * Math.abs(Math.sin(phase * 2.4 + t * 16.0)));
-      var h = 5 + Math.max(0, Math.abs(idle) * grain * 78 + voice * 90);
-      bars[i].style.height = Math.min(106, h).toFixed(1) + "px";
-      bars[i].style.opacity = (0.55 + Math.min(0.45, voice * 0.9)).toFixed(2);
-    }
-  }
-
-  function tick() {
-    phase += 0.045;
-    drawBars();
-    live *= 0.92;
-    requestAnimationFrame(tick);
-  }
-
-  if (bars.length) {
-    if (reduced) { drawBars(); } else { requestAnimationFrame(tick); }
-  }
-
-  var micBtn = document.getElementById("micBtn");
-  var micNote = document.getElementById("micNote");
-  var micOn = false;
-
-  if (micBtn) {
-    micBtn.addEventListener("click", function () {
-      if (micOn) { return; }
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        micNote.textContent = "This browser will not hand a page the microphone. Nothing lost — the demo below needs no permission.";
-        return;
-      }
-
-      micBtn.textContent = "Asking\u2026";
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-        micOn = true;
-        micBtn.textContent = "Listening — say something";
-        micBtn.setAttribute("data-live", "1");
-        micNote.textContent = "That is your voice. It is measured in this tab and never sent anywhere; close the page and it is gone.";
-
-        var ctx = new (window.AudioContext || window.webkitAudioContext)();
-        var analyser = ctx.createAnalyser();
-        analyser.fftSize = 1024;
-        ctx.createMediaStreamSource(stream).connect(analyser);
-        var buf = new Uint8Array(analyser.fftSize);
-
-        (function listen() {
-          analyser.getByteTimeDomainData(buf);
-          var sum = 0;
-          for (var i = 0; i < buf.length; i++) {
-            var v = (buf[i] - 128) / 128;
-            sum += v * v;
-          }
-          var rms = Math.sqrt(sum / buf.length);
-          live = Math.min(1, Math.max(live, rms * 5.5));
-          requestAnimationFrame(listen);
-        })();
-      }).catch(function () {
-        micBtn.textContent = "Let it hear you";
-        micNote.textContent = "No microphone then — the page carries on without it. Nothing below needs permission.";
-      });
-    });
-  }
 
   /* =========================================================================
      Звонок, разобранный на две дорожки.
