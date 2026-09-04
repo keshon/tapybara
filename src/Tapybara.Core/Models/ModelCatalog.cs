@@ -1,4 +1,4 @@
-namespace Tapybara.Core.Models;
+﻿namespace Tapybara.Core.Models;
 
 /// <summary>Для чего модель нужна.</summary>
 public enum ModelKind
@@ -8,6 +8,12 @@ public enum ModelKind
 
     /// <summary>Silero: находит, где в записи речь. Меньше мегабайта.</summary>
     SpeechDetector,
+
+    /// <summary>pyannote: размечает, где в записи меняется говорящий.</summary>
+    VoiceSegmentation,
+
+    /// <summary>Слепок голоса: во что превращается речь, чтобы голоса сравнивать.</summary>
+    VoiceEmbedding,
 }
 
 /// <summary>
@@ -68,6 +74,13 @@ public static class ModelCatalog
     private const string WhisperRepository = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
     private const string VadRepository = "https://huggingface.co/ggml-org/whisper-vad/resolve/main/";
 
+    /// <summary>Модели разделения голосов, собранные под sherpa-onnx.</summary>
+    private const string SegmentationRepository =
+        "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/";
+
+    private const string EmbeddingRepository =
+        "https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/";
+
     /// <summary>Страница со всеми моделями — на случай, если нужного варианта в списке нет.</summary>
     public const string WhisperModelsPageUrl = "https://huggingface.co/ggerganov/whisper.cpp/tree/main";
 
@@ -109,6 +122,28 @@ public static class ModelCatalog
         new("ggml-silero-v5.1.2.bin", "Silero VAD v5.1.2",
             ModelKind.SpeechDetector, ModelTier.Compact, 885_098,
             VadRepository + "ggml-silero-v5.1.2.bin"),
+
+        // --- разделение голосов ---------------------------------------------
+        //
+        // Сегментация одна: pyannote 3.0 — то, на чём построена вся отрасль.
+        //
+        // Моделей слепков две, и порядок между ними установлен замером, а не
+        // рассуждением. На русской речи многоязычная 3D-Speaker разделяет
+        // голоса вдвое увереннее VoxCeleb-варианта (зазор 0,46 против 0,26),
+        // хотя русского не знает ни та, ни другая. Ставить по названию
+        // («VoxCeleb собран по всему миру») было бы ошибкой — она и была
+        // сделана, пока не измерили.
+        new("pyannote-segmentation-3.0.onnx", "Pyannote segmentation 3.0",
+            ModelKind.VoiceSegmentation, ModelTier.Recommended, 5_992_913,
+            SegmentationRepository + "model.onnx"),
+
+        new("campplus-multilingual.onnx", "CAM++ (3D-Speaker)",
+            ModelKind.VoiceEmbedding, ModelTier.Recommended, 28_281_164,
+            EmbeddingRepository + "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"),
+
+        new("campplus-voxceleb.onnx", "CAM++ (VoxCeleb)",
+            ModelKind.VoiceEmbedding, ModelTier.Compact, 29_292_684,
+            EmbeddingRepository + "wespeaker_en_voxceleb_CAM++.onnx"),
     ];
 
     /// <summary>Модель по имени файла, если она из списка.</summary>

@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
   <!--
     Central Package Management: версия каждого пакета задаётся ОДИН раз здесь,
     а в .csproj остаётся только <PackageReference Include="..." /> без Version.
@@ -11,6 +11,11 @@
     <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />
     <PackageVersion Include="Whisper.net.Runtime.Cuda.Windows" Version="1.9.1" />
     <PackageVersion Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+
+    <!-- Разделение голосов: pyannote-сегментация и слепки голоса в ONNX.
+         Биндинг и нативная библиотека, как и у whisper, — разными пакетами. -->
+    <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="1.13.5" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.win-x64" Version="1.13.5" />
 
     <!-- Fluent-тема и контролы в стиле Windows 11 поверх WPF -->
     <PackageVersion Include="WPF-UI" Version="4.3.0" />

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
     Ядро без UI: захват звука, распознавание, модели, настройки.
@@ -26,6 +26,7 @@
          проект (см. Tapybara.Bench) — библиотека не должна навязывать
          выбор между CUDA и CPU. -->
     <PackageReference Include="Whisper.net" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" />
     <PackageReference Include="NAudio" />
   </ItemGroup>
 

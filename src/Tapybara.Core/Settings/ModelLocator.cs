@@ -1,4 +1,4 @@
-namespace Tapybara.Core.Settings;
+﻿namespace Tapybara.Core.Settings;
 
 /// <summary>Поиск папки с моделями распознавания.</summary>
 /// <remarks>
@@ -109,6 +109,37 @@ public static class ModelLocator
                 .Select(Path.GetFileName)
                 .OfType<string>()
                 .Order()];
+    }
+
+    /// <summary>
+    /// Модели разделения голосов: сегментация отдельно, слепки отдельно.
+    /// </summary>
+    /// <remarks>
+    /// Различаются по подстроке «segmentation» в имени — тем же способом, что
+    /// и модели детектора речи по «silero». Способ грубый, зато не требует
+    /// открывать файл и читать заголовок ONNX ради выпадающего списка.
+    /// <para>
+    /// Перепутать их местами не даёт сама природа моделей: сегментация в роли
+    /// слепков не запустится, и нативная сторона скажет об этом сразу, а не
+    /// молча выдаст ерунду.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> ListVoiceModels(bool segmentation, string? overrideDirectory = null)
+    {
+        string? directory = FindModelsDirectory(overrideDirectory);
+        if (directory is null)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. Directory.EnumerateFiles(directory, "*.onnx")
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .Where(name => name.Contains("segmentation", StringComparison.OrdinalIgnoreCase) == segmentation)
+                .Order(),
+        ];
     }
 
     private static string? FindInRepository()

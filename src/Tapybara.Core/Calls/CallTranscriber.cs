@@ -13,6 +13,7 @@ public enum CallTranscriptionStage
     ReadingTracks,
     TranscribingMicrophone,
     TranscribingOtherSide,
+    SplittingVoices,
     FilteringBleed,
     Done,
 }
@@ -31,6 +32,10 @@ public sealed record CallTranscriptLabels(
     string Duration,
     string Trigger,
     string Participants,
+    string VoicesSplit,
+    string VoicesSplitHinted,
+    string VoicesSplitGuessed,
+    string UnknownSpeaker,
     string BleedRemoved,
     string BleedByText,
     string BleedByEnergy,
@@ -42,6 +47,10 @@ public sealed record CallTranscriptLabels(
         "Duration",
         "Trigger",
         "Participants",
+        "Voices told apart",
+        "with the participant list as a hint",
+        "without a hint",
+        "Someone",
         "Other-side speech removed from your channel",
         "by text",
         "by loudness",
@@ -60,7 +69,8 @@ public sealed record CallTranscriptLabels(
 public sealed class CallTranscriber(
     SpeechTranscriber transcriber,
     Func<AppSettings> settings,
-    Func<CallTranscriptLabels>? labels = null)
+    Func<CallTranscriptLabels>? labels = null,
+    Func<SpeakerDiarizer?>? diarizer = null)
 {
     /// <summary>Одна реплика в общей хронологии.</summary>
     private sealed record Utterance(TimeSpan Start, string Speaker, string Text);
@@ -91,39 +101,46 @@ public sealed class CallTranscriber(
         // объектов ради нескольких десятков средних значений, которые
         // прекрасно считаются по огибающей.
         progress?.Report(CallTranscriptionStage.TranscribingMicrophone);
-        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy) = await ProcessChannelAsync(
+        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy, _) = await ProcessChannelAsync(
             session.MicPath,
             // Свой канал распознаём заданным языком: что говорит владелец
             // микрофона, известно заранее.
             current.Language,
             current,
+            // Свой канал не разделяем никогда: он и есть один человек.
+            speakersToLookFor: 0,
+            progress: null,
             cancellationToken).ConfigureAwait(false);
 
         progress?.Report(CallTranscriptionStage.TranscribingOtherSide);
-        (IReadOnlyList<TranscriptSegment> systemSegments, EnergyEnvelope systemEnergy) = await ProcessChannelAsync(
-            session.SystemPath,
-            // Чужой канал — определением языка. Навязанный не тому каналу язык
-            // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
-            current.OtherSideLanguage,
-            current,
-            cancellationToken).ConfigureAwait(false);
+        (IReadOnlyList<TranscriptSegment> systemSegments, EnergyEnvelope systemEnergy, IReadOnlyList<SpeakerSpan> voices) =
+            await ProcessChannelAsync(
+                session.SystemPath,
+                // Чужой канал — определением языка. Навязанный не тому каналу язык
+                // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
+                current.OtherSideLanguage,
+                current,
+                // Разделять голоса имеет смысл только на чужом канале: свой
+                // принадлежит владельцу микрофона по построению.
+                SpeakersToLookFor(session, current),
+                progress,
+                cancellationToken).ConfigureAwait(false);
 
         progress?.Report(CallTranscriptionStage.FilteringBleed);
         BleedFilter.Result filtered = BleedFilter.Apply(micSegments, systemSegments, micEnergy, systemEnergy);
 
-        string otherSide = session.Participants.Count == 1
-            ? session.Participants[0]
-            : current.OtherSideName;
+        CallTranscriptLabels text = labels?.Invoke() ?? CallTranscriptLabels.Default;
+        Func<TranscriptSegment, string> nameOther = OtherSideNamer(session, current, voices, text);
 
         List<Utterance> timeline =
         [
             .. filtered.Kept.Select(s => new Utterance(s.Start, current.EffectiveMyName, s.Text)),
-            .. systemSegments.Select(s => new Utterance(s.Start, otherSide, s.Text)),
+            .. systemSegments.Select(s => new Utterance(s.Start, nameOther(s), s.Text)),
         ];
 
         timeline.Sort((a, b) => a.Start.CompareTo(b.Start));
 
-        string markdown = Render(session, current, timeline, filtered, labels?.Invoke() ?? CallTranscriptLabels.Default);
+        string markdown = Render(session, current, timeline, filtered, voices, text);
         await File.WriteAllTextAsync(session.TranscriptPath, markdown, cancellationToken).ConfigureAwait(false);
 
         AppLog.Info($"Транскрипт готов: {session.TranscriptPath}, отсеяно {filtered.RemovedTotal} реплик.");
@@ -132,22 +149,26 @@ public sealed class CallTranscriber(
     }
 
     /// <summary>
-    /// Прочитать канал, распознать его и снять огибающую громкости.
+    /// Прочитать канал, распознать его, снять огибающую и, если нужно, разделить голоса.
     /// </summary>
     /// <remarks>
-    /// Массив сэмплов живёт только внутри этого метода: наружу уходят сегменты
-    /// и огибающая, вместе занимающие меньше мегабайта на час записи.
+    /// Массив сэмплов живёт только внутри этого метода: наружу уходят сегменты,
+    /// огибающая и границы голосов, вместе занимающие меньше мегабайта на час
+    /// записи.
     /// </remarks>
-    private async Task<(IReadOnlyList<TranscriptSegment> Segments, EnergyEnvelope Energy)> ProcessChannelAsync(
-        string path,
-        string language,
-        AppSettings current,
-        CancellationToken cancellationToken)
+    private async Task<(IReadOnlyList<TranscriptSegment> Segments, EnergyEnvelope Energy, IReadOnlyList<SpeakerSpan> Voices)>
+        ProcessChannelAsync(
+            string path,
+            string language,
+            AppSettings current,
+            int speakersToLookFor,
+            IProgress<CallTranscriptionStage>? progress,
+            CancellationToken cancellationToken)
     {
         float[] samples = AudioFile.ReadMono16k(path);
         if (samples.Length == 0)
         {
-            return ([], EnergyEnvelope.Empty);
+            return ([], EnergyEnvelope.Empty, []);
         }
 
         // Огибающую снимаем ДО нормализации: анти-bleed сравнивает каналы
@@ -158,8 +179,91 @@ public sealed class CallTranscriber(
             .TranscribeAsync(samples, progress: null, language: language, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        return (Clean(segments, current), energy);
+        IReadOnlyList<SpeakerSpan> voices = [];
+        if (speakersToLookFor != 0 && diarizer?.Invoke() is { } splitter)
+        {
+            progress?.Report(CallTranscriptionStage.SplittingVoices);
+
+            // Разделяем ПОСЛЕ распознавания и по нормализованной копии.
+            // После — потому что своя копия распознавания к этому моменту уже
+            // освобождена, и в памяти снова лежит один лишний массив, а не два.
+            float[] audio = current.NormalizeAudio ? AudioNormalizer.Normalize(samples) : samples;
+
+            voices = await Task.Run(
+                () => splitter.Split(audio, speakersToLookFor, progress: null, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return (Clean(segments, current), energy, voices);
     }
+
+    /// <summary>
+    /// Сколько голосов искать в чужом канале. Ноль — не искать вовсе.
+    /// </summary>
+    /// <remarks>
+    /// Один названный собеседник — разделять нечего: его именем подписывается
+    /// весь канал, и это бесплатно и точно. Ни одного названного — ищем без
+    /// подсказки: людей там может быть и трое, просто мы не знаем их имён, а
+    /// «Them» на всех хуже, чем «Собеседник 1» и «Собеседник 2».
+    /// </remarks>
+    private static int SpeakersToLookFor(CallSession session, AppSettings current)
+    {
+        if (!current.SplitVoices || session.Participants.Count == 1)
+        {
+            return 0;
+        }
+
+        return session.Participants.Count > 1 ? session.Participants.Count : -1;
+    }
+
+    /// <summary>
+    /// Чем подписывать реплики чужого канала.
+    /// </summary>
+    /// <remarks>
+    /// Порядок предпочтений: имя разделённого голоса, затем единственный
+    /// названный собеседник, затем общее слово из настроек. Каждый следующий
+    /// шаг — признание, что мы знаем меньше, и подпись обязана это показывать,
+    /// а не делать вид, что знает.
+    /// </remarks>
+    private static Func<TranscriptSegment, string> OtherSideNamer(
+        CallSession session,
+        AppSettings current,
+        IReadOnlyList<SpeakerSpan> voices,
+        CallTranscriptLabels text)
+    {
+        if (session.Participants.Count == 1)
+        {
+            string only = session.Participants[0];
+            return _ => only;
+        }
+
+        if (voices.Count == 0)
+        {
+            string fallback = Fallback(current, text);
+            return _ => fallback;
+        }
+
+        IReadOnlyDictionary<int, string> names =
+            SpeakerAssignment.Label(voices, session.Participants, text.UnknownSpeaker);
+
+        return segment =>
+        {
+            int? speaker = SpeakerAssignment.For(segment.Start, segment.End, voices);
+
+            // Реплика, не попавшая ни в один найденный участок, — обычное
+            // дело: распознавание слышит речь там, где сегментация её не
+            // разметила. Подписываем общим словом, а не ближайшим по времени
+            // именем: приписать фразу конкретному человеку наугад хуже, чем
+            // честно сказать «собеседник».
+            return speaker is not null && names.TryGetValue(speaker.Value, out string? name)
+                ? name
+                : Fallback(current, text);
+        };
+    }
+
+    /// <summary>Общее слово для собеседника, когда имени нет.</summary>
+    private static string Fallback(AppSettings current, CallTranscriptLabels text) =>
+        string.IsNullOrWhiteSpace(current.OtherSideName) ? text.UnknownSpeaker : current.OtherSideName;
 
     /// <summary>Убрать галлюцинации и применить пользовательский словарь.</summary>
     private static IReadOnlyList<TranscriptSegment> Clean(
@@ -176,6 +280,7 @@ public sealed class CallTranscriber(
         AppSettings appSettings,
         IReadOnlyList<Utterance> timeline,
         BleedFilter.Result filtered,
+        IReadOnlyList<SpeakerSpan> voices,
         CallTranscriptLabels text)
     {
         var markdown = new StringBuilder();
@@ -189,6 +294,19 @@ public sealed class CallTranscriber(
         if (!string.IsNullOrWhiteSpace(session.Trigger))
         {
             markdown.Append("- ").Append(text.Trigger).Append(": ").AppendLine(session.Trigger);
+        }
+
+        // Как именно разделены голоса — в шапку. Читающий транскрипт должен
+        // видеть, откуда взялись имена: по названным участникам или машина
+        // угадала сама. Это разные степени доверия к подписям.
+        if (voices.Count > 0)
+        {
+            int found = voices.Select(v => v.Speaker).Distinct().Count();
+            markdown.Append("- ").Append(text.VoicesSplit).Append(": ")
+                .Append(found.ToString(CultureInfo.CurrentCulture))
+                .Append(" (")
+                .Append(session.Participants.Count > 1 ? text.VoicesSplitHinted : text.VoicesSplitGuessed)
+                .AppendLine(")");
         }
 
         if (session.Participants.Count > 0)
