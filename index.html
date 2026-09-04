@@ -77,7 +77,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600;12..96,75..100,800&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&display=swap">
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500;700&display=swap">
 
 <style>
 /* ===========================================================================
@@ -106,7 +106,7 @@
 
   --text:      #F6F0E8;
   --muted:     #A2907B;
-  --faint:     #7B6A58;
+  --faint:     #97836D;
 
   --accent:    #D9A46C;
   --accent-dim:#8A6535;
@@ -134,7 +134,7 @@
   --t-hero:    clamp(40px, 7.4vw, 92px);
   --t-h2:      clamp(28px, 4.2vw, 50px);
   --t-h3:      21px;
-  --t-body:    19px;
+  --t-body:    18px;
   --t-small:   15px;
   --t-label:   11.5px;
 }
@@ -163,7 +163,7 @@
 
     --text:      #1F1913;
     --muted:     #6E5D4D;
-    --faint:     #8B7862;
+    --faint:     #786654;
 
     --accent:    #8A5A2B;
     --accent-dim:#B08C5E;
@@ -191,7 +191,7 @@
 
   --text:      #1F1913;
   --muted:     #6E5D4D;
-  --faint:     #8B7862;
+  --faint:     #786654;
 
   --accent:    #8A5A2B;
   --accent-dim:#B08C5E;
@@ -218,7 +218,7 @@
 
   --text:      #F6F0E8;
   --muted:     #A2907B;
-  --faint:     #7B6A58;
+  --faint:     #97836D;
 
   --accent:    #D9A46C;
   --accent-dim:#8A6535;
@@ -244,10 +244,10 @@ body {
   margin: 0;
   background: var(--ground);
   color: var(--text);
-  font-family: "Newsreader", Georgia, "Times New Roman", serif;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
   font-size: var(--t-body);
-  font-weight: 300;
-  line-height: 1.62;
+  font-weight: 400;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -284,17 +284,16 @@ img { max-width: 100%; height: auto; display: block; }
 }
 
 h1, h2, h3, .display {
-  font-family: "Bricolage Grotesque", "Bricolage Grotesque Placeholder", system-ui, sans-serif;
-  font-weight: 800;
-  font-variation-settings: "wdth" 88;
-  letter-spacing: -.02em;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -.03em;
   line-height: 1.03;
   margin: 0;
   text-wrap: balance;
 }
 
 h2 { font-size: var(--t-h2); }
-h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+h3 { font-size: var(--t-h3); font-weight: 700; line-height: 1.2; letter-spacing: -.015em; }
 
 p { margin: 0 0 1.05em; max-width: var(--measure); }
 p:last-child { margin-bottom: 0; }
@@ -307,7 +306,7 @@ code {
   background: var(--accent-bg);
   color: var(--accent);
   padding: .1em .38em;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 kbd {
@@ -341,10 +340,10 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: "Bricolage Grotesque", system-ui, sans-serif;
-  font-weight: 800;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-weight: 700;
   font-size: 16px;
-  letter-spacing: -.01em;
+  letter-spacing: -.02em;
   color: var(--text);
   text-decoration: none;
 }
@@ -381,6 +380,23 @@ kbd {
 .theme-btn svg .solid { fill: currentColor; stroke: none; }
 @media (max-width: 900px) { .topnav .hide-sm { display: none; } }
 
+/*
+   Кнопки анимируют color, а сам цвет берётся из токена, который переключатель
+   темы переопределяет. Chromium не перезапускает уже идущий переход, когда
+   меняется пользовательское свойство под ним, — и контрол остаётся в ЦВЕТЕ
+   ПРЕЖНЕЙ ТЕМЫ, пока что-нибудь не заставит пересчитать стиль (наведение,
+   изменение размера окна). На тёмной это давало rgb(31,25,19) по #251D15 —
+   примерно 1.05:1, то есть надпись пропадала.
+
+   Поэтому на один кадр переключения переходы выключаются целиком. Заодно
+   исчезает и полусекундное «доползание» цвета, из-за которого переключатель
+   казался тормозящим.
+*/
+html.theme-swap *,
+html.theme-swap *::before,
+html.theme-swap *::after { transition: none !important; }
+
+
 /* --- кнопки --------------------------------------------------------------- */
 
 .btn {
@@ -399,6 +415,16 @@ kbd {
   transition: background .15s ease, color .15s ease, border-color .15s ease;
   cursor: pointer;
 }
+/*
+   Нажатие. Страница целиком про «нажми клавишу» — и до сих пор ни один
+   её собственный контрол на нажатие не отвечал: семь правил :hover и ни
+   одного :active. Сдвиг на пиксель вниз — то же движение, что у настоящей
+   клавиши, и он же перекликается с нижней рамкой kbd в 2px.
+*/
+.btn:active,
+.sw:active,
+.theme-btn:active { transform: translateY(1px); }
+
 .btn-primary { background: var(--accent); color: var(--on-accent); }
 .btn-primary:hover { background: var(--text); border-color: var(--text); color: var(--ground); }
 .btn-ghost { background: transparent; color: var(--accent); }
@@ -433,11 +459,8 @@ kbd {
 .kicker span::after { content: " ·"; color: var(--line); margin-left: 12px; }
 .kicker span:last-child::after { content: ""; }
 
-h1 { font-size: var(--t-hero); max-width: 16ch; margin: 0 auto; }
-h1 .lit {
-  color: var(--accent);
-  font-variation-settings: "wdth" 78;
-}
+h1 { font-size: var(--t-hero); max-width: 15ch; margin: 0 auto; }
+h1 .lit { color: var(--accent); }
 
 .hero-lede {
   font-size: clamp(19px, 2vw, 22px);
@@ -499,11 +522,13 @@ section.plain { border-top: 0; }
 
 /* --- довод ---------------------------------------------------------------- */
 
-.argument p { font-size: 20px; }
+.argument p { font-size: 19px; }
+/* ...но не подпись на полях: она тоже <p>, и `.argument p` (0,1,1) перебивает
+   `.spine` (0,1,0). Без этой строки «the case» набирается кеглем текста. */
+.argument > .spine { font-size: var(--t-label); }
 .argument .punch {
-  font-family: "Bricolage Grotesque", system-ui, sans-serif;
-  font-weight: 600;
-  font-variation-settings: "wdth" 90;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-weight: 700;
   font-size: clamp(22px, 2.6vw, 30px);
   line-height: 1.24;
   letter-spacing: -.01em;
@@ -530,7 +555,7 @@ section.plain { border-top: 0; }
 .demo {
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
@@ -638,16 +663,6 @@ section.plain { border-top: 0; }
 .who.s1 { color: var(--spk-1); }
 .who.s2 { color: var(--spk-2); }
 
-.demo-foot {
-  border-top: 1px solid var(--line);
-  padding: 14px 18px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  color: var(--faint);
-  line-height: 1.65;
-}
-.demo-foot b { color: var(--muted); font-weight: 500; }
-
 .demo-caption {
   margin: 14px 0 0;
   font-family: "JetBrains Mono", monospace;
@@ -676,8 +691,22 @@ section.plain { border-top: 0; }
 
 .shots { display: grid; gap: 40px; }
 .shots figure { margin: 0; }
-/* Крупный снимок держит больший радиус, мелкие — меньший: у скругления
-   должен быть один и тот же оптический вес, а он зависит от размера кадра. */
+/*
+   РАДИУСЫ. Правило одно: то, что ИЗОБРАЖАЕТ настоящий предмет, сохраняет его
+   собственную геометрию; вся остальная мебель страницы — 2px.
+
+     2px   кнопки, переключатели, рамка демонстрации, код, notice, площадка
+           под индикатором — то есть всё, что придумано для страницы
+     4px   kbd: у клавиши скруглённые углы, потому что у клавиши они и есть
+     6px   окна настроек: Windows 11 скругляет окна, и снимок это показывает
+     10px  тот же снимок крупным планом — радиус растёт вместе с кадром,
+           иначе оптический вес скругления уезжает
+     50%   круги: аватар в шапке и точка в переключателе
+
+   Острые края — язык страницы. Скруглённые — цитата из чужого интерфейса,
+   и именно поэтому их нельзя приводить к 2px: это стёрло бы форму окна,
+   которую снимок и показывает.
+*/
 .shots img { border: 1px solid var(--line); border-radius: 6px; }
 .shots figure:first-child img { border-radius: 10px; }
 .shots figcaption { margin-top: 14px; font-size: 16.5px; color: var(--muted); max-width: 68ch; }
@@ -689,7 +718,7 @@ section.plain { border-top: 0; }
 pre {
   background: var(--code-bg);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 2px;
   padding: 18px 20px;
   overflow-x: auto;
   font-size: 13.5px;
@@ -722,16 +751,33 @@ pre .c { color: #8A8074; }
 
 /* --- FAQ ------------------------------------------------------------------ */
 
-.faq { border-top: 1px solid var(--line); max-width: 84ch; }
+/*
+   Список выровнен по колонке текста, а не по краю обёртки.
+
+   Все остальные блоки страницы начинаются от левого края .wrap — но они
+   ВО ВСЮ ширину (1128 px при 1440), и внутри .body-cols проза всё равно
+   отступает на колонку. FAQ же ограничен 84ch, то есть это узкий столбец,
+   начинающийся у самого края: он не совпадает ни со своим заголовком
+   (365 px), ни с правым краем страницы, и поэтому висит сам по себе.
+
+   Отступ на полосу с зазором ставит его ровно туда же, где идёт вся
+   остальная проза. Ниже 900 px сетка схлопывается в одну колонку — вместе
+   с ней уходит и отступ.
+*/
+.faq {
+  border-top: 1px solid var(--line);
+  max-width: 84ch;
+  margin-left: calc(var(--spine) + var(--gap));
+}
+@media (max-width: 900px) { .faq { margin-left: 0; } }
 .faq details { border-bottom: 1px solid var(--line); }
 .faq summary {
   cursor: pointer;
   list-style: none;
   padding: 20px 40px 20px 0;
   position: relative;
-  font-family: "Bricolage Grotesque", system-ui, sans-serif;
-  font-weight: 600;
-  font-variation-settings: "wdth" 92;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-weight: 700;
   font-size: 19px;
   letter-spacing: -.01em;
   color: var(--text);
@@ -926,14 +972,9 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
 
       <div class="transcript" id="transcript" aria-live="polite"></div>
 
-      <p class="demo-foot" id="demoFoot"></p>
     </div>
 
-    <p class="demo-caption">
-      The conversation is written for the page rather than lifted from someone's
-      call — but the waveform is modelled speech, not decoration, and the two
-      switches do exactly what the application does with a real recording.
-    </p>
+    <p class="demo-caption">Written for the page — not a recording of real people.</p>
 
     <div class="body-cols" style="margin-top:44px">
       <p class="spine">what that buys</p>
@@ -1225,19 +1266,18 @@ build.cmd run</pre>
 (function () {
   "use strict";
 
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
   /* =========================================================================
      Звонок, разобранный на две дорожки.
 
-     Данные — стенограмма настоящего разговора троих, сокращённая. Строки с
-     bleed — это эхо чужого голоса, попавшее в микрофон: программа их убирает,
-     а переключатель показывает, что именно она убрала.
+     Разговор написан для страницы, а не взят из чьего-то звонка, — ровно так
+     подпись под демонстрацией и говорит. Строки с bleed — это эхо чужого
+     голоса, попавшее в микрофон: программа их убирает, а переключатель
+     показывает, что именно она убрала.
      ========================================================================= */
 
   var NAMES = ["Marina", "Kirill", "Dana"];
 
-  /* Стенограмма настоящего разговора троих, сокращённая. */
+  /* Реплики написаны для страницы. Тайминги правдоподобные, но выдуманные. */
   var CALL = [
     { t: 3.4,  ch: "me",                text: "…so where are we on the export?" },
     { t: 7.1,  ch: "them", spk: 1,      text: "Ready by Thursday, I think." },
@@ -1266,7 +1306,6 @@ build.cmd run</pre>
   var headMe = document.getElementById("headMe");
   var headThem = document.getElementById("headThem");
   var transcript = document.getElementById("transcript");
-  var foot = document.getElementById("demoFoot");
   var swPlay = document.getElementById("swPlay");
   var swBleed = document.getElementById("swBleed");
   var swVoices = document.getElementById("swVoices");
@@ -1423,16 +1462,12 @@ build.cmd run</pre>
 
   function render(upTo) {
     var html = "";
-    var removed = 0;
 
     for (var i = 0; i < CALL.length; i++) {
       var line = CALL[i];
       if (upTo !== null && line.t > upTo) { continue; }
 
-      if (line.bleed) {
-        removed++;
-        if (bleedOn) { continue; }
-      }
+      if (line.bleed && bleedOn) { continue; }
 
       html += '<div class="tline' + (line.bleed ? " dim" : "") + '">' +
               '<span class="tt">' + stamp(line.t) + "</span>" +
@@ -1443,14 +1478,6 @@ build.cmd run</pre>
     }
 
     transcript.innerHTML = html;
-
-    var voices = voicesOn ? NAMES.length : 1;
-    foot.innerHTML =
-      "<b>Participants:</b> " + (voicesOn ? "You, " + NAMES.join(", ") : "You, Them") +
-      " &nbsp;·&nbsp; <b>Voices told apart:</b> " + voices +
-      (voicesOn ? " (using the participant list)" : " (switched off)") +
-      " &nbsp;·&nbsp; <b>Echo removed from your track:</b> " +
-      (bleedOn ? removed + " lines" : "0 — filter off, shown struck through");
   }
 
   function setPlayhead(fraction) {
@@ -1565,6 +1592,12 @@ build.cmd run</pre>
     }
 
     btn.addEventListener("click", function () {
+      /* Гасим переходы на кадр смены палитры — см. .theme-swap в стилях. */
+      root.classList.add("theme-swap");
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { root.classList.remove("theme-swap"); });
+      });
+
       var next = ORDER[(ORDER.indexOf(current()) + 1) % ORDER.length];
       if (next === "auto") { root.removeAttribute("data-theme"); }
       else { root.setAttribute("data-theme", next); }
