@@ -41,8 +41,13 @@ somebody's server.
   carrying punctuation, like `C#` and `.NET`.
 - It stays out of the way: a tray icon, a floating indicator you can drag
   wherever you want it, and a settings window you visit once.
-- Calls can be recorded as two separate tracks — your microphone and your
-  system audio — and merged into one transcript with speaker labels.
+- Calls are recorded as two separate tracks — your microphone and your system
+  audio — and merged into one transcript with names against the lines. When a
+  recording stops, Tapybara asks who was on the call while you still remember;
+  with more than one other person it also tells their voices apart, on your own
+  machine, using that answer as the hint.
+- Recordings have a window of their own: what is recorded, what is transcribed,
+  who was on it, and a note about what it was about.
 
 ## Getting started
 
@@ -97,19 +102,32 @@ CPU, and a fiftyfold difference in speed is otherwise inexplicable.
 hotkey ─► microphone ─► speech detection ─► Whisper ─► post-processing ─► insertion
          WASAPI          Silero VAD          whisper.cpp   filters,        clipboard
          16 kHz mono     measured timings    via Vulkan    replacements    + Ctrl+V
-         float32
+         float32                             beam search
 ```
 
-Recognition uses greedy sampling with **no cross-window context**. Whisper
-normally feeds each 30-second window's output into the next; on long dictation
-with pauses that sends the model into repetition loops and triggers temperature
-fallback, which is dramatically slower. Disabling it is the single most
-important setting in the whole pipeline.
+Recognition runs with **no cross-window context**. Whisper normally feeds each
+30-second window's output into the next; on long dictation with pauses that
+sends the model into repetition loops and triggers temperature fallback, which
+is dramatically slower. Disabling it is the single most important setting in
+the whole pipeline.
 
-Calls are two tracks rather than one, which replaces speaker diarisation for a
-conversation between two people. Keeping those tracks aligned is harder than it
-sounds, because WASAPI loopback delivers nothing at all while the far side is
-silent.
+Decoding weighs several wordings of a phrase and scores them whole, rather than
+committing to the likeliest next word and never reconsidering. On one 28-second
+sample it costs about half again in time — 0.46 s against 0.70 s — and fixes
+errors that greedy decoding reproduces every run. Settings › Recognition can
+trade it back for speed.
+
+Calls are two tracks rather than one, and for a conversation between two people
+that alone settles who said what: whoever spoke is decided by which track the
+speech landed on. Keeping the tracks aligned is harder than it sounds, because
+WASAPI loopback delivers nothing at all while the far side is silent.
+
+With more than one person on the far side, that track is split by voice —
+pyannote segmentation and a speaker-embedding model, both ONNX, both on the
+CPU, both offline. Your own track is never analysed; it belongs to the
+microphone owner by construction, which also keeps the loudest and most
+interrupting voice out of the hardest part of the problem. Knowing how many
+voices to look for matters more than any threshold, which is why the app asks.
 
 [`docs/architecture.md`](docs/architecture.md) covers the pipeline, the call
 recorder and the Windows-specific traps in full.

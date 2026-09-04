@@ -54,6 +54,13 @@ megabyte — that finds which parts of a recording contain speech. It is optiona
 but recommended: without it Whisper predicts timings along with the text, and
 on a recording that is mostly silence those predictions drift badly.
 
+**Telling voices apart** needs two more, about 34 MB together, and only if you
+record calls with more than one other person on them. One finds the moment the
+speaker changes; the other turns a stretch of speech into something that can be
+compared with another stretch. Both run on the CPU and neither is needed for
+dictation, so the Models page keeps them in their own group and nothing prompts
+you to fetch them until they would help.
+
 Models you fetch yourself go in the models folder and appear straight away —
 the folder is watched, so no restart is needed. Models you no longer want can
 be deleted from the same page; the one currently loaded is unloaded first.
@@ -71,8 +78,8 @@ with:
 |---|---|
 | **General** | Interface language, theme, start with Windows, portable mode, privacy |
 | **Dictation** | Hotkey, microphone, where the text goes, maximum length |
-| **Calls** | Output device to record, folder, limits, transcript labels |
-| **Recognition** | Which model, language, prompt, speech detection, idle unload |
+| **Calls** | Output device to record, folder, limits, telling voices apart, transcript labels |
+| **Recognition** | Which model, decoding effort, language, prompt, speech detection, idle unload |
 | **Models** | Where models live, what is installed, what to download |
 | **Text** | Paragraph splitting, replacements |
 | **About** | Version, compute backend, diagnostics, log |
@@ -146,6 +153,38 @@ names.
 Pick the output device the call actually plays on in Settings › Calls. If you
 talk through a headset while your speakers are the system default, recording
 "the default device" captures silence.
+
+### Who was on the call
+
+When a recording stops, a small window asks. Names are chips — the people you
+talked to most recently come first — and there is a field for anyone new. It
+does not take focus, because calls usually end on top of something you are
+still typing into, and transcription waits for the answer.
+
+Answering is worth the two seconds. One other person needs no voice analysis at
+all: whoever spoke is settled by which track the speech landed on, and the name
+goes straight into the transcript. Several people make the answer a hint, and
+that hint does more for accuracy than any setting on the page — on a two-voice
+check file, knowing the count put the boundary exactly where it belonged, and
+the same audio without it came apart into four speakers.
+
+Nothing is lost if you close the window: names are saved on any close, the note
+only when you press Save. **Recorded calls** in the tray menu lists everything
+recorded, what state each is in, and lets you fix names or transcribe again
+later.
+
+### Telling voices apart
+
+Only the far track is analysed. Yours belongs to the microphone owner by
+construction, so asking a model to work it out would be guessing at something
+already known — and leaving it out keeps the loudest, closest, most interrupting
+voice out of the hardest part of the job.
+
+It runs on the CPU at several times real time, which still means minutes on a
+long call, so it happens in the background after the recording stops. Where
+several people share one room and one microphone, no system of this kind is
+reliable, including this one; the transcript records how the names were arrived
+at rather than presenting a guess as a fact.
 
 > **Recording captures the other party too.** In many places recording someone
 > without telling them is unlawful, and everything audible on the chosen device
