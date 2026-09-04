@@ -337,6 +337,9 @@ public sealed record UiStrings
     public required string AboutRuntimeHint { get; init; }
     public required string AboutLicense { get; init; }
     public required string AboutComponents { get; init; }
+    public required string AboutSite { get; init; }
+    public required string AboutSiteHint { get; init; }
+    public required string AboutSource { get; init; }
     public required string ButtonCopyDiagnostics { get; init; }
     public required string DiagnosticsCopied { get; init; }
 
@@ -723,6 +726,9 @@ public sealed record UiStrings
         AboutRuntimeHint = "Which native whisper.cpp library actually loaded",
         AboutLicense = "Licence",
         AboutComponents = "Built on whisper.cpp, Whisper.net, NAudio and WPF-UI.",
+        AboutSite = "Project",
+        AboutSiteHint = "Documentation, releases and the source",
+        AboutSource = "Source on GitHub",
         ButtonCopyDiagnostics = "Copy diagnostics",
         DiagnosticsCopied = "Copied",
     };
@@ -1030,6 +1036,9 @@ public sealed record UiStrings
         AboutRuntimeHint = "Какая нативная библиотека whisper.cpp реально загрузилась",
         AboutLicense = "Лицензия",
         AboutComponents = "Работает на whisper.cpp, Whisper.net, NAudio и WPF-UI.",
+        AboutSite = "Проект",
+        AboutSiteHint = "Документация, сборки и исходники",
+        AboutSource = "Исходники на GitHub",
         ButtonCopyDiagnostics = "Скопировать диагностику",
         DiagnosticsCopied = "Скопировано",
     };

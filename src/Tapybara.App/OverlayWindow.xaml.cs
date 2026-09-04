@@ -1,11 +1,13 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Tapybara.App.Localization;
+using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Windows;
+using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
@@ -25,6 +27,12 @@ public partial class OverlayWindow : Window
 
     private readonly Rectangle[] _bars = new Rectangle[BarCount];
 
+    /// <summary>Идёт восстановление фона — не реагировать на собственную же правку.</summary>
+    private bool _restoringBackground;
+
+    /// <summary>О перекрашенном фоне пишем в журнал один раз за запуск.</summary>
+    private bool _backgroundIncidentLogged;
+
     private System.Windows.Threading.DispatcherTimer? _hideTimer;
     private Point _pressedAt;
     private Point _pressedWindowAt;
@@ -43,6 +51,78 @@ public partial class OverlayWindow : Window
         // Заодно WS_EX_NOACTIVATE успевает примениться до первого показа.
         new WindowInteropHelper(this).EnsureHandle();
     }
+
+    /// <summary>
+    /// Фон окна обязан оставаться прозрачным — и возвращается, если его меняют.
+    /// </summary>
+    /// <remarks>
+    /// Пилюля круглая только потому, что окно попиксельно прозрачно, а форму
+    /// рисует лежащий внутри <c>Border</c>. Стоит окну получить непрозрачный
+    /// фон, и вокруг пилюли появляется белый прямоугольник.
+    /// <para>
+    /// Виновник известен и найден по стеку: наш же <c>SystemTheme.Apply</c>
+    /// зовёт <c>ApplicationThemeManager.Apply</c>, а тот обходит ВСЕ окна
+    /// приложения и через <c>WindowBackdrop.RestoreContentBackground</c>
+    /// возвращает каждому непрозрачный фон. Библиотеке неоткуда знать, что
+    /// одно из окон живёт попиксельной прозрачностью, а тема применяется не
+    /// только по кнопке в настройках: Windows шлёт уведомление о смене
+    /// оформления по множеству поводов, поэтому и «пропадает иногда».
+    /// </para>
+    /// <para>
+    /// Восстановление ОТЛОЖЕННОЕ. Присваивание прямо здесь роняло приложение:
+    /// WPF не даёт переприсвоить свойство, пока сам его меняет, — падало
+    /// с «The provided DependencyObject is not a context for this Freezable».
+    /// Приоритет <c>Send</c> означает, что правка успевает до отрисовки, и белого
+    /// прямоугольника не видно даже кадром.
+    /// </para>
+    /// </remarks>
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        if (e.Property != BackgroundProperty || _restoringBackground || IsTransparent(e.NewValue))
+        {
+            return;
+        }
+
+        if (!_backgroundIncidentLogged)
+        {
+            _backgroundIncidentLogged = true;
+            AppLog.Warn($"Фон пилюли перекрасили в {Describe(e.NewValue)} — возвращаю прозрачный.");
+        }
+
+        _restoringBackground = true;
+        _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Send,
+            () =>
+            {
+                try
+                {
+                    if (!IsTransparent(Background))
+                    {
+                        Background = Brushes.Transparent;
+                    }
+                }
+                finally
+                {
+                    _restoringBackground = false;
+                }
+            });
+    }
+
+    /// <summary>Прозрачна ли кисть настолько, что окно остаётся невидимым.</summary>
+    /// <remarks>
+    /// <c>null</c> тоже годится: окно без кисти не рисует фон вовсе.
+    /// </remarks>
+    private static bool IsTransparent(object? brush) =>
+        brush is null || (brush is SolidColorBrush solid && solid.Color.A == 0);
+
+    private static string Describe(object? brush) => brush switch
+    {
+        SolidColorBrush solid => solid.Color.ToString(CultureInfo.InvariantCulture),
+        null => "null",
+        _ => brush.GetType().Name,
+    };
 
     /// <summary>Клик по пилюле — то же, что нажать хоткей.</summary>
     public event Action? Clicked;
@@ -165,6 +245,14 @@ public partial class OverlayWindow : Window
 
     private void Reveal()
     {
+        // Дешёвая перестраховка на случай, если фон перекрасили, пока пилюля
+        // была скрыта: тогда OnPropertyChanged уже отработал, но проверить
+        // ещё раз ничего не стоит.
+        if (!IsTransparent(Background))
+        {
+            Background = Brushes.Transparent;
+        }
+
         MoveIntoPlace();
 
         // Show(), а не Activate(): активация увела бы фокус с приложения,

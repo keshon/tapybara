@@ -80,6 +80,12 @@ public partial class SettingsWindow : FluentWindow
     /// </remarks>
     private const double ControlColumnWidth = 240;
 
+    /// <summary>Сайт проекта.</summary>
+    private const string SiteUrl = "https://tapybara.keshon.ru";
+
+    /// <summary>Исходники.</summary>
+    private const string RepositoryUrl = "https://github.com/keshon/tapybara";
+
     private readonly SettingsHost _host;
     private readonly Func<IReadOnlyList<string>> _availableModels;
 
@@ -1359,6 +1365,30 @@ public partial class SettingsWindow : FluentWindow
             ValueText(WhisperEngine.LoadedRuntime));
 
         AddCard(SymbolRegular.Document24, L.S.AboutLicense, description: null, ValueText("MIT"));
+
+        // Ссылки — кнопками, а не текстом: адрес, который нельзя нажать,
+        // придётся перепечатывать руками, а это ровно тот случай, когда
+        // человек не станет и просто закроет окно.
+        var links = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+
+        links.Children.Add(new Wpf.Ui.Controls.HyperlinkButton
+        {
+            Content = SiteUrl.Replace("https://", string.Empty, StringComparison.Ordinal),
+            NavigateUri = SiteUrl,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+
+        links.Children.Add(new Wpf.Ui.Controls.HyperlinkButton
+        {
+            Content = L.S.AboutSource,
+            NavigateUri = RepositoryUrl,
+        });
+
+        AddStackedCard(SymbolRegular.Link24, L.S.AboutSite, L.S.AboutSiteHint, links, trailing: null);
 
         var copy = new Button
         {
