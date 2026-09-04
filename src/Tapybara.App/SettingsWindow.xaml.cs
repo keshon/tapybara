@@ -730,9 +730,12 @@ public partial class SettingsWindow : FluentWindow
 
         var icon = new SymbolIcon
         {
-            Symbol = model.Kind == ModelKind.SpeechDetector
-                ? SymbolRegular.PulseSquare24
-                : SymbolRegular.BrainCircuit24,
+            Symbol = model.Kind switch
+            {
+                ModelKind.SpeechDetector => SymbolRegular.PulseSquare24,
+                ModelKind.VoiceSegmentation or ModelKind.VoiceEmbedding => SymbolRegular.PeopleTeam24,
+                _ => SymbolRegular.BrainCircuit24,
+            },
             FontSize = 15,
             Margin = new Thickness(0, 0, 10, 0),
             Foreground = ThemeBrush("SystemFillColorSuccessBrush", Colors.SeaGreen),
@@ -833,6 +836,12 @@ public partial class SettingsWindow : FluentWindow
             L.S.ModelsDetectorNote,
             ModelKind.SpeechDetector);
 
+        AddDownloadGroup(
+            L.S.ModelsVoicesHeader,
+            L.S.ModelsVoicesNote,
+            ModelKind.VoiceSegmentation,
+            ModelKind.VoiceEmbedding);
+
         var link = new Wpf.Ui.Controls.HyperlinkButton
         {
             Content = L.S.ModelsFullListLink,
@@ -844,16 +853,21 @@ public partial class SettingsWindow : FluentWindow
         _page.Children.Add(link);
     }
 
-    private void AddDownloadGroup(string title, string? description, ModelKind kind)
+    private void AddDownloadGroup(string title, string? description, params ModelKind[] kinds)
     {
         var list = new StackPanel();
-        foreach (CatalogModel model in ModelCatalog.All.Where(m => m.Kind == kind))
+        foreach (CatalogModel model in ModelCatalog.All.Where(m => kinds.Contains(m.Kind)))
         {
             list.Children.Add(BuildDownloadRow(model));
         }
 
         AddStackedCard(
-            kind == ModelKind.Recognition ? SymbolRegular.BrainCircuit24 : SymbolRegular.PulseSquare24,
+            kinds[0] switch
+            {
+                ModelKind.Recognition => SymbolRegular.BrainCircuit24,
+                ModelKind.SpeechDetector => SymbolRegular.PulseSquare24,
+                _ => SymbolRegular.PeopleTeam24,
+            },
             title,
             description,
             list,
@@ -1132,6 +1146,39 @@ public partial class SettingsWindow : FluentWindow
                 L.S.Minutes,
                 value => Apply(s => s with { MaxCallMinutes = (int)Math.Clamp(value, 1, 24 * 60) })));
 
+        AddGroup(L.S.GroupVoices);
+
+        AddToggleCard(
+            SymbolRegular.PeopleTeam24,
+            L.S.FieldSplitVoices,
+            L.S.FieldSplitVoicesHint,
+            () => Settings.SplitVoices,
+            value => Apply(s => s with { SplitVoices = value }));
+
+        AddCard(
+            SymbolRegular.PeopleTeam24,
+            L.S.FieldVoiceEmbeddingModel,
+            L.S.FieldVoiceEmbeddingModelHint,
+            VoiceModelCombo(
+                segmentation: false,
+                () => Settings.VoiceEmbeddingModelFileName,
+                name => Apply(s => s with { VoiceEmbeddingModelFileName = name })));
+
+        AddCard(
+            SymbolRegular.PulseSquare24,
+            L.S.FieldVoiceSegmentationModel,
+            L.S.FieldVoiceSegmentationModelHint,
+            VoiceModelCombo(
+                segmentation: true,
+                () => Settings.VoiceSegmentationModelFileName,
+                name => Apply(s => s with { VoiceSegmentationModelFileName = name })));
+
+        AddCard(
+            SymbolRegular.Options24,
+            L.S.FieldVoiceThreshold,
+            L.S.FieldVoiceThresholdHint,
+            VoiceThresholdField());
+
         AddGroup(L.S.GroupTranscript);
 
         AddCard(
@@ -1146,7 +1193,9 @@ public partial class SettingsWindow : FluentWindow
             SymbolRegular.PeopleTeam24,
             L.S.FieldOtherSideName,
             description: null,
-            TextField(() => Settings.OtherSideName, value => Apply(s => s with { OtherSideName = value })));
+            TextField(
+                () => Settings.OtherSideName ?? L.S.TranscriptUnknownSpeaker,
+                value => Apply(s => s with { OtherSideName = value.Trim().Length == 0 ? null : value.Trim() })));
 
         AddCard(
             SymbolRegular.LocalLanguage24,
@@ -1775,6 +1824,94 @@ public partial class SettingsWindow : FluentWindow
     private sealed record LanguageChoice(string Code, string Label)
     {
         public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// Поле порога разделения голосов: доля от нуля до единицы, без единиц.
+    /// </summary>
+    /// <remarks>
+    /// Своё поле, а не общий <see cref="NumberField"/>: тому нужна подпись
+    /// единицы измерения, а у доли её нет, и пустая подпись рядом со значением
+    /// выглядит как недогруженный интерфейс.
+    /// </remarks>
+    private System.Windows.Controls.TextBox VoiceThresholdField()
+    {
+        var box = new System.Windows.Controls.TextBox
+        {
+            Text = Settings.VoiceSplitThreshold.ToString("F2", CultureInfo.CurrentCulture),
+            Width = 80,
+            TextAlignment = TextAlignment.Right,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+        };
+
+        box.LostFocus += (_, _) =>
+        {
+            string normalized = box.Text.Replace(',', '.');
+            if (double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
+            {
+                double clamped = Math.Clamp(parsed, 0.1, 0.95);
+                box.Text = clamped.ToString("F2", CultureInfo.CurrentCulture);
+                Apply(s => s with { VoiceSplitThreshold = clamped });
+            }
+            else
+            {
+                box.Text = Settings.VoiceSplitThreshold.ToString("F2", CultureInfo.CurrentCulture);
+            }
+        };
+
+        Refresh(() =>
+        {
+            if (!box.IsKeyboardFocusWithin)
+            {
+                box.Text = Settings.VoiceSplitThreshold.ToString("F2", CultureInfo.CurrentCulture);
+            }
+        });
+
+        return box;
+    }
+
+    /// <summary>
+    /// Выбор модели разделения голосов из того, что лежит в папке.
+    /// </summary>
+    /// <remarks>
+    /// Настроенное имя показываем, даже если файла нет: иначе список молча
+    /// перескакивал бы на другую модель, и человек, не скачавший нужную,
+    /// считал бы, что всё в порядке.
+    /// </remarks>
+    private ComboBox VoiceModelCombo(bool segmentation, Func<string> read, Action<string> onChange)
+    {
+        var box = new ComboBox { Width = ControlColumnWidth };
+
+        void Fill()
+        {
+            string current = read();
+            box.Items.Clear();
+
+            foreach (string name in ModelLocator.ListVoiceModels(segmentation, Settings.ModelsDirectory))
+            {
+                box.Items.Add(name);
+            }
+
+            if (!box.Items.Contains(current))
+            {
+                box.Items.Add(current);
+            }
+
+            box.SelectedItem = current;
+        }
+
+        Fill();
+        Refresh(Fill);
+
+        box.SelectionChanged += (_, _) =>
+        {
+            if (box.SelectedItem is string name && name != read())
+            {
+                onChange(name);
+            }
+        };
+
+        return box;
     }
 
     private sealed record DecodingChoice(int BeamSize, string Label)

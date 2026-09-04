@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Tapybara.Core.Settings;
 using Tapybara.Core.Windows;
 using Xunit;
@@ -134,11 +134,30 @@ public class ModelCatalogTests
             Core.Models.ModelCatalog.All,
             model => Assert.StartsWith("https://", model.Url, StringComparison.Ordinal));
 
+    /// <summary>
+    /// Ссылка и имя файла обязаны быть одного вида.
+    /// </summary>
+    /// <remarks>
+    /// Раньше здесь требовалось точное совпадение: ссылка кончается тем же
+    /// именем, под которым файл ляжет на диск. Правило ловило настоящую ошибку —
+    /// вставленную не к тому имени ссылку, — но перестало быть выполнимым,
+    /// когда в каталог пришли модели разделения голосов: у одной upstream-имя
+    /// «model.onnx» (в папке моделей оно ничего не значит и столкнётся со
+    /// следующей такой же), у другой в имени «CAM++».
+    /// <para>
+    /// Переименование теперь разрешено, а совпадение расширения — нет. Тот же
+    /// класс ошибок (ссылка на .onnx рядом с именем .bin) по-прежнему падает,
+    /// а осмысленные локальные имена остаются возможны.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void All_UrlEndsWithTheFileName() =>
+    public void All_FileNameMatchesTheKindOfFileTheUrlPointsAt() =>
         Assert.All(
             Core.Models.ModelCatalog.All,
-            model => Assert.EndsWith(model.FileName, model.Url, StringComparison.Ordinal));
+            model => Assert.Equal(
+                Path.GetExtension(model.FileName),
+                Path.GetExtension(new Uri(model.Url).AbsolutePath),
+                ignoreCase: true));
 
     [Fact]
     public void All_HasNoDuplicateFileNames()

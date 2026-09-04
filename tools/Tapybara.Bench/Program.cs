@@ -25,7 +25,7 @@ string defaultSample = Path.Combine(repoRoot, "sample.wav");
 // Флаги, после которых идёт значение. Знать их обязательно: без этого списка
 // текст промпта («Разговор о…») выглядит как обычный аргумент и уезжает в
 // позиционные — на этом разбор `run <модель> [файл]` и ломается.
-string[] valueFlags = ["--prompt", "--vad-threshold", "--lang", "--beam"];
+string[] valueFlags = ["--prompt", "--vad-threshold", "--lang", "--beam", "--speakers", "--cluster-threshold"];
 
 List<string> positionalArgs = [];
 string? promptOption = null;
@@ -35,6 +35,9 @@ string language = "auto";
 // значение, мерил бы то, чего у пользователя нет: так уже случилось с
 // порогом детектора речи, где бенч тихо ставил 0.5 вместо 0.35.
 int? beamSize = null;
+// Сколько голосов искать при разделении. null — определять по порогу.
+int? speakerCount = null;
+float? clusterThreshold = null;
 for (int i = 0; i < args.Length; i++)
 {
     string arg = args[i];
@@ -61,6 +64,14 @@ for (int i = 0; i < args.Length; i++)
         else if (arg == "--beam")
         {
             beamSize = int.Parse(args[i + 1], CultureInfo.InvariantCulture);
+        }
+        else if (arg == "--speakers")
+        {
+            speakerCount = int.Parse(args[i + 1], CultureInfo.InvariantCulture);
+        }
+        else if (arg == "--cluster-threshold")
+        {
+            clusterThreshold = float.Parse(args[i + 1], CultureInfo.InvariantCulture);
         }
 
         i++; // значение уже забрали — позиционным оно не является
@@ -142,6 +153,16 @@ switch (command)
         await InspectVadAsync(positional[1]);
         break;
 
+    case "diarize":
+        if (positional.Length < 2)
+        {
+            Console.Error.WriteLine("Укажи файл: bench diarize <файл.wav> [--speakers N]");
+            return 1;
+        }
+
+        SplitVoices(positional[1], speakerCount ?? 0, clusterThreshold);
+        break;
+
     case "call":
         await RecordCallAsync(positional.Length > 1
             ? double.Parse(positional[1], CultureInfo.InvariantCulture)
@@ -160,6 +181,7 @@ switch (command)
               bench call [секунды]           записать звонок в два канала
               bench transcribe <папка>       собрать транскрипт записанного звонка
               bench vad <файл.wav>           что детектор считает речью в файле
+              bench diarize <файл.wav>       разделить голоса в дорожке
               bench check                    проверить хоткей и буфер обмена
 
             Модель задаётся куском имени файла: `bench run turbo`.
@@ -169,6 +191,8 @@ switch (command)
               --prompt "текст"        подсказка словаря (по умолчанию промпта нет)
               --lang <код>            язык распознавания (по умолчанию auto)
               --beam <N>              ширина луча, 1 — жадный поиск
+              --speakers <N>          сколько голосов искать при разделении
+              --cluster-threshold <x> порог разделения голосов без подсказки
               --vad-threshold <0..1>  порог детектора речи
               --no-vad                не искать речь детектором перед распознаванием
               --verbose               нативный лог ggml: какой бэкенд загрузился
@@ -288,6 +312,74 @@ async Task RunAsync(string? modelHint, string wavPath)
 /// <summary>
 /// Диагностика детектора: уровни до и после нормализации, найденные участки.
 /// </summary>
+/// <summary>
+/// Что разделитель услышал в дорожке.
+/// </summary>
+/// <remarks>
+/// Существует ради одного вопроса, на который иначе пришлось бы отвечать
+/// на глаз: какая модель слепков лучше слышит русские голоса. Обе обучены
+/// на других языках, и «должно переноситься» — не измерение.
+/// </remarks>
+void SplitVoices(string wavPath, int expected, float? threshold)
+{
+    if (!File.Exists(wavPath))
+    {
+        Console.Error.WriteLine($"Нет файла {wavPath}");
+        return;
+    }
+
+    var defaults = new AppSettings();
+    string? segmentation = ModelLocator.Resolve(defaults.VoiceSegmentationModelFileName);
+    string? embedding = ModelLocator.Resolve(defaults.VoiceEmbeddingModelFileName);
+
+    if (segmentation is null || embedding is null)
+    {
+        Console.Error.WriteLine(
+            $"Нет моделей разделения: {defaults.VoiceSegmentationModelFileName}, {defaults.VoiceEmbeddingModelFileName}");
+        return;
+    }
+
+    float[] samples = AudioNormalizer.Normalize(AudioFile.ReadMono16k(wavPath));
+
+    Console.WriteLine($"Файл:      {Path.GetFileName(wavPath)}");
+    Console.WriteLine($"Длина:     {samples.Length / (double)AudioCapture.TargetSampleRate:F1} с");
+    Console.WriteLine($"Сегментация: {Path.GetFileName(segmentation)}");
+    Console.WriteLine($"Слепки:      {Path.GetFileName(embedding)}");
+    Console.WriteLine($"Подсказка:   {(expected > 0 ? expected.ToString(CultureInfo.InvariantCulture) : "нет")}");
+    Console.WriteLine($"Порог:       {threshold ?? (float)defaults.VoiceSplitThreshold:F2}");
+    Console.WriteLine();
+
+    var timer = Stopwatch.StartNew();
+    using var diarizer = new SpeakerDiarizer(new SpeakerDiarizerOptions
+    {
+        SegmentationModelPath = segmentation,
+        EmbeddingModelPath = embedding,
+        ClusterThreshold = threshold ?? (float)defaults.VoiceSplitThreshold,
+    });
+    TimeSpan load = timer.Elapsed;
+
+    timer.Restart();
+    IReadOnlyList<SpeakerSpan> spans = diarizer.Split(samples, expected);
+    TimeSpan work = timer.Elapsed;
+
+    foreach (SpeakerSpan span in spans)
+    {
+        Console.WriteLine(
+            $"  [{span.Start.TotalSeconds,6:F2} – {span.End.TotalSeconds,6:F2}]  голос {span.Speaker + 1}");
+    }
+
+    if (spans.Count == 0)
+    {
+        Console.WriteLine("  речи не найдено");
+    }
+
+    double audioSeconds = samples.Length / (double)AudioCapture.TargetSampleRate;
+    Console.WriteLine();
+    Console.WriteLine($"Голосов:   {spans.Select(s => s.Speaker).Distinct().Count()}");
+    Console.WriteLine($"Загрузка:  {load.TotalSeconds:F2} с");
+    Console.WriteLine($"Работа:    {work.TotalSeconds:F2} с  ({audioSeconds / Math.Max(0.001, work.TotalSeconds):F1}× реального времени)");
+}
+
 async Task InspectVadAsync(string wavPath)
 {
     if (!File.Exists(wavPath))

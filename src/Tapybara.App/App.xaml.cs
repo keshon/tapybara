@@ -61,6 +61,20 @@ public partial class App : Application, IDisposable
     private SpeechTranscriber? _transcriber;
     private DictationController? _controller;
     private CallTranscriber? _callTranscriber;
+
+    /// <summary>
+    /// Разделитель голосов. Собирается лениво, при первом звонке, которому он нужен.
+    /// </summary>
+    /// <remarks>
+    /// Обе его модели вместе весят тридцать пять мегабайт и держат нативный
+    /// контекст. Большинство звонков — один на один, и там он не нужен вовсе:
+    /// поднимать его на старте значило бы платить за то, чем обычно не
+    /// пользуются.
+    /// </remarks>
+    private SpeakerDiarizer? _diarizer;
+
+    /// <summary>Настройки, под которые собран текущий разделитель голосов.</summary>
+    private (string Segmentation, string Embedding, double Threshold)? _diarizerBuiltFor;
     private HotkeyListener? _hotkey;
     private TrayIconHost? _tray;
     private OverlayWindow? _overlay;
@@ -524,7 +538,8 @@ public partial class App : Application, IDisposable
         _callTranscriber = new CallTranscriber(
             _transcriber,
             () => _settings.Current,
-            () => L.S.TranscriptLabels);
+            () => L.S.TranscriptLabels,
+            EnsureDiarizer);
 
         _controller = new DictationController(_transcriber, () => _settings.Current);
         _controller.StateChanged += state => OnUi(() => OnStateChanged(state));
@@ -887,6 +902,71 @@ public partial class App : Application, IDisposable
             L.S.NotifyCallStoppedTitle,
             detail is null ? message : $"{message} {detail}",
             BalloonKind.Warning);
+    }
+
+    /// <summary>
+    /// Собрать разделитель голосов, если его модели на месте.
+    /// </summary>
+    /// <returns><c>null</c>, если моделей нет — тогда звонок разберётся без имён.</returns>
+    /// <remarks>
+    /// Пересобирается, когда меняются модели или порог, и переживает остальные
+    /// правки настроек: загрузка тридцати пяти мегабайт ONNX на каждое
+    /// переключение галочки — это секунды ожидания там, где ничего не менялось.
+    /// <para>
+    /// Отсутствие моделей — не ошибка. Разделение голосов нужно меньшинству
+    /// звонков, и требовать скачать его ради разговора один на один незачем.
+    /// </para>
+    /// </remarks>
+    private SpeakerDiarizer? EnsureDiarizer()
+    {
+        AppSettings settings = _settings.Current;
+        if (!settings.SplitVoices)
+        {
+            return null;
+        }
+
+        string? segmentation = ModelLocator.Resolve(
+            settings.VoiceSegmentationModelFileName, settings.ModelsDirectory);
+        string? embedding = ModelLocator.Resolve(
+            settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory);
+
+        if (segmentation is null || embedding is null)
+        {
+            AppLog.Info("Разделение голосов включено, но моделей нет — собеседники останутся без имён.");
+            return null;
+        }
+
+        var wanted = (segmentation, embedding, settings.VoiceSplitThreshold);
+        if (_diarizer is not null && _diarizerBuiltFor == wanted)
+        {
+            return _diarizer;
+        }
+
+        _diarizer?.Dispose();
+        _diarizer = null;
+        _diarizerBuiltFor = null;
+
+        try
+        {
+            _diarizer = new SpeakerDiarizer(new SpeakerDiarizerOptions
+            {
+                SegmentationModelPath = segmentation,
+                EmbeddingModelPath = embedding,
+                ClusterThreshold = (float)settings.VoiceSplitThreshold,
+            });
+
+            _diarizerBuiltFor = wanted;
+            AppLog.Info($"Разделитель голосов готов: {Path.GetFileName(embedding)}.");
+        }
+        catch (Exception ex)
+        {
+            // Битая или чужая модель роняет нативную сторону при создании.
+            // Звонок при этом уже записан, и терять его из-за имён нельзя.
+            AppLog.Error("Не удалось собрать разделитель голосов.", ex);
+            _tray?.SetStatus(ex.Message);
+        }
+
+        return _diarizer;
     }
 
     /// <summary>
@@ -1394,6 +1474,7 @@ public partial class App : Application, IDisposable
 
         // Запись звонка на выходе не бросаем: файлы дописываются и закрываются.
         _callRecorder.Dispose();
+        _diarizer?.Dispose();
 
         DisposeEngineAndControllerOnExit();
 

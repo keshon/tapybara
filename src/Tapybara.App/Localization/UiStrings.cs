@@ -246,6 +246,10 @@ public sealed record UiStrings
     public required string TranscriptDuration { get; init; }
     public required string TranscriptTrigger { get; init; }
     public required string TranscriptParticipants { get; init; }
+    public required string TranscriptVoicesSplit { get; init; }
+    public required string TranscriptVoicesHinted { get; init; }
+    public required string TranscriptVoicesGuessed { get; init; }
+    public required string TranscriptUnknownSpeaker { get; init; }
 
     // --- звонок: кто в нём был ---
     public required string ParticipantsEntryPlaceholder { get; init; }
@@ -294,6 +298,18 @@ public sealed record UiStrings
     public required string CallStageMicrophone { get; init; }
     public required string CallStageOtherSide { get; init; }
     public required string CallStageFiltering { get; init; }
+    public required string CallStageSplittingVoices { get; init; }
+    public required string GroupVoices { get; init; }
+    public required string FieldSplitVoices { get; init; }
+    public required string FieldSplitVoicesHint { get; init; }
+    public required string FieldVoiceEmbeddingModel { get; init; }
+    public required string FieldVoiceEmbeddingModelHint { get; init; }
+    public required string FieldVoiceSegmentationModel { get; init; }
+    public required string FieldVoiceSegmentationModelHint { get; init; }
+    public required string FieldVoiceThreshold { get; init; }
+    public required string FieldVoiceThresholdHint { get; init; }
+    public required string ModelsVoicesHeader { get; init; }
+    public required string ModelsVoicesNote { get; init; }
 
     // --- общее ---
     public required string ButtonBrowse { get; init; }
@@ -343,6 +359,7 @@ public sealed record UiStrings
         CallTranscriptionStage.ReadingTracks => CallStageReading,
         CallTranscriptionStage.TranscribingMicrophone => CallStageMicrophone,
         CallTranscriptionStage.TranscribingOtherSide => CallStageOtherSide,
+        CallTranscriptionStage.SplittingVoices => CallStageSplittingVoices,
         CallTranscriptionStage.FilteringBleed => CallStageFiltering,
         _ => StatusTranscribingCall,
     };
@@ -392,6 +409,10 @@ public sealed record UiStrings
         TranscriptDuration,
         TranscriptTrigger,
         TranscriptParticipants,
+        TranscriptVoicesSplit,
+        TranscriptVoicesHinted,
+        TranscriptVoicesGuessed,
+        TranscriptUnknownSpeaker,
         TranscriptBleedRemoved,
         TranscriptBleedByText,
         TranscriptBleedByEnergy,
@@ -493,10 +514,10 @@ public sealed record UiStrings
         FieldModel = "Recognition model",
         FieldModelHint = "Only models already in your models folder are listed",
         FieldDecoding = "Decoding",
-        FieldDecodingHint = "How many wordings the model weighs before settling on one",
-        DecodingFast = "Fast — first wording that fits",
-        DecodingAccurate = "Accurate — weigh 5 (recommended)",
-        DecodingThorough = "Thorough — weigh 8",
+        FieldDecodingHint = "How many wordings the model weighs before settling on one. Five by default",
+        DecodingFast = "Fast — 1 wording",
+        DecodingAccurate = "Accurate — 5 wordings",
+        DecodingThorough = "Thorough — 8 wordings",
         FieldRecognitionLanguage = "Recognition language",
         FieldRecognitionLanguageHint = "Detect automatically unless you always dictate in one language — a wrong language does not degrade recognition, it destroys it",
         FieldPrompt = "Prompt",
@@ -616,6 +637,10 @@ public sealed record UiStrings
         TranscriptDuration = "Duration",
         TranscriptTrigger = "Trigger",
         TranscriptParticipants = "Participants",
+        TranscriptVoicesSplit = "Voices told apart",
+        TranscriptVoicesHinted = "using the participant list",
+        TranscriptVoicesGuessed = "without a participant list",
+        TranscriptUnknownSpeaker = "Speaker",
         ParticipantsEntryPlaceholder = "add / find",
         ParticipantsEntryHint = "Type a name and press Enter, or filter the ones you already use",
         ParticipantsMeHint = "You are always on the call — that is your microphone track",
@@ -660,6 +685,18 @@ public sealed record UiStrings
         CallStageMicrophone = "Transcribing your channel…",
         CallStageOtherSide = "Transcribing the other side…",
         CallStageFiltering = "Filtering out bleed…",
+        CallStageSplittingVoices = "Telling the voices apart…",
+        GroupVoices = "Telling voices apart",
+        FieldSplitVoices = "Tell the other side's voices apart",
+        FieldSplitVoicesHint = "Only the other channel: yours is your own microphone. Adds minutes to a long call",
+        FieldVoiceEmbeddingModel = "Voiceprint model",
+        FieldVoiceEmbeddingModelHint = "What turns a stretch of speech into something comparable",
+        FieldVoiceSegmentationModel = "Segmentation model",
+        FieldVoiceSegmentationModelHint = "What finds the moment the speaker changes",
+        FieldVoiceThreshold = "How different voices must be",
+        FieldVoiceThresholdHint = "Only used when you have not named the participants. Naming them is far more accurate",
+        ModelsVoicesHeader = "Telling voices apart",
+        ModelsVoicesNote = "Needed only for calls with more than one other person",
 
         ButtonBrowse = "Browse…",
         ButtonUseDefault = "Use default",
@@ -784,10 +821,10 @@ public sealed record UiStrings
         FieldModel = "Модель распознавания",
         FieldModelHint = "В списке только то, что уже лежит в папке моделей",
         FieldDecoding = "Декодирование",
-        FieldDecodingHint = "Сколько вариантов фразы модель взвешивает, прежде чем выбрать один",
-        DecodingFast = "Быстро — первый подходящий",
-        DecodingAccurate = "Точно — взвешивать 5 (рекомендуется)",
-        DecodingThorough = "Тщательно — взвешивать 8",
+        FieldDecodingHint = "Сколько вариантов фразы модель взвешивает, прежде чем выбрать один. По умолчанию пять",
+        DecodingFast = "Быстро — 1 вариант",
+        DecodingAccurate = "Точно — 5 вариантов",
+        DecodingThorough = "Тщательно — 8 вариантов",
         FieldRecognitionLanguage = "Язык распознавания",
         FieldRecognitionLanguageHint = "Определять автоматически, если только вы не диктуете всегда на одном языке: неверный язык не ухудшает распознавание, а разрушает его",
         FieldPrompt = "Подсказка",
@@ -907,6 +944,10 @@ public sealed record UiStrings
         TranscriptDuration = "Длительность",
         TranscriptTrigger = "Триггер",
         TranscriptParticipants = "Участники",
+        TranscriptVoicesSplit = "Голоса разделены",
+        TranscriptVoicesHinted = "по списку участников",
+        TranscriptVoicesGuessed = "без списка участников",
+        TranscriptUnknownSpeaker = "Собеседник",
         ParticipantsEntryPlaceholder = "имя / поиск",
         ParticipantsEntryHint = "Наберите имя и нажмите Enter — или отфильтруйте тех, с кем уже говорили",
         ParticipantsMeHint = "Вы на звонке всегда — это ваша дорожка микрофона",
@@ -951,6 +992,18 @@ public sealed record UiStrings
         CallStageMicrophone = "Распознаю ваш канал…",
         CallStageOtherSide = "Распознаю собеседников…",
         CallStageFiltering = "Отсеиваю чужую речь…",
+        CallStageSplittingVoices = "Разделяю голоса…",
+        GroupVoices = "Разделение голосов",
+        FieldSplitVoices = "Разделять голоса собеседников",
+        FieldSplitVoicesHint = "Только чужой канал: свой — это ваш микрофон. На длинном звонке добавляет минуты",
+        FieldVoiceEmbeddingModel = "Модель слепков голоса",
+        FieldVoiceEmbeddingModelHint = "Превращает кусок речи в то, что можно сравнивать",
+        FieldVoiceSegmentationModel = "Модель сегментации",
+        FieldVoiceSegmentationModelHint = "Находит момент, когда говорящий сменился",
+        FieldVoiceThreshold = "Насколько голоса должны различаться",
+        FieldVoiceThresholdHint = "Работает, только если участники не названы. Назвать их — заметно точнее",
+        ModelsVoicesHeader = "Разделение голосов",
+        ModelsVoicesNote = "Нужно только для звонков, где собеседников больше одного",
 
         ButtonBrowse = "Обзор…",
         ButtonUseDefault = "По умолчанию",
