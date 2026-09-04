@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 rem ---------------------------------------------------------------------------
 rem  Tapybara build helper.
 rem
@@ -142,6 +142,6 @@ if errorlevel 1 exit /b 1
 echo.
 echo Done: dist\Tapybara.exe
 echo Models are not included - the app downloads them from Settings, Models.
-echo For portable mode, create an empty file named Tapybara.portable next to
+echo For portable mode, create an empty file named portable.txt next to
 echo the exe and it will use a Data folder beside itself.
 exit /b 0

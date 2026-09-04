@@ -8,6 +8,12 @@ A microphone on a capybara-brown disc. It is drawn in code rather than kept as
 a source file, so the same nine lines produce the application icon, the
 favicons, the social banner and the README banner at whatever size each needs.
 
+An animal mark was tried for the site and abandoned. Four capybara profiles
+were drawn and compared side by side; they read as a hippo, a beaver, a
+crocodile and, at best, an ambiguous rodent. A mark nobody recognises is worse
+than a plain one, so the disc stays until someone who can actually draw makes
+the replacement.
+
 The generator is a small script that renders at eight times the target size and
 downsamples — a cheap way to get clean antialiasing out of a rasteriser with no
 supersampling of its own. The application's own tray icons are separate and
@@ -27,6 +33,14 @@ Taken from the application, not chosen for the website.
 | accent | `#8A5A2B` | `#D2A272` | links, buttons, eyebrows |
 | pill | `#17120E` | `#17120E` | the panel the indicator sits on |
 
+The site is dark first and light second, with a three-state switch — auto,
+light, dark — stored in `localStorage` and applied by an inline script in
+`<head>` before the first paint. Two states would be a worse control than
+three: a plain toggle strands anyone who taps it once, because "follow my
+system" stops being reachable. The accent changes with the theme rather than
+staying put: the tan that reads as warm light on black goes washed-out beige on
+paper, so light uses the application's own `#8A5A2B` instead.
+
 The brown is the disc from the icon. The dark is the indicator. The red used
 for the recording dot is `#FF4D4D` in the application, and it appears on the
 site only inside screenshots — never as a decorative accent, because in the
@@ -38,8 +52,13 @@ made the icon invisible on one of them.
 
 ## Typography
 
-The site uses Bricolage Grotesque for display, Source Sans 3 for body and
-JetBrains Mono for code and labels.
+The site uses three faces, each doing one job. **Bricolage Grotesque** for
+display, because its variable width lets a headline tighten without changing
+family. **Newsreader** for prose — a tool about words should set its words like
+words, and a serif reads better than a UI sans at 19px over long paragraphs.
+**JetBrains Mono** for anything that is data rather than writing: labels, the
+section spine, timestamps, the transcript in the call demo. That last one is
+not decoration; a transcript is monospaced everywhere it actually appears.
 
 The application uses **Segoe UI Variable** — `Text` for body, `Display` for
 page titles — at the sizes Windows Settings uses: 14 px body, 12 px captions,
