@@ -149,7 +149,32 @@ public sealed record AppSettings
     public string? CallsDirectory { get; init; }
 
     /// <summary>Как подписывать свои реплики в транскрипте звонка.</summary>
-    public string MyName { get; init; } = "Me";
+    /// <remarks>
+    /// Пусто — значит «спросить систему»: см. <see cref="EffectiveMyName"/>.
+    /// Зашитое «Me» досталось русскому пользователю русским транскриптом, в
+    /// котором он сам подписан по-английски, — и так до тех пор, пока не
+    /// откроет настройки.
+    /// </remarks>
+    public string? MyName { get; init; }
+
+    /// <summary>Имя владельца микрофона с учётом умолчания из системы.</summary>
+    /// <remarks>
+    /// <c>JsonIgnore</c>: в файл уезжает только то, что человек задал сам.
+    /// Записав туда вычисленное имя, мы навсегда закрепили бы имя учётной
+    /// записи той машины, где приложение запустили в первый раз.
+    /// </remarks>
+    [JsonIgnore]
+    public string EffectiveMyName =>
+        string.IsNullOrWhiteSpace(MyName) ? Environment.UserName : MyName;
+
+    /// <summary>
+    /// С кем уже разговаривали — для чипов в окне звонка, свежие первыми.
+    /// </summary>
+    /// <remarks>
+    /// Живёт в настройках, а не отдельным файлом: портативный режим переносит
+    /// один файл, и список имён должен ехать вместе с ним.
+    /// </remarks>
+    public List<string> KnownParticipants { get; init; } = [];
 
     /// <summary>
     /// Как подписывать реплики из системного канала, когда участники не указаны.

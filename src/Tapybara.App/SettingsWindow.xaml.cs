@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -1138,7 +1138,9 @@ public partial class SettingsWindow : FluentWindow
             SymbolRegular.Person24,
             L.S.FieldMyName,
             L.S.FieldMyNameHint,
-            TextField(() => Settings.MyName, value => Apply(s => s with { MyName = value })));
+            TextField(
+                () => Settings.EffectiveMyName,
+                value => Apply(s => s with { MyName = value.Trim().Length == 0 ? null : value.Trim() })));
 
         AddCard(
             SymbolRegular.PeopleTeam24,

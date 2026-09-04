@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Tapybara.Core.Audio;
 using Tapybara.Core.Diagnostics;
@@ -117,7 +117,7 @@ public sealed class CallTranscriber(
 
         List<Utterance> timeline =
         [
-            .. filtered.Kept.Select(s => new Utterance(s.Start, current.MyName, s.Text)),
+            .. filtered.Kept.Select(s => new Utterance(s.Start, current.EffectiveMyName, s.Text)),
             .. systemSegments.Select(s => new Utterance(s.Start, otherSide, s.Text)),
         ];
 
@@ -194,7 +194,7 @@ public sealed class CallTranscriber(
         if (session.Participants.Count > 0)
         {
             markdown.Append("- ").Append(text.Participants).Append(": ")
-                .AppendLine(string.Join(", ", new[] { appSettings.MyName }.Concat(session.Participants)));
+                .AppendLine(string.Join(", ", new[] { appSettings.EffectiveMyName }.Concat(session.Participants)));
         }
 
         // Честно пишем, сколько реплик отсеяно: если фильтр переусердствовал,
@@ -218,16 +218,39 @@ public sealed class CallTranscriber(
             return markdown.ToString();
         }
 
+        TimeSpan headerAt = TimeSpan.MinValue;
+        string? headerSpeaker = null;
+
         foreach (Utterance utterance in timeline)
         {
-            markdown.Append("**[").Append(Stamp(utterance.Start)).Append("] ")
-                .Append(utterance.Speaker).Append(":** ")
-                .AppendLine(utterance.Text)
-                .AppendLine();
+            // Подпись ставится на СМЕНЕ говорящего, а не на каждом сегменте.
+            // Whisper режет речь на куски по несколько секунд, и штамп на
+            // каждом превращал двухминутный монолог в сорок одинаковых строк
+            // «[2:14] Кирилл:», между которыми терялся сам текст.
+            //
+            // Внутри длинного монолога подпись всё-таки повторяется: без
+            // отметок времени в получасовой реплике невозможно найти место
+            // в записи, а ради этого транскрипт и держат рядом со звуком.
+            bool speakerChanged = utterance.Speaker != headerSpeaker;
+            bool longSinceHeader = utterance.Start - headerAt >= HeaderInterval;
+
+            if (speakerChanged || longSinceHeader)
+            {
+                markdown.Append("**[").Append(Stamp(utterance.Start)).Append("] ")
+                    .Append(utterance.Speaker).Append(":** ");
+
+                headerSpeaker = utterance.Speaker;
+                headerAt = utterance.Start;
+            }
+
+            markdown.AppendLine(utterance.Text).AppendLine();
         }
 
         return markdown.ToString();
     }
+
+    /// <summary>Как часто повторять подпись внутри длинной реплики одного человека.</summary>
+    private static readonly TimeSpan HeaderInterval = TimeSpan.FromMinutes(2);
 
     /// <summary>
     /// Отметка времени.

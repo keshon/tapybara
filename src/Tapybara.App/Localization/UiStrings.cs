@@ -41,7 +41,7 @@ public sealed record UiStrings
     public required string TrayExit { get; init; }
     public required string TrayStartRecording { get; init; }
     public required string TrayStopRecording { get; init; }
-    public required string TrayCallsFolder { get; init; }
+    public required string TrayCalls { get; init; }
     public required string StatusRecordingCall { get; init; }
     public required string StatusTranscribingCall { get; init; }
     public required string StatusCallSaved { get; init; }
@@ -246,6 +246,46 @@ public sealed record UiStrings
     public required string TranscriptDuration { get; init; }
     public required string TranscriptTrigger { get; init; }
     public required string TranscriptParticipants { get; init; }
+
+    // --- звонок: кто в нём был ---
+    public required string ParticipantsEntryPlaceholder { get; init; }
+    public required string ParticipantsEntryHint { get; init; }
+    public required string ParticipantsMeHint { get; init; }
+    public required string ParticipantsAddHint { get; init; }
+    public required string ParticipantsRemoveHint { get; init; }
+    public required string CallReviewTitle { get; init; }
+    public required string CallReviewHeading { get; init; }
+    public required string CallReviewParticipants { get; init; }
+    public required string CallReviewNote { get; init; }
+    public required string CallReviewNotePlaceholder { get; init; }
+    public required string CallReviewDelete { get; init; }
+    public required string CallReviewLater { get; init; }
+    public required string CallReviewSave { get; init; }
+    public required string CallReviewHintNone { get; init; }
+    public required string CallReviewHintOne { get; init; }
+    public required string CallReviewHintMany { get; init; }
+    public required string CallDeleteTitle { get; init; }
+    public required string CallDeleteBody { get; init; }
+    public required string CallDeleteConfirm { get; init; }
+
+    // --- окно записей ---
+    public required string UnitSeconds { get; init; }
+    public required string UnitMinutes { get; init; }
+    public required string UnitHoursMinutes { get; init; }
+    public required string CallsTitle { get; init; }
+    public required string CallsEmpty { get; init; }
+    public required string CallsNothingSelected { get; init; }
+    public required string CallsOpenFolder { get; init; }
+    public required string CallsOpenTranscript { get; init; }
+    public required string CallsTranscribe { get; init; }
+    public required string CallsTranscribeAgain { get; init; }
+    public required string CallsTotals { get; init; }
+    public required string CallsMegabytes { get; init; }
+    public required string CallStateRecording { get; init; }
+    public required string CallStateTranscribing { get; init; }
+    public required string CallStateReady { get; init; }
+    public required string CallStateNotTranscribed { get; init; }
+    public required string CallStateDamaged { get; init; }
     public required string TranscriptBleedRemoved { get; init; }
     public required string TranscriptBleedByText { get; init; }
     public required string TranscriptBleedByEnergy { get; init; }
@@ -325,6 +365,27 @@ public sealed record UiStrings
         _ => TierMinimal,
     };
 
+    /// <summary>
+    /// Длительность записи словами, а не как время на часах.
+    /// </summary>
+    /// <remarks>
+    /// «42:00» рядом с «12:54» читается как ещё одно время суток, а «0:47» —
+    /// как без тринадцати час. Единицы снимают вопрос ценой трёх строк.
+    /// Отметки времени ВНУТРИ транскрипта — другое дело: там «12:04» означает
+    /// позицию в записи, и минуты с секундами читаются однозначно.
+    /// </remarks>
+    public string Duration(TimeSpan length)
+    {
+        if (length.TotalMinutes < 1)
+        {
+            return string.Format(Culture, UnitSeconds, (int)length.TotalSeconds);
+        }
+
+        return length.TotalHours < 1
+            ? string.Format(Culture, UnitMinutes, (int)length.TotalMinutes)
+            : string.Format(Culture, UnitHoursMinutes, (int)length.TotalHours, length.Minutes);
+    }
+
     /// <summary>Подписи для готового транскрипта звонка.</summary>
     public CallTranscriptLabels TranscriptLabels => new(
         TranscriptStartedAt,
@@ -357,7 +418,7 @@ public sealed record UiStrings
         TrayExit = "Exit",
         TrayStartRecording = "Record a call",
         TrayStopRecording = "Stop recording",
-        TrayCallsFolder = "Calls folder…",
+        TrayCalls = "Recorded calls…",
         StatusRecordingCall = "Recording a call · {0}",
         StatusTranscribingCall = "Transcribing the call…",
         StatusCallSaved = "Call saved: {0}",
@@ -555,6 +616,42 @@ public sealed record UiStrings
         TranscriptDuration = "Duration",
         TranscriptTrigger = "Trigger",
         TranscriptParticipants = "Participants",
+        ParticipantsEntryPlaceholder = "add / find",
+        ParticipantsEntryHint = "Type a name and press Enter, or filter the ones you already use",
+        ParticipantsMeHint = "You are always on the call — that is your microphone track",
+        ParticipantsAddHint = "Add to this call",
+        ParticipantsRemoveHint = "Remove from this call",
+        CallReviewTitle = "Call recorded",
+        CallReviewHeading = "Who was on this call?",
+        CallReviewParticipants = "People",
+        CallReviewNote = "What it was about",
+        CallReviewNotePlaceholder = "Saved next to the recording as note.md",
+        CallReviewDelete = "Delete recording",
+        CallReviewLater = "Later",
+        CallReviewSave = "Save",
+        CallReviewHintNone = "Without names the other side stays “Them” in the transcript",
+        CallReviewHintOne = "One person: no voice splitting needed, and the name goes straight into the transcript",
+        CallReviewHintMany = "{0} people: their voices get split apart, knowing how many to look for",
+        CallDeleteTitle = "Delete this recording?",
+        CallDeleteBody = "Both tracks, the transcript and the note go with it. This cannot be undone.",
+        CallDeleteConfirm = "Delete recording",
+        UnitSeconds = "{0} s",
+        UnitMinutes = "{0} min",
+        UnitHoursMinutes = "{0} h {1} min",
+        CallsTitle = "Recorded calls",
+        CallsEmpty = "No recordings yet. Start one from the tray menu, and it will appear here.",
+        CallsNothingSelected = "Pick a recording on the left.",
+        CallsOpenFolder = "Folder",
+        CallsOpenTranscript = "Transcript",
+        CallsTranscribe = "Transcribe",
+        CallsTranscribeAgain = "Transcribe again",
+        CallsTotals = "{0} recordings · {1} MB",
+        CallsMegabytes = "{0} MB",
+        CallStateRecording = "recording",
+        CallStateTranscribing = "transcribing",
+        CallStateReady = "ready",
+        CallStateNotTranscribed = "not transcribed",
+        CallStateDamaged = "no audio",
         TranscriptBleedRemoved = "Other-side speech removed from your channel",
         TranscriptBleedByText = "by text",
         TranscriptBleedByEnergy = "by loudness",
@@ -612,7 +709,7 @@ public sealed record UiStrings
         TrayExit = "Выход",
         TrayStartRecording = "Записать звонок",
         TrayStopRecording = "Остановить запись",
-        TrayCallsFolder = "Папка звонков…",
+        TrayCalls = "Записи разговоров…",
         StatusRecordingCall = "Записываю звонок · {0}",
         StatusTranscribingCall = "Распознаю звонок…",
         StatusCallSaved = "Звонок сохранён: {0}",
@@ -810,6 +907,42 @@ public sealed record UiStrings
         TranscriptDuration = "Длительность",
         TranscriptTrigger = "Триггер",
         TranscriptParticipants = "Участники",
+        ParticipantsEntryPlaceholder = "имя / поиск",
+        ParticipantsEntryHint = "Наберите имя и нажмите Enter — или отфильтруйте тех, с кем уже говорили",
+        ParticipantsMeHint = "Вы на звонке всегда — это ваша дорожка микрофона",
+        ParticipantsAddHint = "Добавить к этому звонку",
+        ParticipantsRemoveHint = "Убрать из этого звонка",
+        CallReviewTitle = "Звонок записан",
+        CallReviewHeading = "Кто был на этом звонке?",
+        CallReviewParticipants = "Участники",
+        CallReviewNote = "О чём говорили",
+        CallReviewNotePlaceholder = "Сохранится рядом с записью в note.md",
+        CallReviewDelete = "Удалить запись",
+        CallReviewLater = "Позже",
+        CallReviewSave = "Сохранить",
+        CallReviewHintNone = "Без имён собеседник останется в транскрипте «Them»",
+        CallReviewHintOne = "Один собеседник: голоса разделять не нужно, имя попадёт прямо в транскрипт",
+        CallReviewHintMany = "Собеседников {0}: голоса разделим, зная, сколько их искать",
+        CallDeleteTitle = "Удалить эту запись?",
+        CallDeleteBody = "Вместе с ней уйдут обе дорожки, транскрипт и заметка. Отменить будет нельзя.",
+        CallDeleteConfirm = "Удалить запись",
+        UnitSeconds = "{0} с",
+        UnitMinutes = "{0} мин",
+        UnitHoursMinutes = "{0} ч {1} мин",
+        CallsTitle = "Записи разговоров",
+        CallsEmpty = "Записей пока нет. Начните запись из меню в трее — она появится здесь.",
+        CallsNothingSelected = "Выберите запись слева.",
+        CallsOpenFolder = "Папка",
+        CallsOpenTranscript = "Транскрипт",
+        CallsTranscribe = "Распознать",
+        CallsTranscribeAgain = "Распознать заново",
+        CallsTotals = "Записей: {0} · {1} МБ",
+        CallsMegabytes = "{0} МБ",
+        CallStateRecording = "пишется",
+        CallStateTranscribing = "распознаётся",
+        CallStateReady = "готово",
+        CallStateNotTranscribed = "не распознано",
+        CallStateDamaged = "нет звука",
         TranscriptBleedRemoved = "Отсеяно чужой речи из своего канала",
         TranscriptBleedByText = "по тексту",
         TranscriptBleedByEnergy = "по громкости",

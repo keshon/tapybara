@@ -1,4 +1,4 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -36,7 +36,7 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly ToolStripMenuItem _settingsItem;
     private readonly ToolStripMenuItem _modelsFolderItem;
     private readonly ToolStripMenuItem _recordCallItem;
-    private readonly ToolStripMenuItem _callsFolderItem;
+    private readonly ToolStripMenuItem _callsItem;
     private readonly ToolStripMenuItem _exitItem;
 
     private Icon _idleIcon;
@@ -90,8 +90,8 @@ public sealed partial class TrayIconHost : IDisposable
         _recordCallItem = new ToolStripMenuItem();
         _recordCallItem.Click += (_, _) => RecordCallRequested?.Invoke();
 
-        _callsFolderItem = new ToolStripMenuItem();
-        _callsFolderItem.Click += (_, _) => OpenCallsFolderRequested?.Invoke();
+        _callsItem = new ToolStripMenuItem();
+        _callsItem.Click += (_, _) => CallsRequested?.Invoke();
 
         _exitItem = new ToolStripMenuItem();
         _exitItem.Click += (_, _) => ExitRequested?.Invoke();
@@ -106,6 +106,7 @@ public sealed partial class TrayIconHost : IDisposable
             _historyItem,
             new ToolStripSeparator(),
             _recordCallItem,
+            _callsItem,
             new ToolStripSeparator(),
             _retryHotkeyItem,
             _modelsItem,
@@ -114,7 +115,6 @@ public sealed partial class TrayIconHost : IDisposable
             new ToolStripSeparator(),
             _settingsItem,
             _modelsFolderItem,
-            _callsFolderItem,
             _exitItem,
         ]);
 
@@ -139,7 +139,7 @@ public sealed partial class TrayIconHost : IDisposable
     public event Action? CancelRequested;
     public event Action? ExitRequested;
     public event Action? OpenModelsFolderRequested;
-    public event Action? OpenCallsFolderRequested;
+    public event Action? CallsRequested;
     public event Action? RecordCallRequested;
     public event Action? SettingsRequested;
     public event Action? RetryHotkeyRequested;
@@ -170,7 +170,7 @@ public sealed partial class TrayIconHost : IDisposable
         _autoStartItem.Text = L.S.TrayAutoStart;
         _settingsItem.Text = L.S.TraySettings;
         _modelsFolderItem.Text = L.S.TrayModelsFolder;
-        _callsFolderItem.Text = L.S.TrayCallsFolder;
+        _callsItem.Text = L.S.TrayCalls;
         _exitItem.Text = L.S.TrayExit;
 
         if (string.IsNullOrEmpty(_statusItem.Text))

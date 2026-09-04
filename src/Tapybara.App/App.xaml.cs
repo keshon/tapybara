@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -71,6 +71,10 @@ public partial class App : Application, IDisposable
 
     /// <summary>Окно настроек. Оно одно: второе рассинхронизировалось бы с первым.</summary>
     private SettingsWindow? _settingsWindow;
+    private CallsWindow? _callsWindow;
+
+    /// <summary>Папка звонка, который распознаётся прямо сейчас.</summary>
+    private string? _transcribingCallDirectory;
 
     private readonly CallRecorder _callRecorder = new();
 
@@ -146,7 +150,7 @@ public partial class App : Application, IDisposable
         _tray.RetryHotkeyRequested += StartHotkey;
         _tray.SettingsRequested += OpenSettings;
         _tray.RecordCallRequested += () => _ = ToggleCallRecordingAsync();
-        _tray.OpenCallsFolderRequested += OpenCallsFolder;
+        _tray.CallsRequested += OpenCalls;
         _tray.BalloonClicked += OnBalloonClicked;
         _tray.MenuOpening += RefreshTrayFromSettings;
 
@@ -824,7 +828,11 @@ public partial class App : Application, IDisposable
 
             if (session is not null)
             {
-                await TranscribeCallAsync(session);
+                CallSession? reviewed = await ReviewCallAsync(session);
+                if (reviewed is not null)
+                {
+                    await TranscribeCallAsync(reviewed);
+                }
             }
         }
         catch (Exception ex)
@@ -882,6 +890,78 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>
+    /// Спросить, кто был на звонке, и дождаться ответа.
+    /// </summary>
+    /// <returns>
+    /// Звонок с проставленными участниками, или <c>null</c>, если запись удалили.
+    /// </returns>
+    /// <remarks>
+    /// Распознавание ждёт закрытия окна намеренно. Участники меняют то, как
+    /// собирается транскрипт: один собеседник подписывается своим именем, а не
+    /// «Them». Запустив распознавание раньше ответа, мы бы гарантированно
+    /// собрали транскрипт по устаревшим данным и заставили распознавать заново.
+    /// <para>
+    /// Не <c>ShowDialog</c>: модальное окно забирает фокус, а звонок часто
+    /// заканчивается поверх чего-то, во что человек продолжает печатать.
+    /// Ждём закрытия через <see cref="TaskCompletionSource"/> — приложение
+    /// при этом живо, трей отвечает, можно начать следующую запись.
+    /// </para>
+    /// </remarks>
+    private Task<CallSession?> ReviewCallAsync(CallSession session)
+    {
+        AppSettings settings = _settings.Current;
+        var finished = new TaskCompletionSource<CallSession?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var window = new CallReviewWindow(session, settings.EffectiveMyName, settings.KnownParticipants);
+        window.Closed += (_, _) =>
+        {
+            if (window.Outcome == CallReviewOutcome.Deleted)
+            {
+                DeleteCall(session.Directory);
+                finished.TrySetResult(null);
+                return;
+            }
+
+            // Отмеченные имена поднимаются в начало списка знакомых: на
+            // следующем звонке с теми же людьми они будут первыми чипами.
+            IReadOnlyList<string> selected = window.SelectedParticipants;
+            if (selected.Count > 0)
+            {
+                _settings.Update(s => s with
+                {
+                    KnownParticipants = [.. KnownParticipants.Touch(s.KnownParticipants, selected)],
+                });
+            }
+
+            finished.TrySetResult(session with { Participants = selected });
+        };
+
+        window.Show();
+        return finished.Task;
+    }
+
+    /// <summary>Убрать папку звонка целиком.</summary>
+    /// <remarks>
+    /// В корзину, а не мимо неё: «удалить» нажимают и по ошибке, а разговор
+    /// заново не случится.
+    /// </remarks>
+    private void DeleteCall(string directory)
+    {
+        try
+        {
+            Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
+                directory,
+                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Не удалось удалить папку звонка.", ex);
+            _tray?.SetStatus(ex.Message);
+        }
+    }
+
+    /// <summary>
     /// Распознать записанный звонок.
     /// </summary>
     /// <remarks>
@@ -898,6 +978,7 @@ public partial class App : Application, IDisposable
 
         _tray!.SetStatus(L.S.StatusTranscribingCall);
         _tray.SetEngineBusy(true);
+        _transcribingCallDirectory = session.Directory;
         try
         {
             var progress = new Progress<CallTranscriptionStage>(stage =>
@@ -915,13 +996,12 @@ public partial class App : Application, IDisposable
         }
         finally
         {
+            _transcribingCallDirectory = null;
             _tray.SetEngineBusy(false);
         }
     }
 
     private string CallsDirectory() => _settings.Current.CallsDirectory ?? AppPaths.DefaultCallsDirectory;
-
-    private void OpenCallsFolder() => OpenFolder(CallsDirectory());
 
     private void OpenModelsFolder() => OpenFolder(
         ModelLocator.FindModelsDirectory(_settings.Current.ModelsDirectory) ?? AppPaths.DefaultModelsDirectory);
@@ -1015,6 +1095,44 @@ public partial class App : Application, IDisposable
 
     // --- окно настроек -----------------------------------------------------
 
+    /// <summary>Показать список записанных разговоров.</summary>
+    private void OpenCalls()
+    {
+        if (_callsWindow is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+
+        var window = new CallsWindow(_settings, CallsDirectory, LiveCallState, TranscribeCallAsync);
+        window.Closed += (_, _) => _callsWindow = null;
+
+        _callsWindow = window;
+        window.Show();
+    }
+
+    /// <summary>
+    /// Что приложение прямо сейчас делает с этой папкой.
+    /// </summary>
+    /// <remarks>
+    /// По файлам на диске «пишется» и «распознаётся» не отличить от «лежит»:
+    /// это состояние живёт только в памяти. Список звонков спрашивает о нём
+    /// здесь, а не заводит собственный реестр, который пришлось бы чинить
+    /// после каждого падения.
+    /// </remarks>
+    private CallState? LiveCallState(string directory)
+    {
+        if (_callRecorder.IsRecording
+            && string.Equals(_callRecorder.CurrentDirectory, directory, StringComparison.OrdinalIgnoreCase))
+        {
+            return CallState.Recording;
+        }
+
+        return string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase)
+            ? CallState.Transcribing
+            : null;
+    }
+
     private void OpenSettings() => OpenSettings(SettingsSection.Dictation);
 
     private void OpenSettings(SettingsSection section)
@@ -1051,6 +1169,7 @@ public partial class App : Application, IDisposable
             L.Use(change.Current.UiLanguage);
             _tray!.ApplyLanguage();
             _settingsWindow?.ApplyLanguage();
+            _callsWindow?.ApplyLanguage();
         }
 
         if (change.AffectsTheme)
