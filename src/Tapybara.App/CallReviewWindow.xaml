@@ -1,0 +1,102 @@
+<ui:FluentWindow x:Class="Tapybara.App.CallReviewWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:app="clr-namespace:Tapybara.App"
+                 Width="520"
+                 SizeToContent="Height"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False"
+                 ShowActivated="False"
+                 Topmost="True"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 FontFamily="{StaticResource AppFontFamily}"
+                 FontSize="{StaticResource AppFontSize}">
+    <!--
+        «Кто был на звонке?» — окно, всплывающее по окончании записи.
+
+        ShowActivated="False" здесь не мелочь. Звонок часто заканчивается в
+        приложении на весь экран, и окно, забирающее фокус, перебило бы то, что
+        человек в этот момент печатает. Оно показывается поверх, но управление
+        забирает только по щелчку.
+
+        Спрашиваем СРАЗУ, а не когда-нибудь потом, потому что через час
+        владелец записи уже не помнит, Кирилл там был или Дима, — а сейчас он
+        с ними только что разговаривал.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" x:Name="WindowTitleBar" ShowMaximize="False" ShowMinimize="False" />
+
+        <StackPanel Grid.Row="1" Margin="28,4,28,20">
+            <TextBlock x:Name="HeadingText"
+                       FontFamily="{StaticResource AppDisplayFontFamily}"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <TextBlock x:Name="SubheadingText"
+                       FontSize="{StaticResource AppCaptionFontSize}"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,18" />
+
+            <TextBlock x:Name="ParticipantsLabel"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,8" />
+
+            <app:ParticipantsPicker x:Name="Participants" Margin="0,0,0,2" />
+
+            <TextBlock x:Name="ParticipantsHint"
+                       FontSize="{StaticResource AppCaptionFontSize}"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Margin="0,2,0,18" />
+
+            <TextBlock x:Name="NoteLabel"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,8" />
+
+            <ui:TextBox x:Name="NoteBox"
+                        AcceptsReturn="True"
+                        TextWrapping="Wrap"
+                        MinHeight="96"
+                        MaxHeight="180"
+                        VerticalScrollBarVisibility="Auto" />
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14">
+            <Grid>
+                <ui:Button x:Name="DeleteButton"
+                           HorizontalAlignment="Left"
+                           Icon="{ui:SymbolIcon Delete24}"
+                           Click="OnDeleteClick" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button x:Name="LaterButton"
+                               MinWidth="110"
+                               Margin="0,0,8,0"
+                               IsCancel="True"
+                               Click="OnLaterClick" />
+                    <ui:Button x:Name="SaveButton"
+                               MinWidth="130"
+                               Appearance="Primary"
+                               IsDefault="True"
+                               Click="OnSaveClick" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

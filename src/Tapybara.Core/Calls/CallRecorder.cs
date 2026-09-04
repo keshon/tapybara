@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Tapybara.Core.Audio;
 using Tapybara.Core.Diagnostics;
 
@@ -72,6 +72,23 @@ public sealed class CallRecorder : IDisposable
             lock (_gate)
             {
                 return _clock is not null;
+            }
+        }
+    }
+
+    /// <summary>Папка записи, которая идёт прямо сейчас, или <c>null</c>.</summary>
+    /// <remarks>
+    /// Нужна списку звонков: по файлам на диске идущая запись не отличается от
+    /// давно законченной, а предложить «удалить» то, во что сейчас пишется
+    /// разговор, нельзя.
+    /// </remarks>
+    public string? CurrentDirectory
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _session?.Directory;
             }
         }
     }
