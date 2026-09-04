@@ -569,11 +569,33 @@ section.plain { border-top: 0; }
 .lanes { padding: 20px 18px 6px; display: grid; gap: 12px; }
 .lane { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 14px; align-items: center; }
 .lane-name { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); text-align: right; }
-.lane-wave { position: relative; height: 44px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
-.lane-wave i { flex: 1 1 auto; min-width: 1px; background: var(--accent-dim); opacity: .42; border-radius: 1px; transition: opacity .12s linear, background .12s linear; }
-.lane.me .lane-wave i { background: var(--accent); }
-.lane.them .lane-wave i { background: var(--muted); }
-.lane-wave i.on { opacity: 1; }
+.lane-wave { position: relative; height: 56px; }
+.lane-wave svg { display: block; width: 100%; height: 100%; }
+
+/*
+   non-scaling-stroke обязателен. viewBox растягивается под ширину дорожки
+   без сохранения пропорций, и обычная обводка растянулась бы вместе с ним:
+   на широком экране линия стала бы заметно толще по вертикали, чем по
+   горизонтали. С этим свойством толщина остаётся той, что задана.
+*/
+.lane-wave path {
+  fill: none;
+  stroke-width: 1.6px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.lane.me .lane-wave path { stroke: var(--accent); }
+.lane.them .lane-wave path { stroke: var(--muted); }
+.w-dim { opacity: .28; }
+.w-lit { opacity: 1; }
+
+/* Эхо чужого голоса в твоём микрофоне. При включённом фильтре оно почти
+   исчезает — реплики из него в транскрипт не попадают; при выключенном
+   становится заметным, и видно, что это тот же рисунок, что и в чужой
+   дорожке, только тише. */
+.w-echo { opacity: .8; transition: opacity .2s ease; }
+.demo[data-bleed="on"] .w-echo { opacity: .1; }
 
 .playhead {
   position: absolute;
@@ -625,6 +647,15 @@ section.plain { border-top: 0; }
   line-height: 1.65;
 }
 .demo-foot b { color: var(--muted); font-weight: 500; }
+
+.demo-caption {
+  margin: 14px 0 0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--faint);
+  max-width: 74ch;
+}
 
 /* --- шаги ----------------------------------------------------------------- */
 
@@ -862,12 +893,12 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
         <p class="sec-lede">
           Your microphone and your speakers are captured separately, and that one
           decision does most of the work that speaker identification usually has to
-          guess at. Below is a real recording taken apart. Flip the switches.
+          guess at. Below is a call taken apart. Flip the switches.
         </p>
       </div>
     </div>
 
-    <div class="demo" id="demo">
+    <div class="demo" id="demo" data-bleed="on">
       <div class="demo-bar">
         <span class="demo-title">recording · 0:42 · Zoom</span>
         <div class="demo-controls">
@@ -897,6 +928,12 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
 
       <p class="demo-foot" id="demoFoot"></p>
     </div>
+
+    <p class="demo-caption">
+      The conversation is written for the page rather than lifted from someone's
+      call — but the waveform is modelled speech, not decoration, and the two
+      switches do exactly what the application does with a real recording.
+    </p>
 
     <div class="body-cols" style="margin-top:44px">
       <p class="spine">what that buys</p>
@@ -1213,12 +1250,16 @@ build.cmd run</pre>
     { t: 26.1, ch: "me",   bleed: true, text: "I can take it this afternoon" },
     { t: 28.8, ch: "them", spk: 1,      text: "Then Friday morning is realistic, not Thursday." },
     { t: 33.0, ch: "me",                text: "Friday it is. I will move the design review to match." },
-    { t: 37.5, ch: "them", spk: 2,      text: "Works for me." },
-    { t: 39.4, ch: "them", spk: 0,      text: "Same. I will post the fixture list after lunch." }
+    { t: 36.9, ch: "them", spk: 2,      text: "Works for me." },
+    { t: 38.5, ch: "them", spk: 0,      text: "Same. I will post the fixture list after lunch." }
   ];
 
   var DURATION = 42;
-  var BARS = 68;
+
+  /* Точек на дорожку. При ширине около 500 пикселей это чуть больше одной
+     точки на пиксель — то, при котором заливка перестаёт читаться как
+     столбики и начинает читаться как звук. */
+  var SAMPLES = 520;
 
   var waveMe = document.getElementById("waveMe");
   var waveThem = document.getElementById("waveThem");
@@ -1229,32 +1270,139 @@ build.cmd run</pre>
   var swPlay = document.getElementById("swPlay");
   var swBleed = document.getElementById("swBleed");
   var swVoices = document.getElementById("swVoices");
+  var demo = document.getElementById("demo");
 
   var bleedOn = true;
   var voicesOn = true;
   var playing = false;
   var playStart = 0;
 
-  /* Столбики осциллограммы строим из самих реплик: где говорят, там громче. */
-  function buildBars(host, channel) {
-    var frag = document.createDocumentFragment();
-    for (var i = 0; i < BARS; i++) {
-      var at = (i / BARS) * DURATION;
-      var loud = 0.08;
-      for (var j = 0; j < CALL.length; j++) {
-        var line = CALL[j];
-        if (line.ch !== channel) { continue; }
-        var len = 1.2 + line.text.length / 26;
-        if (at >= line.t - 0.6 && at <= line.t + len) {
-          var carry = line.bleed ? 0.34 : 1;
-          loud = Math.max(loud, carry * (0.45 + 0.55 * Math.abs(Math.sin(i * 1.7 + j))));
-        }
-      }
-      var bar = document.createElement("i");
-      bar.style.height = (5 + loud * 34).toFixed(1) + "px";
-      frag.appendChild(bar);
+  /* Псевдослучайность, привязанная к тексту реплики. Это не украшение:
+     эхо и породившая его фраза получают ОДИН И ТОТ ЖЕ рисунок, потому что
+     эхо — это она и есть, только тише. Ради этого зерно и берётся из текста,
+     а не из счётчика. */
+  function seedOf(text) {
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
     }
-    host.insertBefore(frag, host.firstChild);
+    return h >>> 0;
+  }
+
+  function random(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  /*
+     Огибающая речи, а не прямоугольник.
+
+     Прежняя версия рисовала блок постоянной громкости с ровной зернистостью —
+     отсюда и ощущение «секций». У живой речи три черты, которых там не было:
+     быстрый вход и долгий спад у фразы, модуляция на слоговой частоте
+     (примерно четыре-шесть в секунду) и НАСТОЯЩАЯ тишина в паузах. Шумовой
+     пол здесь около одного процента, а не восьми, и именно поэтому паузы
+     выглядят паузами.
+  */
+  /*
+     След, а не заливка.
+
+     Сначала здесь была настоящая огибающая: пик на пиксель, слоговая
+     модуляция, всё как в просмотрщике звука. Выглядело правдоподобно и
+     читалось плохо — на ширине в пол-экрана сорок две секунды речи
+     превращаются в плотные бурые кирпичи, и глазу не за что зацепиться.
+     Фотографичность тут не цель: дорожка должна за долю секунды сказать
+     «здесь говорили, а здесь молчали», и одна линия говорит это лучше.
+
+     Поэтому — ровная нить и всплески на речи. Треугольная волна, а не
+     синусоида: у страницы всюду прямые рёбра, и мягкие горбы в ней выглядели
+     бы чужими. Частота выбрана не по слогам, а ПО ВИДИМОСТИ — три-шесть
+     всплесков на фразу, чтобы каждый различался глазом.
+  */
+  function trace(lines) {
+    var POINTS = 760;
+    var out = new Float64Array(POINTS);   /* −1..1, ноль — тишина */
+
+    lines.forEach(function (line) {
+      var next = random(seedOf(line.text));
+      var seconds = 1.0 + line.text.length / 21;   /* около пяти знаков в секунду */
+      var from = line.t;
+      var to = line.t + seconds;
+      var loud = line.bleed ? 0.22 : 0.72 + next() * 0.28;
+      /* Всплесков — по длительности, а не поровну на фразу. При постоянном
+         числе длинная реплика растягивала их в редкие ленивые зигзаги, и
+         рядом с короткой это читалось как другой темп речи. */
+      var bursts = Math.max(3, Math.min(11, Math.round(seconds * 1.7 + next())));
+      var offset = next();
+      var stressAt = 0.2 + next() * 0.5;           /* где во фразе ударный всплеск */
+
+      for (var i = 0; i < POINTS; i++) {
+        var t = (i / (POINTS - 1)) * DURATION;
+        if (t < from || t > to) { continue; }
+
+        var u = (t - from) / (to - from);
+
+        /* Быстрый вход, долгий спад — фраза начинается резко и затухает. */
+        var shape = Math.min(1, u / 0.08) * Math.min(1, (1 - u) / 0.22);
+
+        /* Один всплеск во фразе выше прочих: без ударения ряд одинаковых
+           зубцов читается как орнамент, а не как речь. */
+        var stress = 1 + 0.55 * Math.exp(-Math.pow((u - stressAt) / 0.12, 2));
+
+        var phase = ((u * bursts) + offset) % 1;
+        var triangle = phase < 0.5 ? (phase * 4 - 1) : (3 - phase * 4);
+
+        out[i] = Math.max(-1, Math.min(1, loud * shape * stress * triangle));
+      }
+    });
+
+    return out;
+  }
+
+  /* Ломаная вокруг средней линии. Ноль даёт ровную нить — именно она и
+     показывает паузу. */
+  function tracePath(values) {
+    var d = "";
+    for (var i = 0; i < values.length; i++) {
+      d += (i === 0 ? "M" : "L") +
+        ((i / (values.length - 1)) * 1000).toFixed(1) + " " +
+        (50 - values[i] * 44).toFixed(1);
+    }
+    return d;
+  }
+
+  /*
+     Дорожка — три слоя, и каждый что-то значит.
+
+     Тусклый — вся запись целиком. Яркий — то, что уже проиграно: он обрезан
+     подвижным прямоугольником, поэтому при воспроизведении дорожка
+     «загорается» слева направо. Третий слой есть только у микрофона — это
+     эхо чужого голоса, и его видно ровно в те моменты, когда говорит
+     собеседник.
+  */
+  function buildLane(host, own, echo, id) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 1000 100");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+
+    var ownPath = tracePath(trace(own));
+    var parts =
+      '<defs><clipPath id="' + id + '"><rect x="0" y="0" width="1000" height="100"/></clipPath></defs>' +
+      '<path class="w-dim" d="' + ownPath + '"/>' +
+      '<path class="w-lit" clip-path="url(#' + id + ')" d="' + ownPath + '"/>';
+
+    if (echo && echo.length) {
+      parts += '<path class="w-echo" d="' + tracePath(trace(echo)) + '"/>';
+    }
+
+    svg.innerHTML = parts;
+    host.insertBefore(svg, host.firstChild);
+    return svg.querySelector("clipPath rect");
   }
 
   function speakerClass(line) {
@@ -1311,14 +1459,13 @@ build.cmd run</pre>
     headThem.style.left = pct;
   }
 
-  function highlightBars(fraction) {
-    var cut = Math.floor(fraction * BARS);
-    [waveMe, waveThem].forEach(function (host) {
-      var bars = host.querySelectorAll("i");
-      for (var i = 0; i < bars.length; i++) {
-        bars[i].classList.toggle("on", i <= cut);
-      }
-    });
+  var clips = [];
+
+  function revealTo(fraction) {
+    var width = Math.max(0, Math.min(1, fraction)) * 1000;
+    for (var i = 0; i < clips.length; i++) {
+      clips[i].setAttribute("width", width.toFixed(1));
+    }
   }
 
   function stopPlayback() {
@@ -1327,7 +1474,7 @@ build.cmd run</pre>
     swPlay.lastChild.nodeValue = "Play it back";
     headMe.classList.remove("on");
     headThem.classList.remove("on");
-    highlightBars(1);
+    revealTo(1);
     render(null);
   }
 
@@ -1338,15 +1485,20 @@ build.cmd run</pre>
     if (fraction >= 1) { stopPlayback(); return; }
 
     setPlayhead(fraction);
-    highlightBars(fraction);
+    revealTo(fraction);
     render(fraction * DURATION);
     requestAnimationFrame(frame);
   }
 
   if (waveMe && waveThem) {
-    buildBars(waveMe, "me");
-    buildBars(waveThem, "them");
-    highlightBars(1);
+    var mine = CALL.filter(function (l) { return l.ch === "me" && !l.bleed; });
+    var echoes = CALL.filter(function (l) { return l.ch === "me" && l.bleed; });
+    var theirs = CALL.filter(function (l) { return l.ch === "them"; });
+
+    clips.push(buildLane(waveMe, mine, echoes, "clip-me"));
+    clips.push(buildLane(waveThem, theirs, null, "clip-them"));
+
+    revealTo(1);
     render(null);                          /* страница в покое: транскрипт виден целиком */
 
     swPlay.addEventListener("click", function () {
@@ -1363,7 +1515,8 @@ build.cmd run</pre>
     swBleed.addEventListener("click", function () {
       bleedOn = !bleedOn;
       swBleed.setAttribute("aria-pressed", String(bleedOn));
-      render(playing ? null : null);
+      demo.setAttribute("data-bleed", bleedOn ? "on" : "off");
+      render(null);
     });
 
     swVoices.addEventListener("click", function () {
