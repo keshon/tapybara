@@ -487,6 +487,7 @@ public partial class App : Application, IDisposable
             ModelPath = modelPath,
             Language = settings.Language,
             Prompt = settings.Prompt,
+            BeamSize = settings.BeamSize,
             IdleUnloadAfter = TimeSpan.FromMinutes(settings.IdleUnloadMinutes),
         });
 

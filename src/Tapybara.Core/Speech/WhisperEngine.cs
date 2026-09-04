@@ -1,4 +1,4 @@
-using Whisper.net;
+﻿using Whisper.net;
 using Whisper.net.LibraryLoader;
 
 namespace Tapybara.Core.Speech;
@@ -15,8 +15,9 @@ namespace Tapybara.Core.Speech;
 /// <c>await</c> — обычный <c>lock</c> удерживать через await нельзя.
 /// </para>
 /// <para>
-/// Настройки распознавания повторяют то, что выстрадано в оригинале CallTap:
-/// greedy-семплирование и, главное, <c>WithNoContext</c>.
+/// Из настроек распознавания важнее всего <c>WithNoContext</c> — она пришла
+/// из оригинала CallTap. Стратегия семплирования, наоборот, своя: beam search
+/// вместо жадного поиска, см. <see cref="WhisperEngineOptions.BeamSize"/>.
 /// </para>
 /// </remarks>
 public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposable
@@ -146,8 +147,24 @@ public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposab
         WhisperFactory factory = EnsureLoaded();
 
         WhisperProcessorBuilder builder = factory.CreateBuilder()
-            .WithLanguage(language ?? options.Language)
-            .WithGreedySamplingStrategy()
+            .WithLanguage(language ?? options.Language);
+
+        // Стратегия семплирования настраивается ЛЯМБДОЙ, а не продолжением
+        // цепочки: WithBeamSearchSamplingStrategy возвращает билдер самой
+        // стратегии (он умеет только WithBeamSize и WithPatience), а не
+        // процессорный. Поэтому результат отбрасываем и дальше собираем
+        // из той же переменной — билдер правит общее состояние.
+        if (options.BeamSize > 1)
+        {
+            builder.WithBeamSearchSamplingStrategy(beam => beam.WithBeamSize(options.BeamSize));
+        }
+        else
+        {
+            builder.WithGreedySamplingStrategy();
+        }
+
+        builder = builder
+            .WithTemperature(options.Temperature)
             .WithThreads(options.EffectiveThreads)
             // Ключевая строка. По умолчанию whisper передаёт текст предыдущего
             // 30-секундного окна как контекст следующего. На длинной записи с

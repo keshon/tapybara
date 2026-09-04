@@ -1,4 +1,4 @@
-using Tapybara.Core.Calls;
+﻿using Tapybara.Core.Calls;
 using Tapybara.Core.Dictation;
 using Tapybara.Core.Models;
 
@@ -121,6 +121,11 @@ public sealed record UiStrings
     // --- окно настроек: поля ---
     public required string FieldModel { get; init; }
     public required string FieldModelHint { get; init; }
+    public required string FieldDecoding { get; init; }
+    public required string FieldDecodingHint { get; init; }
+    public required string DecodingFast { get; init; }
+    public required string DecodingAccurate { get; init; }
+    public required string DecodingThorough { get; init; }
     public required string FieldRecognitionLanguage { get; init; }
     public required string FieldRecognitionLanguageHint { get; init; }
     public required string FieldPrompt { get; init; }
@@ -426,6 +431,11 @@ public sealed record UiStrings
 
         FieldModel = "Recognition model",
         FieldModelHint = "Only models already in your models folder are listed",
+        FieldDecoding = "Decoding",
+        FieldDecodingHint = "How many wordings the model weighs before settling on one",
+        DecodingFast = "Fast — first wording that fits",
+        DecodingAccurate = "Accurate — weigh 5 (recommended)",
+        DecodingThorough = "Thorough — weigh 8",
         FieldRecognitionLanguage = "Recognition language",
         FieldRecognitionLanguageHint = "Detect automatically unless you always dictate in one language — a wrong language does not degrade recognition, it destroys it",
         FieldPrompt = "Prompt",
@@ -676,6 +686,11 @@ public sealed record UiStrings
 
         FieldModel = "Модель распознавания",
         FieldModelHint = "В списке только то, что уже лежит в папке моделей",
+        FieldDecoding = "Декодирование",
+        FieldDecodingHint = "Сколько вариантов фразы модель взвешивает, прежде чем выбрать один",
+        DecodingFast = "Быстро — первый подходящий",
+        DecodingAccurate = "Точно — взвешивать 5 (рекомендуется)",
+        DecodingThorough = "Тщательно — взвешивать 8",
         FieldRecognitionLanguage = "Язык распознавания",
         FieldRecognitionLanguageHint = "Определять автоматически, если только вы не диктуете всегда на одном языке: неверный язык не ухудшает распознавание, а разрушает его",
         FieldPrompt = "Подсказка",

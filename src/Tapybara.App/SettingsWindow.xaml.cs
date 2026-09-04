@@ -406,6 +406,12 @@ public partial class SettingsWindow : FluentWindow
         AddCard(SymbolRegular.BrainCircuit24, L.S.FieldModel, L.S.FieldModelHint, modelBox);
 
         AddCard(
+            SymbolRegular.Options24,
+            L.S.FieldDecoding,
+            L.S.FieldDecodingHint,
+            DecodingCombo());
+
+        AddCard(
             SymbolRegular.Timer24,
             L.S.FieldIdleUnload,
             L.S.FieldIdleUnloadHint,
@@ -1767,6 +1773,55 @@ public partial class SettingsWindow : FluentWindow
     private sealed record LanguageChoice(string Code, string Label)
     {
         public override string ToString() => Label;
+    }
+
+    private sealed record DecodingChoice(int BeamSize, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// Выбор ширины луча при декодировании.
+    /// </summary>
+    /// <remarks>
+    /// Список из трёх пунктов, а не поле для числа. Ширина луча — величина не
+    /// с непрерывным смыслом: между пятью и шестью разницы на слух нет, а
+    /// между единицей и пятёркой — есть, и она в другом качестве текста, а не
+    /// в «чуть-чуть лучше». Поле для числа приглашало бы подбирать то, что
+    /// подбору не поддаётся.
+    /// <para>
+    /// Значение из настроек может не совпасть ни с одним пунктом: файл правят
+    /// руками. Тогда показываем ближайший разумный, а не пустой список.
+    /// </para>
+    /// </remarks>
+    private ComboBox DecodingCombo()
+    {
+        var box = new ComboBox { Width = ControlColumnWidth };
+
+        box.Items.Add(new DecodingChoice(1, L.S.DecodingFast));
+        box.Items.Add(new DecodingChoice(5, L.S.DecodingAccurate));
+        box.Items.Add(new DecodingChoice(8, L.S.DecodingThorough));
+
+        void Show()
+        {
+            int current = Settings.BeamSize;
+            box.SelectedItem = box.Items.OfType<DecodingChoice>()
+                .OrderBy(c => Math.Abs(c.BeamSize - current))
+                .First();
+        }
+
+        Show();
+        Refresh(Show);
+
+        box.SelectionChanged += (_, _) =>
+        {
+            if (box.SelectedItem is DecodingChoice choice)
+            {
+                Apply(s => s with { BeamSize = choice.BeamSize });
+            }
+        };
+
+        return box;
     }
 
     /// <summary>
