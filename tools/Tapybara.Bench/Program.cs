@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using Whisper.net.Logger;
@@ -25,12 +25,16 @@ string defaultSample = Path.Combine(repoRoot, "sample.wav");
 // Флаги, после которых идёт значение. Знать их обязательно: без этого списка
 // текст промпта («Разговор о…») выглядит как обычный аргумент и уезжает в
 // позиционные — на этом разбор `run <модель> [файл]` и ломается.
-string[] valueFlags = ["--prompt", "--vad-threshold", "--lang"];
+string[] valueFlags = ["--prompt", "--vad-threshold", "--lang", "--beam"];
 
 List<string> positionalArgs = [];
 string? promptOption = null;
 float? vadThreshold = null;
 string language = "auto";
+// null — взять продуктовое умолчание. Замер, подставляющий здесь своё
+// значение, мерил бы то, чего у пользователя нет: так уже случилось с
+// порогом детектора речи, где бенч тихо ставил 0.5 вместо 0.35.
+int? beamSize = null;
 for (int i = 0; i < args.Length; i++)
 {
     string arg = args[i];
@@ -53,6 +57,10 @@ for (int i = 0; i < args.Length; i++)
         else if (arg == "--lang")
         {
             language = args[i + 1];
+        }
+        else if (arg == "--beam")
+        {
+            beamSize = int.Parse(args[i + 1], CultureInfo.InvariantCulture);
         }
 
         i++; // значение уже забрали — позиционным оно не является
@@ -160,6 +168,7 @@ switch (command)
             Флаги:
               --prompt "текст"        подсказка словаря (по умолчанию промпта нет)
               --lang <код>            язык распознавания (по умолчанию auto)
+              --beam <N>              ширина луча, 1 — жадный поиск
               --vad-threshold <0..1>  порог детектора речи
               --no-vad                не искать речь детектором перед распознаванием
               --verbose               нативный лог ggml: какой бэкенд загрузился
@@ -245,6 +254,7 @@ async Task RunAsync(string? modelHint, string wavPath)
         // и НЕРЕЛЕВАНТНЫЙ промпт делает это во вред: он должен быть настройкой
         // пользователя, а не зашитой в замер константой.
         Prompt = promptOption,
+        BeamSize = beamSize ?? WhisperEngineOptions.DefaultBeamSize,
     });
 
     var loadTimer = Stopwatch.StartNew();
@@ -333,6 +343,7 @@ async Task TranscribeCallAsync(string callDirectory)
         ModelPath = modelPath,
         Language = language,
         Prompt = promptOption,
+        BeamSize = beamSize ?? WhisperEngineOptions.DefaultBeamSize,
     });
 
     Console.WriteLine($"Модель: {Path.GetFileName(modelPath)}, язык: {language}");
@@ -495,6 +506,7 @@ async Task DictateAsync(string? modelHint)
         ModelPath = modelPath,
         Language = language,
         Prompt = promptOption,
+        BeamSize = beamSize ?? WhisperEngineOptions.DefaultBeamSize,
     });
 
     Console.WriteLine($"Модель:   {Path.GetFileName(modelPath)}");

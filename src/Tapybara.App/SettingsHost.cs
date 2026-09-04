@@ -20,6 +20,7 @@ public sealed record SettingsChange(AppSettings Previous, AppSettings Current)
         || Previous.ModelsDirectory != Current.ModelsDirectory
         || Previous.Language != Current.Language
         || Previous.Prompt != Current.Prompt
+        || Previous.BeamSize != Current.BeamSize
         || Previous.IdleUnloadMinutes != Current.IdleUnloadMinutes
         || Previous.UseVoiceActivityDetection != Current.UseVoiceActivityDetection
         || Previous.VadModelFileName != Current.VadModelFileName

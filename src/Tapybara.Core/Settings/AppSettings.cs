@@ -56,6 +56,17 @@ public sealed record AppSettings
     /// </summary>
     public string? Prompt { get; init; }
 
+    /// <summary>
+    /// Ширина луча при декодировании, 1..8. <c>1</c> — жадный поиск.
+    /// </summary>
+    /// <remarks>
+    /// Главная настройка качества распознавания, и до неё дело дошло позже
+    /// всего, потому что жадный поиск не выглядит поломкой: он выдаёт
+    /// связный текст, просто иногда не тот. Подробности, зачем это нужно и
+    /// сколько стоит, — в <see cref="Speech.WhisperEngineOptions.BeamSize"/>.
+    /// </remarks>
+    public int BeamSize { get; init; } = 5;
+
     /// <summary>Сочетание клавиш для старта и остановки диктовки.</summary>
     public HotkeyCombo Hotkey { get; init; } = HotkeyCombo.Default;
 
