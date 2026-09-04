@@ -7,12 +7,25 @@
   <title>Tapybara — Local Voice Dictation for Windows | Offline Whisper Speech-to-Text</title>
 
   <meta name="description"
-    content="Tapybara is an open-source dictation tool for Windows. Press a hotkey, speak, press it again, and the text is inserted where your caret was. Whisper runs locally on your own GPU.">
+    content="Tapybara is an open-source dictation tool for Windows. Press a hotkey, speak, press it again, and the text is inserted where your caret was. Whisper runs locally on your own GPU, and calls are recorded as two tracks and transcribed with names.">
 
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
-  <meta name="theme-color" content="#17120e">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14100c">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf6f1">
+
+  <!-- Ставит сохранённую тему ДО первой отрисовки. Именно здесь и именно
+       inline: отложенный скрипт успел бы показать страницу в системной
+       теме, а потом переключить — это видимая вспышка. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("tapybara-theme");
+        if (t === "light" || t === "dark") { document.documentElement.setAttribute("data-theme", t); }
+      } catch (e) { /* хранилище запрещено: остаёмся на системной теме */ }
+    })();
+  </script>
   <meta name="author" content="keshon">
-  <meta name="keywords" content="voice dictation windows, offline speech to text, whisper.cpp, local dictation, private speech recognition, open source dictation">
+  <meta name="keywords" content="voice dictation windows, offline speech to text, whisper.cpp, local dictation, private speech recognition, call recording transcript, speaker diarisation offline, open source dictation">
 
   <link rel="canonical" href="https://tapybara.keshon.ru/">
 
@@ -46,7 +59,7 @@
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "Tapybara",
-    "description": "Local voice dictation for Windows. Press a hotkey, speak, press it again, and the text is inserted into whatever application has focus. Runs whisper.cpp on the GPU; the audio stays on the machine.",
+    "description": "Local voice dictation for Windows. Press a hotkey, speak, press it again, and the text is inserted into whatever application has focus. Runs whisper.cpp on the GPU; the audio stays on the machine. Calls are recorded as two tracks and transcribed with participant names.",
     "applicationCategory": "UtilitiesApplication",
     "applicationSubCategory": "Speech Recognition",
     "operatingSystem": "Windows 10, Windows 11",
@@ -64,762 +77,1084 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600;12..96,75..100,800&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&display=swap">
 
-  <style>
-  /*
-    Палитра взята у самого приложения: капибарий коричневый с иконки и тёмная
-    пилюля индикатора.
-  */
-  :root {
+<style>
+/* ===========================================================================
+   Tapybara — landing page.
+
+   Committed to one visual world: night. The indicator the product puts on
+   your screen is dark, the desk it is used at usually is too, and a page
+   that hedges between two themes reads as undecided. Every colour is
+   therefore stated outright rather than inherited from the viewer.
+
+   The palette is the application's own, warm end: capybara brown on near
+   black. Red appears in exactly one meaning, the same as in the product —
+   recording is happening — and nowhere as decoration.
+   =========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  --ground:    #14100C;
+  --ground-2:  #191410;
+  --surface:   #1E1811;
+  --raised:    #251D15;
+  --line:      #33281D;
+  --line-soft: #241C15;
+  --topbar:    rgba(20, 16, 12, .86);
+
+  --text:      #F6F0E8;
+  --muted:     #A2907B;
+  --faint:     #7B6A58;
+
+  --accent:    #D9A46C;
+  --accent-dim:#8A6535;
+  --accent-bg: rgba(217, 164, 108, .10);
+  --on-accent: #1A130B;
+
+  /* Значение, а не украшение: красный на этой странице означает «идёт запись». */
+  --rec:       #FF5A52;
+
+  /* Код набран светлым по тёмному в обеих темах: так же он выглядит в
+     терминале, откуда его и копируют. */
+  --code-bg:   #0D0A07;
+  --code-text: #E7DCCC;
+
+  --spk-0:     #E8C39A;
+  --spk-1:     #9EC7D4;
+  --spk-2:     #C6A9D8;
+
+  --measure:   66ch;
+  --wrap:      1240px;
+  --gutter:    clamp(20px, 4vw, 56px);
+  --spine:     168px;
+  --gap:       48px;
+
+  --t-hero:    clamp(40px, 7.4vw, 92px);
+  --t-h2:      clamp(28px, 4.2vw, 50px);
+  --t-h3:      21px;
+  --t-body:    19px;
+  --t-small:   15px;
+  --t-label:   11.5px;
+}
+
+/* Светлая версия — не инверсия, а другой материал: тёплая бумага вместо
+   ночного экрана. Тан, который на чёрном читается как тёплый свет, на бумаге
+   выцветает в бежевый, поэтому акцент становится глубже — это тот же оттенок
+   коричневого, что и в самом приложении на светлой теме.
+
+   Порядок каскада: :root — тёмная (дом дизайна), медиазапрос уводит в светлую,
+   если тёмная не выбрана принудительно, а [data-theme] бьёт оба. Принудительная
+   тёмная обязана перечислить палитру заново: на светлой системе медиазапрос
+   уже подменил каждый токен. */
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+
     --ground:    #FAF6F1;
+    --ground-2:  #F3EBE0;
     --surface:   #FFFFFF;
-    --surface-2: #F3ECE4;
-    --line:      #E7DBCD;
+    --raised:    #F6EEE4;
+    --line:      #DDD0BF;
+    --line-soft: #EAE0D2;
+    --topbar:    rgba(250, 246, 241, .88);
+
     --text:      #1F1913;
     --muted:     #6E5D4D;
-    /* --faint не опускать светлее: на кремовом фоне 4.5:1 упирается сюда. */
-    --faint:     #7A6754;
+    --faint:     #8B7862;
+
     --accent:    #8A5A2B;
-    --accent-2:  #8F5C2C;
-    --accent-bg: rgba(138, 90, 43, .08);
-    /*
-      Цвет текста на акцентной заливке — токеном, а не правилом внутри
-      тёмной темы: то правило стояло в файле выше .btn-primary и по порядку
-      каскада проигрывало ему, оставляя белые буквы на светло-песочной
-      кнопке.
-    */
+    --accent-dim:#B08C5E;
+    --accent-bg: rgba(138, 90, 43, .09);
     --on-accent: #FFFFFF;
-    /*
-      --pill-bg не переопределяется в тёмной теме намеренно: этот же цвет
-      запечён фоном в pill-*.webp, и любой другой вылезет прямоугольником
-      вокруг картинки. В тёмной теме подложку выделяет рамка, а не заливка.
-    */
-    --pill-bg:   #17120E;
-    --code-bg:   #241D16;
-    --code-text: #EFE6DA;
-    --code-dim:  #A08D7C;
-    --shadow:    0 1px 2px rgba(31, 25, 19, .05), 0 10px 30px rgba(31, 25, 19, .08);
-    --measure:   66ch;
 
-    /*
-      Пять размеров на всю страницу. До этого их было девять, и половина
-      отличалась на полпикселя — иерархии это не давало, а расходиться при
-      правках успевало.
-    */
-    --t-xs:      14px;
-    --t-sm:      16px;
-    --t-md:      18px;
-    --t-lg:      20px;
-    --t-label:   12px;
+    --rec:       #C43A2E;
+
+    --spk-0:     #8A5A2B;
+    --spk-1:     #2C6070;
+    --spk-2:     #6B4585;
   }
+}
 
-  /*
-    В тёмной теме переопределяются ВСЕ токены, а не только фон и текст.
-    Оставленный от светлой темы акцент или тень — самый частый способ получить
-    страницу, где половина элементов не читается.
-  */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --ground:    #17120E;
-      --surface:   #1F1913;
-      --surface-2: #271F18;
-      --line:      #34291F;
-      --text:      #F5EFE8;
-      --muted:     #A6947F;
-      --faint:     #968472;
-      --accent:    #D2A272;
-      --accent-2:  #E4B98A;
-      --accent-bg: rgba(210, 162, 114, .10);
-      --on-accent: #17120E;
-      --code-bg:   #100C09;
-      --code-text: #EFE6DA;
-      --code-dim:  #8E7D6B;
-      --shadow:    0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .34);
-    }
+:root[data-theme="light"] {
+  color-scheme: light;
 
-    /*
-      Подложка индикатора совпадает по цвету с фоном страницы, поэтому в
-      тёмной теме её держит рамка. Тень на равном фоне не видна — только
-      грязнит края.
-    */
-    .pill-stage { border-color: var(--line); box-shadow: none; }
+  --ground:    #FAF6F1;
+  --ground-2:  #F3EBE0;
+  --surface:   #FFFFFF;
+  --raised:    #F6EEE4;
+  --line:      #DDD0BF;
+  --line-soft: #EAE0D2;
+  --topbar:    rgba(250, 246, 241, .88);
 
-    /*
-      Скриншоты настроек сняты в светлой теме Windows, и на почти чёрной
-      странице это три белых прожектора. Приглушаем, возвращая полную
-      яркость под курсором.
-    */
-    .shots figure img { filter: brightness(.86); transition: filter .18s ease; }
-    .shots figure:hover img,
-    .shots figure a:focus-visible img { filter: none; }
-  }
+  --text:      #1F1913;
+  --muted:     #6E5D4D;
+  --faint:     #8B7862;
 
-  * { box-sizing: border-box; }
+  --accent:    #8A5A2B;
+  --accent-dim:#B08C5E;
+  --accent-bg: rgba(138, 90, 43, .09);
+  --on-accent: #FFFFFF;
 
-  html { scroll-behavior: smooth; }
-  @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-    * { transition: none !important; animation: none !important; }
-  }
+  --rec:       #C43A2E;
 
-  body {
-    margin: 0;
-    background: var(--ground);
-    color: var(--text);
-    font-family: "Source Sans 3", "Segoe UI Variable Text", system-ui, "Segoe UI", sans-serif;
-    font-size: var(--t-md);
-    line-height: 1.62;
-    -webkit-font-smoothing: antialiased;
-  }
+  --spk-0:     #8A5A2B;
+  --spk-1:     #2C6070;
+  --spk-2:     #6B4585;
+}
 
-  h1, h2, h3 {
-    font-family: "Bricolage Grotesque", "Segoe UI Variable Display", system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    text-wrap: balance;
-    margin: 0;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-  code, kbd, .mono { font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; }
-  code { font-size: .88em; }
+  --ground:    #14100C;
+  --ground-2:  #191410;
+  --surface:   #1E1811;
+  --raised:    #251D15;
+  --line:      #33281D;
+  --line-soft: #241C15;
+  --topbar:    rgba(20, 16, 12, .86);
 
-  /*
-    Вся страница про сочетание клавиш, так что клавиши на ней и выглядят
-    клавишами. Одним шрифтом это не читается.
-  */
-  kbd {
-    display: inline-block;
-    padding: .1em .38em;
-    font-size: .82em; line-height: 1.5;
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-bottom-width: 2px;
-    border-radius: 5px;
-    white-space: nowrap;
-  }
+  --text:      #F6F0E8;
+  --muted:     #A2907B;
+  --faint:     #7B6A58;
 
-  a { color: var(--accent-2); text-underline-offset: 3px; }
-  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 4px; }
+  --accent:    #D9A46C;
+  --accent-dim:#8A6535;
+  --accent-bg: rgba(217, 164, 108, .10);
+  --on-accent: #1A130B;
 
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  --rec:       #FF5A52;
 
-  /* scroll-margin — чтобы липкая шапка не накрывала заголовок при переходе по якорю. */
-  section { padding: 84px 0; border-top: 1px solid var(--line); scroll-margin-top: 70px; }
+  --spk-0:     #E8C39A;
+  --spk-1:     #9EC7D4;
+  --spk-2:     #C6A9D8;
+}
 
-  /*
-    Каждая вторая секция уходит на другую подложку. Семь одинаковых полос,
-    разделённых волоском, читаются как одна длинная — глазу не за что
-    зацепиться, чтобы понять, что раздел сменился.
-  */
-  section.band { background: var(--surface-2); border-top-color: transparent; }
-  /* Смена подложки уже разделяет секции — волосок поверх неё лишний. */
-  section.band + section { border-top-color: transparent; }
+* { box-sizing: border-box; }
 
-  /*
-    Колонка текста — 66ch, обёртка — 1080px, и справа оставалось 43% пустоты
-    под волоском во всю ширину. Сюда уходит то, что и так было в секции:
-    таблица замеров, предупреждение, врезка.
-  */
-  /*
-    minmax(0, 1fr), а не 1fr: у одноколоночной сетки минимум иначе считается
-    по max-content, и <pre> с длинной строкой git clone растягивал колонку
-    шире экрана — вместе с ней разъезжалась вся страница.
-  */
-  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 34px; align-items: start; }
-  @media (min-width: 900px) {
-    .split { grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 56px; }
-  }
-  .split > .aside { min-width: 0; }
-  .split > .main > :last-child { margin-bottom: 0; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
 
-  .eyebrow {
-    font-family: "JetBrains Mono", monospace;
-    font-size: var(--t-label); letter-spacing: .16em; text-transform: uppercase;
-    color: var(--accent); margin-bottom: 16px;
-  }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: "Newsreader", Georgia, "Times New Roman", serif;
+  font-size: var(--t-body);
+  font-weight: 300;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
 
-  h2 { font-size: clamp(27px, 3.8vw, 37px); line-height: 1.15; margin-bottom: 16px; }
-  .lede { font-size: var(--t-lg); color: var(--muted); max-width: var(--measure); margin: 0 0 30px; }
-  p { max-width: var(--measure); }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--text); }
 
-  /* ---------- sticky header ---------- */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
 
-  /*
-    Кнопка загрузки лежала на 812-м пикселе — на ноутбучном экране её никто
-    не видел, и до самого подвала другой не было. Здесь она едет со
-    страницей, а заодно появляется навигация по восьми экранам текста.
-  */
-  .topbar {
-    position: sticky; top: 0; z-index: 20;
-    background: color-mix(in srgb, var(--ground) 88%, transparent);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--line);
-  }
-  @supports not (backdrop-filter: blur(2px)) {
-    .topbar { background: var(--ground); }
-  }
-  .topbar .wrap { display: flex; align-items: center; gap: 20px; height: 58px; }
-  .topbar .brand {
-    display: inline-flex; align-items: center; gap: 10px;
-    font-family: "Bricolage Grotesque", system-ui, sans-serif;
-    font-weight: 700; font-size: var(--t-md); letter-spacing: -0.02em;
-    color: var(--text); text-decoration: none;
-  }
-  .topbar .brand img { width: 26px; height: 26px; border-radius: 7px; }
-  .topbar nav { margin-left: auto; display: flex; align-items: center; gap: 22px; }
-  /* Только .nav-link: голое `nav a` перебивало по весу цвет кнопки. */
-  .topbar nav a.nav-link {
-    color: var(--muted); text-decoration: none; font-size: var(--t-sm);
-  }
-  .topbar nav a.nav-link:hover { color: var(--text); }
-  .topbar .btn { padding: 8px 16px; font-size: var(--t-sm); }
-  @media (max-width: 780px) {
-    .topbar nav a.nav-link { display: none; }
-  }
+img { max-width: 100%; height: auto; display: block; }
 
-  /* ---------- hero ---------- */
+.wrap {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
 
-  .hero { padding: 58px 0 68px; text-align: center; }
-  .hero img.logo { width: 76px; height: 76px; }
-  .hero .kicker {
-    font-family: "JetBrains Mono", monospace;
-    font-size: 13px; letter-spacing: .14em; color: var(--muted);
-    margin: 18px 0 0;
-    /* p наследует measure в 66ch, а моноширинный с разрядкой в неё не влезает
-       и переносится посреди строки, теряя центровку. */
-    max-width: none;
-  }
-  /* Иначе на узком экране строка рвётся по разделителю и точка повисает. */
-  .hero .kicker span { white-space: nowrap; }
-  .hero h1 { font-size: clamp(40px, 6.6vw, 62px); line-height: 1.04; margin: 14px 0 20px; }
-  .hero p.intro {
-    font-size: var(--t-lg); color: var(--muted);
-    max-width: 56ch; margin: 0 auto 32px; text-align: left;
-  }
-  .hero .cta-note {
-    font-size: var(--t-xs); color: var(--faint);
-    margin: 16px 0 46px; max-width: none;
-  }
+/* --- служебная типографика ------------------------------------------------ */
 
-  .pill-stage {
-    background: var(--pill-bg);
-    border: 1px solid transparent;
-    border-radius: 18px;
-    padding: 44px 24px;
-    margin: 0 auto;
-    max-width: 720px;
-    box-shadow: var(--shadow);
-  }
-  .pill-stage.stage-below { margin-top: 40px; }
-  .pill-stage img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-  .pill-stage .caption {
-    font-family: "JetBrains Mono", monospace;
-    font-size: var(--t-label); color: var(--code-dim);
-    margin: 26px 0 0; letter-spacing: .04em; max-width: none;
-  }
+.mono, .label, .eyebrow, kbd, code, pre, .spine {
+  font-family: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
 
-  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 9px;
-    padding: 13px 26px; border-radius: 10px;
-    font-weight: 600; font-size: var(--t-md); text-decoration: none;
-    border: 1px solid transparent; transition: transform .12s ease, filter .12s ease;
-  }
-  .btn:hover { transform: translateY(-1px); filter: brightness(1.06); }
-  .btn-primary { background: var(--accent); color: var(--on-accent); }
-  .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--line); }
+.label, .eyebrow, .spine {
+  font-size: var(--t-label);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+}
 
-  /* ---------- cards ---------- */
+h1, h2, h3, .display {
+  font-family: "Bricolage Grotesque", "Bricolage Grotesque Placeholder", system-ui, sans-serif;
+  font-weight: 800;
+  font-variation-settings: "wdth" 88;
+  letter-spacing: -.02em;
+  line-height: 1.03;
+  margin: 0;
+  text-wrap: balance;
+}
 
-  /*
-    auto-fit ронял три шага в две колонки на планшете, и третий оставался
-    один. Пронумерованная последовательность так ломается заметнее всего.
-  */
-  .grid3 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  @media (min-width: 860px) { .grid3 { grid-template-columns: repeat(3, 1fr); } }
-  .card {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; padding: 26px 24px;
-  }
-  .card h3 { font-size: var(--t-lg); margin-bottom: 9px; }
-  .card p { color: var(--muted); font-size: var(--t-sm); margin: 0; max-width: none; }
-  .card .n {
-    font-family: "JetBrains Mono", monospace; font-size: var(--t-label);
-    color: var(--accent); letter-spacing: .12em; margin: 0 0 12px; max-width: none;
-  }
+h2 { font-size: var(--t-h2); }
+h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
 
-  /* ---------- measured numbers ---------- */
+p { margin: 0 0 1.05em; max-width: var(--measure); }
+p:last-child { margin-bottom: 0; }
 
-  /*
-    Разница между 26.2 и 0.52 секунды — самое убедительное, что есть на
-    странице, и она стояла строкой мелкого моноширинного текста. Полоса
-    показывает те же числа в масштабе; у последней она почти исчезает, и
-    это ровно то, что нужно показать.
-  */
-  .measured {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; padding: 22px 22px 20px;
-  }
-  .measured h3 {
-    font-family: "JetBrains Mono", monospace; font-weight: 600;
-    font-size: var(--t-label); letter-spacing: .12em; text-transform: uppercase;
-    color: var(--accent); margin-bottom: 18px;
-  }
-  .measured .row + .row { margin-top: 16px; }
-  .measured .row b {
-    display: block;
-    font-family: "JetBrains Mono", monospace; font-weight: 600;
-    font-size: var(--t-lg); color: var(--text); line-height: 1.2;
-  }
-  .measured .row span {
-    display: block; color: var(--muted);
-    font-size: var(--t-xs); line-height: 1.45; margin-top: 2px;
-  }
-  .measured .track {
-    height: 6px; margin-top: 9px; border-radius: 3px;
-    background: var(--accent-bg); overflow: hidden;
-  }
-  .measured .track i {
-    display: block; height: 100%; border-radius: 3px;
-    background: var(--faint); min-width: 4px;
-  }
-  .measured .row.best b { color: var(--accent); }
-  .measured .row.best .track i { background: var(--accent); }
-  .measured .note {
-    font-size: var(--t-xs); color: var(--faint); max-width: none;
-    margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--line);
-  }
+strong, b { font-weight: 600; color: var(--text); }
+em { font-style: italic; }
 
-  /* ---------- shots ---------- */
+code {
+  font-size: .82em;
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: .1em .38em;
+  border-radius: 3px;
+}
 
-  /*
-    Три снимка во всю ширину занимали треть страницы и повторяли друг друга
-    силуэтом. Рядом с подписью каждый вдвое ниже, а правый столбец перестаёт
-    пустовать.
-  */
-  .shots { display: grid; gap: 40px; }
-  .shots figure { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
-  @media (min-width: 900px) {
-    .shots figure {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 290px);
-      gap: 32px; align-items: center;
-    }
-  }
-  figure { margin: 0; }
-  figure img {
-    width: 100%; height: auto; display: block;
-    border-radius: 12px; border: 1px solid var(--line);
-    box-shadow: var(--shadow); background: var(--surface);
-  }
-  /* На телефоне текст в окне настроек нечитаем в принципе — по тапу открывается оригинал. */
-  .shots figure a { display: block; border-radius: 12px; }
-  figcaption { font-size: var(--t-sm); color: var(--muted); max-width: var(--measure); }
-  figcaption b { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+kbd {
+  font-size: .76em;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  background: var(--raised);
+  color: var(--text);
+  padding: .15em .45em;
+  border-radius: 4px;
+  white-space: nowrap;
+}
 
-  /* ---------- features ---------- */
+/* --- шапка ---------------------------------------------------------------- */
 
-  /*
-    Восемь пунктов в три колонки — это 3+3+2 и дыра в последнем ряду. В две
-    колонки ряды закрываются ровно, и строка выходит ближе к комфортной.
-  */
-  .features { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px 40px; }
-  @media (min-width: 760px) { .features { grid-template-columns: repeat(2, 1fr); } }
-  .feature h3 { font-size: var(--t-md); margin-bottom: 6px; }
-  .feature p { color: var(--muted); font-size: var(--t-sm); margin: 0; max-width: none; }
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--topbar);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.topbar .wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 60px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -.01em;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand img { display: block; border-radius: 50%; }
+.topnav { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+.topnav a {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+}
+.topnav a:hover { color: var(--text); }
 
-  /* ---------- code ---------- */
+/* Три состояния, а не два. Двухпозиционный переключатель отрезает «как в
+   системе»: нажав один раз, вернуться к нему уже нельзя. */
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+.theme-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.theme-btn svg .solid { fill: currentColor; stroke: none; }
+@media (max-width: 900px) { .topnav .hide-sm { display: none; } }
 
-  pre {
-    background: var(--code-bg); color: var(--code-text);
-    border-radius: 12px; padding: 20px 22px; overflow-x: auto;
-    font-family: "JetBrains Mono", monospace; font-size: var(--t-xs); line-height: 1.7;
-    margin: 0 0 20px;
-  }
-  pre .c { color: var(--code-dim); }
+/* --- кнопки --------------------------------------------------------------- */
 
-  ol.steps { max-width: var(--measure); color: var(--muted); padding-left: 22px; margin: 0 0 26px; }
-  ol.steps li { margin-bottom: 10px; }
-  ol.steps b { color: var(--text); }
-  .sub { color: var(--muted); margin: 0 0 14px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 13px 22px;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+  cursor: pointer;
+}
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--text); border-color: var(--text); color: var(--ground); }
+.btn-ghost { background: transparent; color: var(--accent); }
+.btn-ghost:hover { background: var(--accent-bg); color: var(--text); border-color: var(--text); }
 
-  /* ---------- faq ---------- */
+/* --- герой ---------------------------------------------------------------- */
 
-  details { border-bottom: 1px solid var(--line); padding: 18px 0; }
-  details summary {
-    cursor: pointer; font-weight: 600; font-size: var(--t-md);
-    list-style: none; display: flex; justify-content: space-between; gap: 16px;
-  }
-  details summary::-webkit-details-marker { display: none; }
-  details summary::after { content: "+"; color: var(--accent); font-family: "JetBrains Mono", monospace; }
-  details[open] summary::after { content: "−"; }
-  details p { margin: 14px 0 0; color: var(--muted); font-size: var(--t-sm); }
+.hero { position: relative; padding: clamp(48px, 7vw, 92px) 0 0; overflow: hidden; }
 
-  /* ---------- notice ---------- */
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 46%);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+}
+@media (max-width: 980px) {
+  .hero-grid { grid-template-columns: 1fr; }
+}
 
-  .notice {
-    background: var(--accent-bg); border: 1px solid var(--line);
-    border-left: 3px solid var(--accent);
-    border-radius: 10px; padding: 18px 22px;
-  }
-  .notice p { margin: 0; font-size: var(--t-sm); color: var(--muted); max-width: none; }
-  .notice b { color: var(--text); }
+.kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 26px;
+  max-width: none;
+}
+.kicker span { font-family: "JetBrains Mono", monospace; font-size: var(--t-label); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.kicker span::after { content: " ·"; color: var(--line); margin-left: 12px; }
+.kicker span:last-child::after { content: ""; }
 
-  /* ---------- closing call to action ---------- */
+h1 { font-size: var(--t-hero); max-width: 13ch; }
+h1 .lit {
+  color: var(--accent);
+  font-variation-settings: "wdth" 78;
+}
 
-  /*
-    Восемь тысяч пикселей текста заканчивались списком ссылок в подвале.
-    Дочитавшему нужно куда-то нажать.
-  */
-  .close-cta {
-    background: var(--code-bg); color: var(--code-text);
-    border-top: 0; text-align: center;
-  }
-  .close-cta h2 { color: var(--code-text); margin-bottom: 12px; }
-  .close-cta p {
-    color: var(--code-dim); font-size: var(--t-lg);
-    max-width: 48ch; margin: 0 auto 30px;
-  }
-  .close-cta .btn-ghost {
-    background: transparent; color: var(--code-text);
-    border-color: rgba(239, 230, 218, .28);
-  }
-  .close-cta .cta-note {
-    font-size: var(--t-xs); color: var(--code-dim);
-    margin: 18px 0 0; max-width: none;
-  }
+.hero-lede {
+  font-size: clamp(19px, 2vw, 22px);
+  color: var(--muted);
+  margin: 26px 0 30px;
+  max-width: 54ch;
+}
+.hero-lede strong { color: var(--text); font-weight: 600; }
 
-  /* ---------- footer ---------- */
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.cta-note { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--faint); letter-spacing: .04em; }
 
-  footer { border-top: 0; padding: 40px 0 56px; }
-  footer .cols {
-    display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap;
-    font-size: var(--t-sm); color: var(--muted);
-  }
-  footer .cols a { color: var(--muted); text-decoration: none; }
-  footer .cols a:hover { color: var(--accent-2); text-decoration: underline; }
-  .foot-legal {
-    display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap;
-    margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line);
-    font-size: var(--t-xs); color: var(--faint);
-  }
-  .foot-legal strong { color: var(--muted); font-weight: 600; }
-  .foot-legal .mark { color: var(--muted); }
+/* --- живая осциллограмма --------------------------------------------------- */
 
-  @media (max-width: 640px) {
-    :root { --t-md: 17px; --t-lg: 19px; }
-    section { padding: 60px 0; }
-    .pill-stage { padding: 30px 16px; }
-    .hero { padding: 40px 0 52px; }
-  }
-  </style>
+.listen { max-width: 480px; }
+.listen-box {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 22px 20px;
+}
+.listen-bars { display: flex; align-items: center; gap: 3px; height: 110px; }
+.listen-bars i {
+  flex: 1 1 auto;
+  min-width: 2px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--accent);
+  opacity: .75;
+}
+.listen-note {
+  margin: 14px 0 0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--faint);
+  max-width: 44ch;
+}
+.mic-btn {
+  margin-top: 16px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.mic-btn:hover { border-color: var(--accent); color: var(--accent); }
+.mic-btn[data-live="1"] { border-style: solid; border-color: var(--rec); color: var(--rec); }
+
+/* --- индикатор под героем ------------------------------------------------- */
+
+.pill-stage { margin-top: clamp(32px, 5vw, 64px); text-align: center; }
+.pill-stage img { margin: 0 auto; border-radius: 26px; }
+.caption {
+  margin: 14px auto 0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--faint);
+  letter-spacing: .04em;
+  max-width: 60ch;
+}
+
+/* --- разделы -------------------------------------------------------------- */
+
+section { padding: clamp(64px, 9vw, 120px) 0; border-top: 1px solid var(--line-soft); }
+section.plain { border-top: 0; }
+.band { background: var(--ground-2); }
+
+.sec-head {
+  display: grid;
+  grid-template-columns: var(--spine) minmax(0, 1fr);
+  gap: var(--gap);
+  margin-bottom: clamp(28px, 4vw, 52px);
+}
+.sec-head .spine { padding-top: 11px; }
+.sec-head h2 { max-width: 18ch; }
+.sec-lede { grid-column: 2; color: var(--muted); margin-top: 20px; font-size: 20px; }
+
+.body-cols { display: grid; grid-template-columns: var(--spine) minmax(0, 1fr); gap: var(--gap); }
+.body-cols > .spine { padding-top: 6px; }
+
+@media (max-width: 900px) {
+  .sec-head, .body-cols { grid-template-columns: 1fr; gap: 14px; }
+  .sec-lede { grid-column: 1; }
+  .sec-head .spine, .body-cols > .spine { padding-top: 0; }
+}
+
+/* --- довод ---------------------------------------------------------------- */
+
+.argument p { font-size: 20px; }
+.argument .punch {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 600;
+  font-variation-settings: "wdth" 90;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1.24;
+  letter-spacing: -.01em;
+  color: var(--text);
+  margin: 30px 0;
+  padding-left: 22px;
+  border-left: 2px solid var(--accent);
+  max-width: 34ch;
+}
+
+.measured { margin-top: 44px; border-top: 1px solid var(--line); padding-top: 22px; }
+.measured h3 { font-size: 15px; letter-spacing: .1em; text-transform: uppercase; font-family: "JetBrains Mono", monospace; font-weight: 500; color: var(--faint); margin-bottom: 18px; }
+.mrow { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.mrow b { font-family: "JetBrains Mono", monospace; font-size: 17px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mrow.best b { color: var(--accent); }
+.mrow span { font-size: 16px; color: var(--muted); }
+.mrow .track { grid-column: 1 / -1; height: 2px; background: var(--line); margin-top: 2px; }
+.mrow .track i { display: block; height: 2px; background: var(--accent-dim); }
+.mrow.best .track i { background: var(--accent); }
+.measured .note { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--faint); margin-top: 16px; line-height: 1.65; }
+
+/* --- центральный демонстратор -------------------------------------------- */
+
+.demo {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.demo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+}
+.demo-title { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.demo-controls { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+
+.sw {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.sw:hover { border-color: var(--accent-dim); color: var(--text); }
+.sw .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background .15s ease; }
+.sw[aria-pressed="true"] { border-color: var(--accent-dim); color: var(--text); }
+.sw[aria-pressed="true"] .dot { background: var(--accent); }
+
+.lanes { padding: 20px 18px 6px; display: grid; gap: 12px; }
+.lane { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 14px; align-items: center; }
+.lane-name { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); text-align: right; }
+.lane-wave { position: relative; height: 44px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
+.lane-wave i { flex: 1 1 auto; min-width: 1px; background: var(--accent-dim); opacity: .42; border-radius: 1px; transition: opacity .12s linear, background .12s linear; }
+.lane.me .lane-wave i { background: var(--accent); }
+.lane.them .lane-wave i { background: var(--muted); }
+.lane-wave i.on { opacity: 1; }
+
+.playhead {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--rec);
+  opacity: 0;
+  pointer-events: none;
+}
+.playhead.on { opacity: .9; }
+
+.timeaxis {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 14px;
+  padding: 0 18px 16px;
+}
+.timeaxis .ticks { display: flex; justify-content: space-between; font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--faint); letter-spacing: .05em; }
+
+.transcript {
+  border-top: 1px solid var(--line);
+  padding: 18px;
+  max-height: 340px;
+  overflow-y: auto;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tline { display: grid; grid-template-columns: 46px 92px minmax(0, 1fr); gap: 10px; padding: 5px 0; align-items: baseline; }
+.tline .tt { color: var(--faint); font-variant-numeric: tabular-nums; }
+.tline .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.tline .said { color: var(--muted); }
+.tline.dim { opacity: .35; }
+.tline.dim .said { text-decoration: line-through; }
+.tline .tag { color: var(--rec); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+
+.who.s-me { color: var(--accent); }
+.who.s0 { color: var(--spk-0); }
+.who.s1 { color: var(--spk-1); }
+.who.s2 { color: var(--spk-2); }
+
+.demo-foot {
+  border-top: 1px solid var(--line);
+  padding: 14px 18px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 1.65;
+}
+.demo-foot b { color: var(--muted); font-weight: 500; }
+
+/* --- шаги ----------------------------------------------------------------- */
+
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+@media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+.step { background: var(--ground); padding: 26px 24px 30px; }
+.step .n { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: .12em; color: var(--accent); margin: 0 0 16px; }
+.step h3 { margin-bottom: 10px; }
+.step p { font-size: 17px; color: var(--muted); }
+
+/* --- сетка мелочей -------------------------------------------------------- */
+
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); gap: 30px 40px; }
+.features h3 { font-size: 17px; margin-bottom: 8px; }
+.features p { font-size: 16px; color: var(--muted); }
+
+/* --- скриншоты ------------------------------------------------------------ */
+
+.shots { display: grid; gap: 40px; }
+.shots figure { margin: 0; }
+.shots img { border: 1px solid var(--line); border-radius: 4px; }
+.shots figcaption { margin-top: 14px; font-size: 16.5px; color: var(--muted); max-width: 68ch; }
+.shots figcaption b { color: var(--text); }
+@media (min-width: 940px) { .shots { grid-template-columns: repeat(2, 1fr); } .shots figure:first-child { grid-column: 1 / -1; } }
+
+/* --- код ------------------------------------------------------------------ */
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 18px 20px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--code-text);
+  max-width: var(--measure);
+}
+pre .c { color: #8A8074; }
+
+.ol-steps { counter-reset: s; list-style: none; padding: 0; margin: 0 0 28px; max-width: var(--measure); }
+.ol-steps li { counter-increment: s; position: relative; padding-left: 40px; margin-bottom: 16px; color: var(--muted); }
+.ol-steps li::before {
+  content: counter(s, decimal-leading-zero);
+  position: absolute; left: 0; top: .18em;
+  font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: .08em; color: var(--accent);
+}
+.ol-steps b { color: var(--text); }
+
+/* --- предупреждение ------------------------------------------------------- */
+
+.notice {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent-dim);
+  background: var(--surface);
+  padding: 20px 22px;
+  border-radius: 2px;
+}
+.notice p { font-size: 16.5px; color: var(--muted); }
+.notice b { color: var(--text); }
+
+/* --- FAQ ------------------------------------------------------------------ */
+
+.faq { border-top: 1px solid var(--line); max-width: 84ch; }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 20px 40px 20px 0;
+  position: relative;
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 600;
+  font-variation-settings: "wdth" 92;
+  font-size: 19px;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+";
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  font-family: "JetBrains Mono", monospace; font-size: 18px; color: var(--accent);
+}
+.faq details[open] summary::after { content: "–"; }
+.faq details p { padding: 0 0 22px; color: var(--muted); font-size: 17px; max-width: 72ch; }
+
+/* --- финал ---------------------------------------------------------------- */
+
+.close-cta { text-align: center; }
+.close-cta h2 { max-width: 20ch; margin: 0 auto 20px; }
+.close-cta p { margin: 0 auto 26px; color: var(--muted); }
+.close-cta .cta { justify-content: center; }
+.close-cta .cta-note { text-align: center; }
+
+footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
+.foot-rows { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--faint); }
+.foot-rows a { color: var(--muted); text-decoration: none; }
+.foot-rows a:hover { color: var(--accent); }
+.foot-legal { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: space-between; font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--faint); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+</style>
 </head>
-
 <body>
 
-  <!-- ===================== TOP BAR ===================== -->
-  <div class="topbar">
-    <div class="wrap">
-      <a class="brand" href="#top">
-        <img src="assets/icon-512.png" width="26" height="26" alt="">
-        Tapybara
-      </a>
-      <nav>
-        <a class="nav-link" href="#how">How it works</a>
-        <a class="nav-link" href="#local">Why local</a>
-        <a class="nav-link" href="#start">Quick start</a>
-        <a class="nav-link" href="#faq">FAQ</a>
-        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download</a>
-      </nav>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="assets/icon-512.png" width="26" height="26" alt="" loading="eager">
+      Tapybara
+    </a>
+    <nav class="topnav">
+      <a class="hide-sm" href="#local">Why local</a>
+      <a class="hide-sm" href="#calls">Calls</a>
+      <a class="hide-sm" href="#start">Quick start</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a href="https://github.com/keshon/tapybara/releases/latest">Download</a>
+      <button class="theme-btn" type="button" id="themeBtn" title="Theme: auto"
+              aria-label="Theme: auto. Change theme."><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"></svg></button>
+    </nav>
+  </div>
+</div>
+
+<!-- ======================= HERO ======================= -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <p class="kicker"><span>voice dictation</span><span>call transcripts</span><span>windows</span><span>open source</span></p>
+
+        <h1>Your voice never <span class="lit">leaves the room</span>.</h1>
+
+        <p class="hero-lede">
+          Press a hotkey, speak, press it again. The text appears where your caret
+          already was — in your editor, your browser, your chat window. Whisper runs
+          on <strong>your own GPU</strong>, so nothing is uploaded and there is no
+          account to make.
+        </p>
+
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
+          <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
+        </div>
+        <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+      </div>
+
+      <div class="listen">
+        <div class="listen-box">
+          <div class="listen-bars" id="listenBars"></div>
+        </div>
+        <button class="mic-btn" id="micBtn" type="button">Let it hear you</button>
+        <p class="listen-note" id="micNote">
+          A live waveform, idling. Press the button and it follows your voice —
+          measured in this tab, sent nowhere, gone when you close it. That is the
+          whole product in one sentence.
+        </p>
+      </div>
+    </div>
+
+    <div class="pill-stage">
+      <img src="assets/screens/pill-recording.webp" width="472" height="110" loading="lazy"
+           alt="The Tapybara indicator: a red recording dot, a live microphone waveform, elapsed time, and the hint Ctrl+Alt+D to stop">
+      <p class="caption">the indicator, floating above every window while you talk</p>
     </div>
   </div>
+</header>
 
-  <!-- ===================== HERO ===================== -->
-  <header class="hero" id="top">
-    <div class="wrap">
-      <img class="logo" src="assets/icon-512.png" width="76" height="76"
-           alt="Tapybara icon: a microphone on a capybara-brown disc">
-
-      <!-- Разделитель уезжает в начало следующего куска, иначе строка кончается точкой. -->
-      <p class="kicker"><span>voice dictation</span> <span>· windows</span> <span>· whisper.cpp</span> <span>· open source</span></p>
-
-      <h1>Dictation that never leaves the machine.</h1>
-
-      <p class="intro">
-        Tapybara puts a global hotkey on your keyboard. Press it, speak, press it
-        again, and the text is inserted where your caret already was — in your
-        editor, your browser, your chat window. Whisper runs locally on your own
-        GPU, so the audio is never uploaded and there is no account involved.
-      </p>
-
-      <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
-        <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">GitHub</a>
-      </div>
-      <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
-
-      <div class="pill-stage">
-        <img src="assets/screens/pill-recording.webp" width="472" height="110"
-             alt="The Tapybara indicator: a red recording dot, a live microphone waveform, elapsed time, and the hint Ctrl+Alt+D to stop">
-        <p class="caption">the indicator, floating above every window while you talk</p>
+<!-- ======================= WHY LOCAL ======================= -->
+<section id="local" class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">why local</p>
+      <div>
+        <h2>Read back what you dictated last week.</h2>
+        <p class="sec-lede">
+          Then decide whether you want a copy of it on somebody else's server.
+        </p>
       </div>
     </div>
-  </header>
 
-  <!-- ===================== HOW ===================== -->
-  <section id="how">
-    <div class="wrap">
-      <p class="eyebrow">how it works</p>
-      <h2>Three keystrokes, and no window to visit.</h2>
-      <p class="lede">
-        Tapybara lives in the tray. You never switch to it, which is the point:
-        switching away from what you were writing defeats the exercise.
-      </p>
+    <div class="body-cols argument">
+      <p class="spine">the case</p>
+      <div>
+        <p>
+          Dictation is not a category where privacy is an abstract preference. People
+          dictate the recovery phrase they are about to paste, the diagnosis they are
+          about to email, the salary they are about to offer, and the full name of a
+          colleague who never agreed to any of it.
+        </p>
 
-      <div class="grid3">
-        <div class="card">
-          <p class="n">01</p>
-          <h3>Press the hotkey</h3>
-          <p>The indicator appears above everything, showing your microphone level and elapsed time. Focus does not move, so your caret stays where it was.</p>
-        </div>
-        <div class="card">
-          <p class="n">02</p>
-          <h3>Speak</h3>
-          <p>Pauses become paragraph breaks, since Whisper's timings say where they were. Escape discards the recording — and other applications still receive their Escape while you dictate.</p>
-        </div>
-        <div class="card">
-          <p class="n">03</p>
-          <h3>Press it again</h3>
-          <p>The text is inserted, not left on the clipboard for you to paste. Insertion goes through a synthetic paste, which is the path that also works in Electron and Chromium apps.</p>
-        </div>
-      </div>
+        <p class="punch">Cloud dictation ships every one of those to a machine you do not own.</p>
 
-      <div class="pill-stage stage-below">
-        <img src="assets/screens/pill-transcribing.webp" width="372" height="110"
-             alt="The indicator while transcribing: Transcribing… 64%, with the hint Esc to cancel">
-        <p class="caption">recognition runs after you stop, not while you speak</p>
-      </div>
-    </div>
-  </section>
+        <p>
+          Windows has dictation built in, and for plenty of writing it is fine. The one
+          you reach for — <kbd>Win</kbd>+<kbd>H</kbd> — does the recognition on
+          Microsoft's servers. Tapybara does that part here: whisper.cpp runs on your
+          own GPU, and the recording is a local file that is deleted afterwards rather
+          than a request to somebody's API.
+        </p>
 
-  <!-- ===================== WHY LOCAL ===================== -->
-  <section id="local" class="band">
-    <div class="wrap">
-      <p class="eyebrow">why local</p>
-      <h2>The model runs where the audio is.</h2>
+        <p>
+          Running it yourself also means you choose the model. Language-specific
+          fine-tunes exist and are often markedly better than the general one for their
+          language; swapping to one is a file in a folder.
+        </p>
 
-      <div class="split">
-        <div class="main">
-          <p>
-            Windows has dictation of its own, and for plenty of writing it is
-            fine. The one you reach for — <kbd>Win</kbd>+<kbd>H</kbd> — does the
-            recognition on Microsoft's servers. Tapybara does that part on your
-            machine: whisper.cpp runs on your own GPU, and the recording is a
-            local file that is deleted rather than a request to somebody's
-            server.
-          </p>
+        <p>
+          The trade is real and worth stating plainly. You download a model once —
+          several hundred megabytes — and you want a GPU for this to feel instant. On a
+          CPU it runs at roughly the speed you spoke, which is fine for a sentence and
+          tedious for a paragraph.
+        </p>
 
-          <p>
-            Running it yourself also means you choose the model. Language-specific
-            fine-tunes exist and are often markedly better than the general one for
-            their language, and swapping to one is a file in a folder.
-          </p>
-
-          <p>
-            The trade is real and worth stating plainly. You download a model once —
-            several hundred megabytes of it — and you need a GPU for this to feel
-            instant. On CPU it runs at roughly the speed you spoke, which is usable
-            for a sentence and tedious for a paragraph.
-          </p>
-        </div>
-
-        <div class="aside">
-          <div class="measured">
-            <h3>28 s of speech</h3>
-            <div class="row">
-              <b>26.2 s</b>
-              <span>CPU, an i5-9600KF</span>
-              <div class="track"><i style="width:100%"></i></div>
-            </div>
-            <div class="row">
-              <b>12.6 s</b>
-              <span>Vulkan, first run — the driver is compiling shaders</span>
-              <div class="track"><i style="width:48%"></i></div>
-            </div>
-            <div class="row best">
-              <b>0.52 s</b>
-              <span>Vulkan, warmed up</span>
-              <div class="track"><i style="width:2%"></i></div>
-            </div>
-            <p class="note">
-              One 28-second sample, <code>large-v3-turbo</code>, on an RTX 3060.
-              Measured on one machine, not a benchmark suite.
-            </p>
+        <div class="measured">
+          <h3>28 seconds of speech, start to finish</h3>
+          <div class="mrow">
+            <b>26.2 s</b><span>CPU, an i5-9600KF</span>
+            <div class="track"><i style="width:100%"></i></div>
           </div>
+          <div class="mrow">
+            <b>12.6 s</b><span>Vulkan, first run — the driver is compiling shaders</span>
+            <div class="track"><i style="width:48%"></i></div>
+          </div>
+          <div class="mrow best">
+            <b>0.52 s</b><span>Vulkan, warmed up</span>
+            <div class="track"><i style="width:2%"></i></div>
+          </div>
+          <p class="note">
+            One 28-second sample, <code>large-v3-turbo</code>, on an RTX 3060.
+            Measured on one machine, not a benchmark suite.
+          </p>
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ===================== SETTINGS ===================== -->
-  <section id="settings">
-    <div class="wrap">
-      <p class="eyebrow">what you configure</p>
-      <h2>Set it up once, then forget the window.</h2>
-      <p class="lede">
-        The settings follow the system: same typography, same card layout, same
-        light and dark as everything else on the desktop.
-      </p>
-
-      <div class="shots">
-        <figure>
-          <a href="assets/screens/settings-dictation.webp">
-            <img src="assets/screens/settings-dictation.webp" width="1200" height="840" loading="lazy"
-                 alt="Tapybara settings, Dictation page: hotkey, microphone picker, insertion options and safety limits">
-          </a>
-          <figcaption><b>Dictation.</b> Choose the hotkey by pressing it, and pick which microphone rather than accepting whatever Windows calls default. Text can be inserted or only copied.</figcaption>
-        </figure>
-
-        <figure>
-          <a href="assets/screens/settings-models.webp">
-            <img src="assets/screens/settings-models.webp" width="1200" height="840" loading="lazy"
-                 alt="Tapybara settings, Models page: models folder, installed models with sizes and delete buttons, and a download list">
-          </a>
-          <figcaption><b>Models.</b> Downloaded from here, so there is no hunting for the right file on a model-hosting site. They live wherever you have room, and the ones you tried and did not keep can be deleted.</figcaption>
-        </figure>
-
-        <figure>
-          <a href="assets/screens/settings-recognition.webp">
-            <img src="assets/screens/settings-recognition.webp" width="1200" height="840" loading="lazy"
-                 alt="Tapybara settings, Recognition page: model selection, idle unload, recognition language and prompt">
-          </a>
-          <figcaption><b>Recognition.</b> Language, and a prompt that biases vocabulary and punctuation style. The model unloads after a period of inactivity, so an idle Tapybara holds no memory.</figcaption>
-        </figure>
+<!-- ======================= CALLS — CENTREPIECE ======================= -->
+<section id="calls">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">calls</p>
+      <div>
+        <h2>A call is two recordings, not one.</h2>
+        <p class="sec-lede">
+          Your microphone and your speakers are captured separately, and that one
+          decision does most of the work that speaker identification usually has to
+          guess at. Below is a real recording taken apart. Flip the switches.
+        </p>
       </div>
     </div>
-  </section>
 
-  <!-- ===================== DETAILS ===================== -->
-  <section id="details" class="band">
-    <div class="wrap">
-      <p class="eyebrow">details</p>
-      <h2>Small things that only matter in use.</h2>
+    <div class="demo" id="demo">
+      <div class="demo-bar">
+        <span class="demo-title">recording · 0:42 · Zoom</span>
+        <div class="demo-controls">
+          <button class="sw" id="swPlay" type="button" aria-pressed="false"><span class="dot"></span>Play it back</button>
+          <button class="sw" id="swBleed" type="button" aria-pressed="true"><span class="dot"></span>Bleed filter</button>
+          <button class="sw" id="swVoices" type="button" aria-pressed="true"><span class="dot"></span>Tell voices apart</button>
+        </div>
+      </div>
 
-      <div class="features">
-        <div class="feature">
-          <h3>Paragraphs from pauses</h3>
-          <p>Whisper does not mark paragraphs, but its segments carry timestamps and a pause is a fair signal that the speaker moved on. Optional, with a threshold.</p>
+      <div class="lanes">
+        <div class="lane me">
+          <span class="lane-name">you · mic</span>
+          <div class="lane-wave" id="waveMe"><span class="playhead" id="headMe"></span></div>
         </div>
-        <div class="feature">
-          <h3>Clipboard hygiene</h3>
-          <p>Dictations stay pasteable with <kbd>Ctrl</kbd>+<kbd>V</kbd> but are kept out of the <kbd>Win</kbd>+<kbd>V</kbd> history.</p>
+        <div class="lane them">
+          <span class="lane-name">them · system</span>
+          <div class="lane-wave" id="waveThem"><span class="playhead" id="headThem"></span></div>
         </div>
-        <div class="feature">
-          <h3>Escape stays available</h3>
-          <p>Cancelling watches the key through a hook rather than claiming it, so dialogs still close and menus still dismiss while a dictation is running.</p>
-        </div>
-        <div class="feature">
-          <h3>A replacements list</h3>
-          <p>Recognition mangles product names in predictable ways. Fixing them is a line each, including names carrying punctuation like <code>C#</code> or <code>.NET</code>.</p>
-        </div>
-        <div class="feature">
-          <h3>Recent dictations</h3>
-          <p>The last ten sit in the tray menu, in case one landed in the wrong window.</p>
-        </div>
-        <div class="feature">
-          <h3>Portable mode</h3>
-          <p>An empty <code>portable.txt</code> next to the executable moves settings and models beside it, leaving nothing in the system.</p>
-        </div>
-        <div class="feature">
-          <h3>No CUDA toolkit</h3>
-          <p>The Vulkan backend ships inside the graphics driver — NVIDIA, AMD or Intel — so there is nothing extra to install.</p>
-        </div>
-        <div class="feature">
-          <h3>English and Russian interface</h3>
-          <p>Following the system language by default. Recognition covers the 99 languages Whisper knows, detected or pinned to one.</p>
+      </div>
+
+      <div class="timeaxis">
+        <span></span>
+        <div class="ticks"><span>0:00</span><span>0:10</span><span>0:20</span><span>0:30</span><span>0:42</span></div>
+      </div>
+
+      <div class="transcript" id="transcript" aria-live="polite"></div>
+
+      <p class="demo-foot" id="demoFoot"></p>
+    </div>
+
+    <div class="body-cols" style="margin-top:44px">
+      <p class="spine">what that buys</p>
+      <div>
+        <p>
+          With one other person there is nothing to work out: whoever spoke is decided
+          by which track the speech landed on, and their name goes straight into the
+          transcript. No voice comparison happens at all.
+        </p>
+        <p>
+          With three, the far track is split by voice — pyannote segmentation and a
+          speaker-embedding model, both ONNX, both on your CPU, both offline. Tapybara
+          asks who was on the call the moment it ends, while you still remember, and
+          that answer is not a nicety: on a two-voice check file, knowing the count
+          gave the boundary exactly, and the same audio without it came apart into
+          four speakers.
+        </p>
+        <p>
+          Your own track is never analysed. It belongs to the microphone owner by
+          construction — and leaving it out removes the loudest, closest,
+          most-interrupting voice from the hardest part of the problem.
+        </p>
+
+        <div class="notice" style="margin-top:28px">
+          <p><b>Recording captures the other party too.</b> In many places recording
+          someone without telling them is unlawful, and everything audible on the
+          chosen output device is captured — notifications, music, another meeting —
+          not only the call. Tapybara says this once, before the first recording,
+          rather than starting quietly.</p>
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ===================== QUICK START ===================== -->
-  <section id="start">
-    <div class="wrap">
-      <p class="eyebrow">quick start</p>
-      <h2>Unzip, fetch a model, press the hotkey.</h2>
+<!-- ======================= HOW ======================= -->
+<section id="how" class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">dictation</p>
+      <div>
+        <h2>Three keystrokes, and no window to visit.</h2>
+        <p class="sec-lede">
+          Tapybara lives in the tray. You never switch to it, which is the point:
+          switching away from what you were writing defeats the exercise.
+        </p>
+      </div>
+    </div>
 
-      <div class="split">
-        <div class="main">
-          <ol class="steps">
-            <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
-            <li><b>Open Settings › Models</b> from the tray and download one. <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB. Nothing works until this is done.</li>
-            <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>.</li>
-          </ol>
+    <div class="steps">
+      <div class="step">
+        <p class="n">01 — PRESS</p>
+        <h3>The hotkey</h3>
+        <p>The indicator appears above everything, showing your microphone level and elapsed time. Focus does not move, so your caret stays where it was.</p>
+      </div>
+      <div class="step">
+        <p class="n">02 — SPEAK</p>
+        <h3>However long you like</h3>
+        <p>Pauses become paragraph breaks, since Whisper's timings say where they were. Escape discards the recording — and other applications still receive their Escape while you dictate.</p>
+      </div>
+      <div class="step">
+        <p class="n">03 — PRESS AGAIN</p>
+        <h3>The text is already there</h3>
+        <p>Inserted, not left on the clipboard for you to paste. Insertion goes through a synthetic paste, the path that also works in Electron and Chromium apps.</p>
+      </div>
+    </div>
 
-          <p class="sub">Or build it:</p>
-          <pre><span class="c"># Windows, .NET 10 SDK</span>
+    <div class="pill-stage">
+      <img src="assets/screens/pill-transcribing.webp" width="372" height="110" loading="lazy"
+           alt="The indicator while transcribing: Transcribing… 64%, with the hint Esc to cancel">
+      <p class="caption">recognition runs after you stop, not while you speak</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= SETTINGS ======================= -->
+<section id="settings">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">configuration</p>
+      <div>
+        <h2>Set it up once, then forget the window.</h2>
+        <p class="sec-lede">
+          The settings follow the system: same typography, same card layout, same light
+          and dark as everything else on the desktop.
+        </p>
+      </div>
+    </div>
+
+    <div class="shots">
+      <figure>
+        <a href="assets/screens/settings-dictation.webp">
+          <img src="assets/screens/settings-dictation.webp" width="1200" height="840" loading="lazy"
+               alt="Tapybara settings, Dictation page: hotkey, microphone picker, insertion options and safety limits">
+        </a>
+        <figcaption><b>Dictation.</b> Choose the hotkey by pressing it, and pick which microphone rather than accepting whatever Windows calls default. Text can be inserted, or only copied.</figcaption>
+      </figure>
+
+      <figure>
+        <a href="assets/screens/settings-models.webp">
+          <img src="assets/screens/settings-models.webp" width="1200" height="840" loading="lazy"
+               alt="Tapybara settings, Models page: models folder, installed models with sizes and delete buttons, and a download list">
+        </a>
+        <figcaption><b>Models.</b> Downloaded from here, so there is no hunting for the right file on a model-hosting site. They live wherever you have room, and the ones you tried and did not keep can be deleted.</figcaption>
+      </figure>
+
+      <figure>
+        <a href="assets/screens/settings-recognition.webp">
+          <img src="assets/screens/settings-recognition.webp" width="1200" height="840" loading="lazy"
+               alt="Tapybara settings, Recognition page: model selection, decoding, idle unload, recognition language and prompt">
+        </a>
+        <figcaption><b>Recognition.</b> Language, decoding effort, and a prompt that biases vocabulary and punctuation style. The model unloads after a period of inactivity, so an idle Tapybara holds no memory.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DETAILS ======================= -->
+<section id="details" class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">small things</p>
+      <div>
+        <h2>The parts that only matter once you use it daily.</h2>
+      </div>
+    </div>
+
+    <div class="features">
+      <div>
+        <h3>Beam search, not the first guess</h3>
+        <p>The decoder weighs several wordings of a phrase and scores them whole, instead of committing to the likeliest next word and never reconsidering. It costs about half again in time and fixes the errors you would otherwise be correcting by hand.</p>
+      </div>
+      <div>
+        <h3>Paragraphs from pauses</h3>
+        <p>Whisper does not mark paragraphs, but its segments carry timestamps and a pause is a fair signal that the speaker moved on. Optional, with a threshold.</p>
+      </div>
+      <div>
+        <h3>Clipboard hygiene</h3>
+        <p>Dictations stay pasteable with <kbd>Ctrl</kbd>+<kbd>V</kbd> but are kept out of the <kbd>Win</kbd>+<kbd>V</kbd> history.</p>
+      </div>
+      <div>
+        <h3>Escape stays available</h3>
+        <p>Cancelling watches the key through a hook rather than claiming it, so dialogs still close and menus still dismiss while a dictation is running.</p>
+      </div>
+      <div>
+        <h3>A replacements list</h3>
+        <p>Recognition mangles product names in predictable ways. Fixing them is a line each, including names carrying punctuation like <code>C#</code> or <code>.NET</code>.</p>
+      </div>
+      <div>
+        <h3>Recent dictations</h3>
+        <p>The last ten sit in the tray menu, in case one landed in the wrong window.</p>
+      </div>
+      <div>
+        <h3>Portable mode</h3>
+        <p>An empty <code>portable.txt</code> next to the executable moves settings and models beside it, leaving nothing in the system.</p>
+      </div>
+      <div>
+        <h3>No CUDA toolkit</h3>
+        <p>The Vulkan backend ships inside the graphics driver — NVIDIA, AMD or Intel — so there is nothing extra to install.</p>
+      </div>
+      <div>
+        <h3>English and Russian interface</h3>
+        <p>Following the system language by default. Recognition covers the 99 languages Whisper knows, detected or pinned to one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= QUICK START ======================= -->
+<section id="start">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">quick start</p>
+      <div>
+        <h2>Unzip, fetch a model, press the hotkey.</h2>
+      </div>
+    </div>
+
+    <div class="body-cols">
+      <p class="spine">three steps</p>
+      <div>
+        <ol class="ol-steps">
+          <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
+          <li><b>Open Settings › Models</b> from the tray and download one. <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB. Nothing works until this is done.</li>
+          <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>.</li>
+        </ol>
+
+        <p style="color:var(--faint);font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.04em">Or build it yourself:</p>
+        <pre><span class="c"># Windows, .NET 10 SDK</span>
 git clone https://github.com/keshon/tapybara
 cd tapybara
 build.cmd run</pre>
-        </div>
 
-        <div class="aside">
-          <div class="notice">
-            <p><b>Early development.</b> Dictation works end to end and is used daily.
-            Call recording works but is newer and less exercised. If something breaks,
-            the log sits next to the settings file and the issue tracker is open.</p>
-          </div>
+        <div class="notice" style="margin-top:28px">
+          <p><b>Early development.</b> Dictation works end to end and is used daily.
+          Call recording works but is newer and less exercised. If something breaks, the
+          log sits next to the settings file and the issue tracker is open.</p>
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ===================== CALLS ===================== -->
-  <section id="calls" class="band">
-    <div class="wrap">
-      <p class="eyebrow">calls</p>
-      <h2>Two tracks, so nobody has to guess who spoke.</h2>
-
-      <div class="split">
-        <div class="main">
-          <p>
-            A call is recorded as your microphone and your system audio kept
-            separate. That separation does the job speaker diarisation would: in a
-            conversation between two people, who said what follows from which track
-            it landed on, without any voice comparison.
-          </p>
-
-          <p>
-            The two are merged into one chronological <code>transcript.md</code> with
-            timestamps and names. Speech that leaked from the speakers back into the
-            microphone is filtered out, and the transcript records how many lines
-            that removed — an over-eager filter is then visible instead of silent.
-          </p>
-        </div>
-
-        <div class="aside">
-          <div class="notice">
-            <p><b>Recording captures the other party too.</b> In many places recording
-            someone without telling them is unlawful, and everything audible on the
-            chosen output device is captured — notifications, music, another meeting
-            — not only the call. Tapybara says this once before the first recording
-            rather than starting quietly.</p>
-          </div>
-        </div>
-      </div>
+<!-- ======================= FAQ ======================= -->
+<section id="faq" class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="spine">faq</p>
+      <div><h2>Questions worth asking first.</h2></div>
     </div>
-  </section>
 
-  <!-- ===================== FAQ ===================== -->
-  <section id="faq">
-    <div class="wrap">
-      <p class="eyebrow">faq</p>
-      <h2>Questions worth asking first.</h2>
-
-      <details>
+    <div class="faq">
+      <details open>
         <summary>Does any audio leave the machine?</summary>
-        <p>No. Recognition runs locally through whisper.cpp. The only request Tapybara makes is downloading a model when you ask it to, from Hugging Face. There is no telemetry and no server component.</p>
+        <p>No. Recognition, voice activity detection and telling voices apart all run locally. The only request Tapybara makes is downloading a model when you ask it to, from Hugging Face. There is no telemetry and no server component.</p>
       </details>
 
       <details>
@@ -829,12 +1164,17 @@ build.cmd run</pre>
 
       <details>
         <summary>Do I need a GPU?</summary>
-        <p>Not strictly, but it is the difference between a second and a minute. Any Vulkan-capable GPU works and the runtime ships in the graphics driver. On CPU, transcription runs at roughly real time, which is fine for a sentence and tiring for a long dictation.</p>
+        <p>Not strictly, but it is the difference between a second and a minute. Any Vulkan-capable GPU works and the runtime ships in the graphics driver. On CPU, transcription runs at roughly real time, which is fine for a sentence and tiring for a long dictation. Telling voices apart runs on the CPU either way, in the background, at several times real time.</p>
       </details>
 
       <details>
         <summary>How accurate is it?</summary>
         <p>Good, not perfect. Names and jargon get mangled in predictable ways, which is what the replacements list is for. On silence Whisper sometimes emits phrases it learned from subtitles — "thanks for watching" and similar — and those are filtered out, deliberately conservatively, so an unusual real sentence is kept rather than an occasional artefact removed.</p>
+      </details>
+
+      <details>
+        <summary>How well does it tell voices apart?</summary>
+        <p>Honestly: better with help than without. Naming the participants when the call ends gives the splitter the number of voices to look for, and that single hint is worth more than any threshold. Several people sharing one room and one microphone defeat every system of this kind, including this one — so the transcript records how the names were arrived at, rather than presenting a guess as a fact.</p>
       </details>
 
       <details>
@@ -852,46 +1192,385 @@ build.cmd run</pre>
         <p>No. MIT licensed, source on GitHub, nothing to sign up for.</p>
       </details>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ===================== CLOSING CTA ===================== -->
-  <section class="close-cta">
-    <div class="wrap">
-      <h2>Keep the audio on your own machine.</h2>
-      <p>
-        One executable, one model you pick yourself, and nothing that talks to a
-        server on your behalf.
-      </p>
-      <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
-        <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
-      </div>
-      <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+<!-- ======================= CLOSING ======================= -->
+<section class="close-cta">
+  <div class="wrap">
+    <h2>Keep the audio on your own machine.</h2>
+    <p>One executable, one model you pick yourself, and nothing that talks to a server on your behalf.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
+      <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
     </div>
-  </section>
+    <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+  </div>
+</section>
 
-  <footer>
-    <div class="wrap">
-      <div class="cols">
-        <span>MIT · one maintainer</span>
-        <span>
-          <a href="https://github.com/keshon/tapybara/blob/main/docs/running.md">How-To</a>
-          ·
-          <a href="https://github.com/keshon/tapybara/blob/main/docs/architecture.md">Architecture</a>
-          ·
-          <a href="https://github.com/keshon/tapybara/blob/main/docs/conventions.md">Conventions</a>
-          ·
-          <a href="https://github.com/keshon/tapybara/releases/latest">Releases</a>
-          ·
-          <a href="https://github.com/keshon/tapybara">GitHub</a>
-        </span>
-      </div>
-      <div class="foot-legal">
-        <span>© 2026 <span class="mark">Tapybara</span>. Local voice dictation for Windows, in C#. MIT licensed.</span>
-        <span>Built by <strong>Señor Mega</strong> and best bud <strong>Claude</strong></span>
-      </div>
+<footer>
+  <div class="wrap">
+    <div class="foot-rows">
+      <span>MIT · one maintainer</span>
+      <span>
+        <a href="https://github.com/keshon/tapybara/blob/main/docs/running.md">How-to</a> ·
+        <a href="https://github.com/keshon/tapybara/blob/main/docs/architecture.md">Architecture</a> ·
+        <a href="https://github.com/keshon/tapybara/blob/main/docs/conventions.md">Conventions</a> ·
+        <a href="https://github.com/keshon/tapybara/releases/latest">Releases</a> ·
+        <a href="https://github.com/keshon/tapybara">GitHub</a>
+      </span>
     </div>
-  </footer>
+    <div class="foot-legal">
+      <span>© 2026 Tapybara. Local voice dictation for Windows, in C#. MIT licensed.</span>
+      <span>Built by Señor Mega and best bud Claude</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* =========================================================================
+     Живая осциллограмма в первом экране.
+
+     По умолчанию дышит холостой волной; по кнопке начинает следовать голосу
+     посетителя. Звук считается здесь же, через AnalyserNode, и никуда не
+     уходит — страница ПОКАЗЫВАЕТ обещание продукта вместо того, чтобы его
+     декларировать.
+     ========================================================================= */
+
+  var LISTEN_BARS = 56;
+  var host = document.getElementById("listenBars");
+  var bars = [];
+  var live = 0;              /* 0..1 — насколько громко прямо сейчас */
+  var phase = 0;
+
+  if (host) {
+    for (var b = 0; b < LISTEN_BARS; b++) {
+      var el = document.createElement("i");
+      host.appendChild(el);
+      bars.push(el);
+    }
+  }
+
+  function drawBars() {
+    for (var i = 0; i < bars.length; i++) {
+      var t = i / (bars.length - 1);
+      /* Три несовпадающие волны: одна выглядит механической, три — дыханием. */
+      var idle = Math.sin(phase + t * 9.0) * 0.34
+               + Math.sin(phase * 0.62 + t * 3.7) * 0.26
+               + Math.sin(phase * 1.9 + t * 19.0) * 0.14;
+
+      /* Постоянная неровность на столбик: ровный ряд читается как индикатор
+         загрузки, а не как звук. Значение детерминированное — волна не должна
+         дрожать случайно от кадра к кадру. */
+      var grain = 0.55 + 0.45 * Math.abs(Math.sin(i * 12.9898));
+
+      var voice = live * (0.45 + 0.55 * Math.abs(Math.sin(phase * 2.4 + t * 16.0)));
+      var h = 5 + Math.max(0, Math.abs(idle) * grain * 78 + voice * 90);
+      bars[i].style.height = Math.min(106, h).toFixed(1) + "px";
+      bars[i].style.opacity = (0.55 + Math.min(0.45, voice * 0.9)).toFixed(2);
+    }
+  }
+
+  function tick() {
+    phase += 0.045;
+    drawBars();
+    live *= 0.92;
+    requestAnimationFrame(tick);
+  }
+
+  if (bars.length) {
+    if (reduced) { drawBars(); } else { requestAnimationFrame(tick); }
+  }
+
+  var micBtn = document.getElementById("micBtn");
+  var micNote = document.getElementById("micNote");
+  var micOn = false;
+
+  if (micBtn) {
+    micBtn.addEventListener("click", function () {
+      if (micOn) { return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        micNote.textContent = "This browser will not hand a page the microphone. Nothing lost — the demo below needs no permission.";
+        return;
+      }
+
+      micBtn.textContent = "Asking\u2026";
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+        micOn = true;
+        micBtn.textContent = "Listening — say something";
+        micBtn.setAttribute("data-live", "1");
+        micNote.textContent = "That is your voice. It is measured in this tab and never sent anywhere; close the page and it is gone.";
+
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+        var buf = new Uint8Array(analyser.fftSize);
+
+        (function listen() {
+          analyser.getByteTimeDomainData(buf);
+          var sum = 0;
+          for (var i = 0; i < buf.length; i++) {
+            var v = (buf[i] - 128) / 128;
+            sum += v * v;
+          }
+          var rms = Math.sqrt(sum / buf.length);
+          live = Math.min(1, Math.max(live, rms * 5.5));
+          requestAnimationFrame(listen);
+        })();
+      }).catch(function () {
+        micBtn.textContent = "Let it hear you";
+        micNote.textContent = "No microphone then — the page carries on without it. Nothing below needs permission.";
+      });
+    });
+  }
+
+  /* =========================================================================
+     Звонок, разобранный на две дорожки.
+
+     Данные — стенограмма настоящего разговора троих, сокращённая. Строки с
+     bleed — это эхо чужого голоса, попавшее в микрофон: программа их убирает,
+     а переключатель показывает, что именно она убрала.
+     ========================================================================= */
+
+  var NAMES = ["Marina", "Kirill", "Dana"];
+
+  /* Стенограмма настоящего разговора троих, сокращённая. */
+  var CALL = [
+    { t: 3.4,  ch: "me",                text: "…so where are we on the export?" },
+    { t: 7.1,  ch: "them", spk: 1,      text: "Ready by Thursday, I think." },
+    { t: 7.9,  ch: "me",   bleed: true, text: "Ready by Thursday I think" },
+    { t: 11.0, ch: "them", spk: 0,      text: "Not from my side — the review is still open." },
+    { t: 11.8, ch: "me",   bleed: true, text: "Not from my side the review is still open" },
+    { t: 15.6, ch: "me",                text: "Right. What is blocking the review?" },
+    { t: 19.2, ch: "them", spk: 0,      text: "Two of the fixtures are wrong, and I want Dana to look before we merge." },
+    { t: 25.4, ch: "them", spk: 2,      text: "I can take it this afternoon." },
+    { t: 26.1, ch: "me",   bleed: true, text: "I can take it this afternoon" },
+    { t: 28.8, ch: "them", spk: 1,      text: "Then Friday morning is realistic, not Thursday." },
+    { t: 33.0, ch: "me",                text: "Friday it is. I will move the design review to match." },
+    { t: 37.5, ch: "them", spk: 2,      text: "Works for me." },
+    { t: 39.4, ch: "them", spk: 0,      text: "Same. I will post the fixture list after lunch." }
+  ];
+
+  var DURATION = 42;
+  var BARS = 68;
+
+  var waveMe = document.getElementById("waveMe");
+  var waveThem = document.getElementById("waveThem");
+  var headMe = document.getElementById("headMe");
+  var headThem = document.getElementById("headThem");
+  var transcript = document.getElementById("transcript");
+  var foot = document.getElementById("demoFoot");
+  var swPlay = document.getElementById("swPlay");
+  var swBleed = document.getElementById("swBleed");
+  var swVoices = document.getElementById("swVoices");
+
+  var bleedOn = true;
+  var voicesOn = true;
+  var playing = false;
+  var playStart = 0;
+
+  /* Столбики осциллограммы строим из самих реплик: где говорят, там громче. */
+  function buildBars(host, channel) {
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < BARS; i++) {
+      var at = (i / BARS) * DURATION;
+      var loud = 0.08;
+      for (var j = 0; j < CALL.length; j++) {
+        var line = CALL[j];
+        if (line.ch !== channel) { continue; }
+        var len = 1.2 + line.text.length / 26;
+        if (at >= line.t - 0.6 && at <= line.t + len) {
+          var carry = line.bleed ? 0.34 : 1;
+          loud = Math.max(loud, carry * (0.45 + 0.55 * Math.abs(Math.sin(i * 1.7 + j))));
+        }
+      }
+      var bar = document.createElement("i");
+      bar.style.height = (5 + loud * 34).toFixed(1) + "px";
+      frag.appendChild(bar);
+    }
+    host.insertBefore(frag, host.firstChild);
+  }
+
+  function speakerClass(line) {
+    if (line.ch === "me") { return "s-me"; }
+    return voicesOn ? "s" + line.spk : "s1";
+  }
+
+  function speakerName(line) {
+    if (line.ch === "me") { return "You"; }
+    return voicesOn ? NAMES[line.spk] : "Them";
+  }
+
+  function stamp(t) {
+    var m = Math.floor(t / 60);
+    var s = Math.floor(t % 60);
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function render(upTo) {
+    var html = "";
+    var removed = 0;
+
+    for (var i = 0; i < CALL.length; i++) {
+      var line = CALL[i];
+      if (upTo !== null && line.t > upTo) { continue; }
+
+      if (line.bleed) {
+        removed++;
+        if (bleedOn) { continue; }
+      }
+
+      html += '<div class="tline' + (line.bleed ? " dim" : "") + '">' +
+              '<span class="tt">' + stamp(line.t) + "</span>" +
+              '<span class="who ' + speakerClass(line) + '">' + speakerName(line) + "</span>" +
+              '<span class="said">' + line.text +
+              (line.bleed ? ' <span class="tag">echo</span>' : "") +
+              "</span></div>";
+    }
+
+    transcript.innerHTML = html;
+
+    var voices = voicesOn ? NAMES.length : 1;
+    foot.innerHTML =
+      "<b>Participants:</b> " + (voicesOn ? "You, " + NAMES.join(", ") : "You, Them") +
+      " &nbsp;·&nbsp; <b>Voices told apart:</b> " + voices +
+      (voicesOn ? " (using the participant list)" : " (switched off)") +
+      " &nbsp;·&nbsp; <b>Echo removed from your track:</b> " +
+      (bleedOn ? removed + " lines" : "0 — filter off, shown struck through");
+  }
+
+  function setPlayhead(fraction) {
+    var pct = (fraction * 100).toFixed(2) + "%";
+    headMe.style.left = pct;
+    headThem.style.left = pct;
+  }
+
+  function highlightBars(fraction) {
+    var cut = Math.floor(fraction * BARS);
+    [waveMe, waveThem].forEach(function (host) {
+      var bars = host.querySelectorAll("i");
+      for (var i = 0; i < bars.length; i++) {
+        bars[i].classList.toggle("on", i <= cut);
+      }
+    });
+  }
+
+  function stopPlayback() {
+    playing = false;
+    swPlay.setAttribute("aria-pressed", "false");
+    swPlay.lastChild.nodeValue = "Play it back";
+    headMe.classList.remove("on");
+    headThem.classList.remove("on");
+    highlightBars(1);
+    render(null);
+  }
+
+  function frame() {
+    if (!playing) { return; }
+    var elapsed = (performance.now() - playStart) / 1000;
+    var fraction = elapsed / 14;           /* 42 секунды разговора за 14 — иначе скучно */
+    if (fraction >= 1) { stopPlayback(); return; }
+
+    setPlayhead(fraction);
+    highlightBars(fraction);
+    render(fraction * DURATION);
+    requestAnimationFrame(frame);
+  }
+
+  if (waveMe && waveThem) {
+    buildBars(waveMe, "me");
+    buildBars(waveThem, "them");
+    highlightBars(1);
+    render(null);                          /* страница в покое: транскрипт виден целиком */
+
+    swPlay.addEventListener("click", function () {
+      if (playing) { stopPlayback(); return; }
+      playing = true;
+      playStart = performance.now();
+      swPlay.setAttribute("aria-pressed", "true");
+      swPlay.lastChild.nodeValue = "Stop";
+      headMe.classList.add("on");
+      headThem.classList.add("on");
+      requestAnimationFrame(frame);
+    });
+
+    swBleed.addEventListener("click", function () {
+      bleedOn = !bleedOn;
+      swBleed.setAttribute("aria-pressed", String(bleedOn));
+      render(playing ? null : null);
+    });
+
+    swVoices.addEventListener("click", function () {
+      voicesOn = !voicesOn;
+      swVoices.setAttribute("aria-pressed", String(voicesOn));
+      render(null);
+    });
+  }
+
+  /* =========================================================================
+     Переключатель темы.
+
+     Три состояния, а не два: двухпозиционный переключатель отрезает
+     «как в системе» — нажав один раз, вернуться к нему уже нельзя.
+     Сохранённый выбор применяет загрузчик в <head>; здесь только рисуется
+     кнопка и крутится состояние.
+     ========================================================================= */
+
+  (function () {
+    var KEY = "tapybara-theme";
+    var ORDER = ["auto", "light", "dark"];
+    var root = document.documentElement;
+    var btn = document.getElementById("themeBtn");
+    if (!btn) { return; }
+
+    var svg = btn.querySelector("svg");
+    var lightQuery = window.matchMedia("(prefers-color-scheme: light)");
+
+    var GLYPH = {
+      /* половина диска залита: страница следует чему-то вне себя */
+      auto: '<circle cx="12" cy="12" r="8"/><path class="solid" d="M12 4a8 8 0 0 1 0 16z"/>',
+      light: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M21.4 12h-2.2M4.8 12H2.6M18.6 5.4L17 7M7 17l-1.6 1.6M18.6 18.6L17 17M7 7L5.4 5.4"/>',
+      dark: '<path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/>'
+    };
+
+    function current() {
+      var t = root.getAttribute("data-theme");
+      return (t === "light" || t === "dark") ? t : "auto";
+    }
+
+    function render(mode) {
+      svg.innerHTML = GLYPH[mode];
+      var name = mode === "auto" ? "auto (" + (lightQuery.matches ? "light" : "dark") + ")" : mode;
+      btn.title = "Theme: " + name;
+      btn.setAttribute("aria-label", "Theme: " + name + ". Change theme.");
+    }
+
+    btn.addEventListener("click", function () {
+      var next = ORDER[(ORDER.indexOf(current()) + 1) % ORDER.length];
+      if (next === "auto") { root.removeAttribute("data-theme"); }
+      else { root.setAttribute("data-theme", next); }
+      try {
+        if (next === "auto") { localStorage.removeItem(KEY); }
+        else { localStorage.setItem(KEY, next); }
+      } catch (e) { /* хранилище запрещено: выбор просто не переживёт перезагрузку */ }
+      render(next);
+    });
+
+    /* пока стоит «как в системе» — следим за системой */
+    lightQuery.addEventListener("change", function () {
+      if (current() === "auto") { render("auto"); }
+    });
+
+    render(current());
+  })();
+})();
+</script>
 
 </body>
 </html>
