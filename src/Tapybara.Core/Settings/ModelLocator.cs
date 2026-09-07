@@ -30,10 +30,42 @@ public static class ModelLocator
         // умолчанию заранее, и пустая она заслоняла собой ту, куда модели
         // действительно положили — рядом с exe или в репозитории. Выглядело
         // это как «модель не найдена» при полутора гигабайтах на диске.
-        string beside = Path.Combine(AppContext.BaseDirectory, "models");
-        string? repository = FindInRepository();
+        // По одному кандидату за раз, а не списком: поиск репозитория обходит
+        // дерево каталогов вверх, а зовут этот метод часто — на каждое чтение
+        // списка моделей в окне настроек. Вычислять его, когда до него не
+        // дошло, значит платить обходом диска за ответ, который не нужен.
+        if (HasAnyModel(AppPaths.DefaultModelsDirectory))
+        {
+            return AppPaths.DefaultModelsDirectory;
+        }
 
-        string?[] candidates = [AppPaths.DefaultModelsDirectory, beside, repository];
+        string beside = Path.Combine(AppContext.BaseDirectory, "models");
+        if (HasAnyModel(beside))
+        {
+            return beside;
+        }
+
+        string? repository = FindInRepository();
+        return Choose([AppPaths.DefaultModelsDirectory, beside, repository]);
+    }
+
+    /// <summary>
+    /// Выбрать папку моделей из кандидатов в порядке предпочтения.
+    /// </summary>
+    /// <remarks>
+    /// Первая, в которой ЕСТЬ модели, — а если их нет нигде, первая
+    /// существующая: скачивать их всё равно куда-то нужно.
+    /// <para>
+    /// Отдельная функция ради теста. Здесь была ошибка «первая существующая»
+    /// вместо «первая с моделями», и приложение, которое само создаёт папку по
+    /// умолчанию заранее, этой пустышкой заслоняло полуторагигабайтную модель
+    /// рядом с собой. Проверить это внутри метода, который читает
+    /// <c>AppContext.BaseDirectory</c> и путь установки, было невозможно.
+    /// </para>
+    /// </remarks>
+    internal static string? Choose(IReadOnlyList<string?> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
 
         foreach (string? candidate in candidates)
         {
@@ -43,8 +75,6 @@ public static class ModelLocator
             }
         }
 
-        // Моделей нет нигде. Возвращаем первую существующую: скачивать их
-        // всё равно куда-то нужно, и это папка по умолчанию.
         return candidates.OfType<string>().FirstOrDefault(Directory.Exists);
     }
 
