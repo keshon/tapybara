@@ -336,23 +336,12 @@ public sealed class CallTranscriber(
             return markdown.ToString();
         }
 
-        TimeSpan headerAt = TimeSpan.MinValue;
+        TimeSpan? headerAt = null;
         string? headerSpeaker = null;
 
         foreach (Utterance utterance in timeline)
         {
-            // Подпись ставится на СМЕНЕ говорящего, а не на каждом сегменте.
-            // Whisper режет речь на куски по несколько секунд, и штамп на
-            // каждом превращал двухминутный монолог в сорок одинаковых строк
-            // «[2:14] Кирилл:», между которыми терялся сам текст.
-            //
-            // Внутри длинного монолога подпись всё-таки повторяется: без
-            // отметок времени в получасовой реплике невозможно найти место
-            // в записи, а ради этого транскрипт и держат рядом со звуком.
-            bool speakerChanged = utterance.Speaker != headerSpeaker;
-            bool longSinceHeader = utterance.Start - headerAt >= HeaderInterval;
-
-            if (speakerChanged || longSinceHeader)
+            if (NeedsHeader(utterance.Start, utterance.Speaker, headerAt, headerSpeaker))
             {
                 markdown.Append("**[").Append(Stamp(utterance.Start)).Append("] ")
                     .Append(utterance.Speaker).Append(":** ");
@@ -369,6 +358,34 @@ public sealed class CallTranscriber(
 
     /// <summary>Как часто повторять подпись внутри длинной реплики одного человека.</summary>
     private static readonly TimeSpan HeaderInterval = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Ставить ли перед этой репликой подпись «[время] Имя:».
+    /// </summary>
+    /// <param name="start">Начало реплики от начала записи.</param>
+    /// <param name="speaker">Кто её произнёс.</param>
+    /// <param name="headerAt">Время последней поставленной подписи, или <c>null</c>, если её ещё не было.</param>
+    /// <param name="headerSpeaker">Кто стоял в последней подписи.</param>
+    /// <remarks>
+    /// Подпись ставится на СМЕНЕ говорящего, а не на каждом сегменте. Whisper
+    /// режет речь на куски по несколько секунд, и штамп на каждом превращал
+    /// двухминутный монолог в сорок одинаковых строк «[2:14] Кирилл:», между
+    /// которыми терялся сам текст. Внутри длинного монолога подпись всё-таки
+    /// повторяется: без отметок времени в получасовой реплике невозможно найти
+    /// место в записи, а ради этого транскрипт и держат рядом со звуком.
+    /// <para>
+    /// Отсутствие предыдущей подписи — это <c>null</c>, а не «очень давно».
+    /// Здесь стояло <see cref="TimeSpan.MinValue"/>, и вычитание его из времени
+    /// реплики переполняло <see cref="TimeSpan"/> на ПЕРВОЙ же строке любого
+    /// транскрипта — час записи разговора не собирался вовсе. Отдельная функция
+    /// существует именно ради этого: на ней стоит тест, а внутри цикла
+    /// сборки markdown такой случай было некому проверить.
+    /// </para>
+    /// </remarks>
+    internal static bool NeedsHeader(TimeSpan start, string speaker, TimeSpan? headerAt, string? headerSpeaker) =>
+        headerAt is null
+        || speaker != headerSpeaker
+        || start - headerAt.Value >= HeaderInterval;
 
     /// <summary>
     /// Отметка времени.
