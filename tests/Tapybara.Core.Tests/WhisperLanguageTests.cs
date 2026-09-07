@@ -1,4 +1,4 @@
-using Tapybara.Core.Settings;
+﻿using Tapybara.Core.Settings;
 using Xunit;
 
 namespace Tapybara.Core.Tests;
@@ -80,6 +80,80 @@ public class ModelLocatorTests : IDisposable
     [Fact]
     public void FindModelsDirectory_PrefersTheOverride() =>
         Assert.Equal(_directory, ModelLocator.FindModelsDirectory(_directory));
+
+    // --- какая из папок-кандидатов считается папкой моделей -----------------
+
+    private string Folder(string name, params string[] files)
+    {
+        string path = Path.Combine(_directory, name);
+        Directory.CreateDirectory(path);
+        foreach (string file in files)
+        {
+            File.WriteAllText(Path.Combine(path, file), "x");
+        }
+
+        return path;
+    }
+
+    /// <summary>
+    /// Пустая папка не должна заслонять полную.
+    /// </summary>
+    /// <remarks>
+    /// Ровно это и случилось: приложение создаёт папку по умолчанию заранее,
+    /// поиск возвращал первую СУЩЕСТВУЮЩУЮ, и модель на полтора гигабайта
+    /// рядом с исполняемым файлом становилась невидимой. Со стороны это
+    /// выглядело как «модель не найдена» при полном диске.
+    /// </remarks>
+    [Fact]
+    public void Choose_DoesNotLetAnEmptyFolderShadowAFullOne()
+    {
+        string empty = Folder("empty");
+        string full = Folder("full", "ggml-large-v3-turbo.bin");
+
+        Assert.Equal(full, ModelLocator.Choose([empty, full]));
+    }
+
+    [Fact]
+    public void Choose_TakesTheFirstFolderThatHasModels()
+    {
+        string first = Folder("first", "ggml-tiny-q5_1.bin");
+        string second = Folder("second", "ggml-large-v3-turbo.bin");
+
+        Assert.Equal(first, ModelLocator.Choose([first, second]));
+    }
+
+    /// <summary>Папка с одними моделями разделения голосов — тоже папка моделей.</summary>
+    [Fact]
+    public void Choose_CountsOnnxAsAModel()
+    {
+        string empty = Folder("empty-2");
+        string voices = Folder("voices", "campplus-multilingual.onnx");
+
+        Assert.Equal(voices, ModelLocator.Choose([empty, voices]));
+    }
+
+    /// <summary>Если моделей нет нигде, скачивать их всё равно куда-то нужно.</summary>
+    [Fact]
+    public void Choose_FallsBackToTheFirstExistingFolder()
+    {
+        string empty = Folder("empty-3");
+        string alsoEmpty = Folder("empty-4");
+
+        Assert.Equal(empty, ModelLocator.Choose([empty, alsoEmpty]));
+    }
+
+    [Fact]
+    public void Choose_SkipsFoldersThatAreNotThere()
+    {
+        string missing = Path.Combine(_directory, "not-created");
+        string full = Folder("full-2", "ggml-base-q5_1.bin");
+
+        Assert.Equal(full, ModelLocator.Choose([missing, full]));
+    }
+
+    [Fact]
+    public void Choose_ReturnsNothingWhenThereIsNowhereToLook() =>
+        Assert.Null(ModelLocator.Choose([null, Path.Combine(_directory, "nope")]));
 
     [Fact]
     public void Resolve_FindsAModelByName() =>
