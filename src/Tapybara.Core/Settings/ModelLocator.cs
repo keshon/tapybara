@@ -18,23 +18,56 @@ public static class ModelLocator
     /// </param>
     public static string? FindModelsDirectory(string? overrideDirectory = null)
     {
+        // Заданная пользователем папка побеждает всегда, даже пустую: он указал
+        // именно её, и молча уехать в другую значило бы проигнорировать выбор.
         if (!string.IsNullOrWhiteSpace(overrideDirectory) && Directory.Exists(overrideDirectory))
         {
             return overrideDirectory;
         }
 
-        if (Directory.Exists(AppPaths.DefaultModelsDirectory))
-        {
-            return AppPaths.DefaultModelsDirectory;
-        }
-
+        // Дальше выбираем первую папку, в которой ЕСТЬ модели, а не первую
+        // существующую. Разница не теоретическая: приложение создаёт папку по
+        // умолчанию заранее, и пустая она заслоняла собой ту, куда модели
+        // действительно положили — рядом с exe или в репозитории. Выглядело
+        // это как «модель не найдена» при полутора гигабайтах на диске.
         string beside = Path.Combine(AppContext.BaseDirectory, "models");
-        if (Directory.Exists(beside))
+        string? repository = FindInRepository();
+
+        string?[] candidates = [AppPaths.DefaultModelsDirectory, beside, repository];
+
+        foreach (string? candidate in candidates)
         {
-            return beside;
+            if (candidate is not null && HasAnyModel(candidate))
+            {
+                return candidate;
+            }
         }
 
-        return FindInRepository();
+        // Моделей нет нигде. Возвращаем первую существующую: скачивать их
+        // всё равно куда-то нужно, и это папка по умолчанию.
+        return candidates.OfType<string>().FirstOrDefault(Directory.Exists);
+    }
+
+    /// <summary>
+    /// Лежит ли в папке хоть одна модель — любого назначения.
+    /// </summary>
+    /// <remarks>
+    /// Считаем моделью и <c>.bin</c>, и <c>.onnx</c>: папка с одними лишь
+    /// моделями разделения голосов — тоже папка моделей, и уводить из неё
+    /// поиск в пустую было бы тем же самым дефектом наизнанку.
+    /// </remarks>
+    private static bool HasAnyModel(string directory)
+    {
+        try
+        {
+            return Directory.Exists(directory)
+                   && (Directory.EnumerateFiles(directory, "*.bin").Any()
+                       || Directory.EnumerateFiles(directory, "*.onnx").Any());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Полный путь к модели по имени файла, или null, если её нет.</summary>

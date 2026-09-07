@@ -932,7 +932,17 @@ public partial class App : Application, IDisposable
 
         if (segmentation is null || embedding is null)
         {
-            AppLog.Info("Разделение голосов включено, но моделей нет — собеседники останутся без имён.");
+            // Называем недостающий файл поимённо. Разделению нужны ОБЕ модели,
+            // и на странице моделей они стоят рядом — скачать одну и решить,
+            // что готово, слишком легко. Сообщение «моделей нет» в этом случае
+            // отправляет искать то, что наполовину уже лежит на диске.
+            string missing = string.Join(", ", new[]
+            {
+                segmentation is null ? settings.VoiceSegmentationModelFileName : null,
+                embedding is null ? settings.VoiceEmbeddingModelFileName : null,
+            }.OfType<string>());
+
+            AppLog.Info($"Разделение голосов включено, но не хватает моделей: {missing}. Собеседники останутся без имён.");
             return null;
         }
 

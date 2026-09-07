@@ -470,6 +470,29 @@ async Task TranscribeCallAsync(string callDirectory)
         Console.WriteLine("Детектор речи выключен (--no-vad)");
     }
 
+    // Разделение голосов, если модели на месте. Без него звонок с тремя
+    // участниками собирается с одной подписью на всех — то есть ровно так,
+    // как выглядела задача до того, как её решили.
+    var defaults = new AppSettings();
+    SpeakerDiarizer? diarizer = null;
+    string? segmentation = ModelLocator.Resolve(defaults.VoiceSegmentationModelFileName);
+    string? embedding = ModelLocator.Resolve(defaults.VoiceEmbeddingModelFileName);
+
+    if (segmentation is not null && embedding is not null)
+    {
+        Console.WriteLine($"Разделение голосов: {Path.GetFileName(embedding)}");
+        diarizer = new SpeakerDiarizer(new SpeakerDiarizerOptions
+        {
+            SegmentationModelPath = segmentation,
+            EmbeddingModelPath = embedding,
+            ClusterThreshold = (float)defaults.VoiceSplitThreshold,
+        });
+    }
+    else
+    {
+        Console.WriteLine("Моделей разделения голосов нет — собеседники останутся без имён.");
+    }
+
     var transcriber = new CallTranscriber(
         new SpeechTranscriber(engine, detector),
         () => new AppSettings
@@ -477,7 +500,9 @@ async Task TranscribeCallAsync(string callDirectory)
             MyName = "Я",
             OtherSideName = "Собеседник",
             Language = language,
-        });
+        },
+        labels: null,
+        diarizer: () => diarizer);
 
     var timer = Stopwatch.StartNew();
     var progress = new Progress<CallTranscriptionStage>(stage => Console.WriteLine($"  {stage}"));
@@ -488,6 +513,8 @@ async Task TranscribeCallAsync(string callDirectory)
     Console.WriteLine($"Транскрипт: {path}  ({timer.Elapsed.TotalSeconds:F1} с)");
     Console.WriteLine();
     Console.WriteLine(await File.ReadAllTextAsync(path));
+
+    diarizer?.Dispose();
 
     if (detector is not null)
     {
