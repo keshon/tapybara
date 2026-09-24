@@ -189,6 +189,26 @@ that call. **Recorded calls** — a click on the tray icon — lists everything
 recorded, what state each is in, and lets you fix names or transcribe again
 later.
 
+### Naming the voices
+
+The calls window shows the transcript itself, not a link to a file. Each voice
+has its own colour, and a panel beside the transcript lists the voices found:
+how much each one spoke, its longest lines as quotes, and a ▶ that plays that
+line from the far track alone. Pick a name under a voice and it goes into every
+one of its lines at once — `transcript.md` is rebuilt in the same moment.
+
+When one line landed on the wrong voice, click the name above it and give it to
+another. When one person was split into two voices, "Same person as…" merges
+them. When the split found the wrong number of people, tell it the right number
+and only the split runs again.
+
+A timestamp plays the call from that line. Right-click a line to copy it or to
+add a replacement for a word that keeps being misheard — without going to
+Settings.
+
+Calls transcribed before this version kept only the markdown, so their voices
+cannot be named; the window says so and offers to transcribe them again.
+
 ### Telling voices apart
 
 Only the far track is analysed. Yours belongs to the microphone owner by

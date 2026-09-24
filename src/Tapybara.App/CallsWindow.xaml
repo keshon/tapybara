@@ -3,8 +3,8 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:app="clr-namespace:Tapybara.App"
-                 Width="1020" Height="660"
-                 MinWidth="860" MinHeight="480"
+                 Width="1200" Height="760"
+                 MinWidth="980" MinHeight="520"
                  ResizeMode="CanResize"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
@@ -15,16 +15,52 @@
     <!--
         Записи разговоров.
 
-        До этого окна единственным интерфейсом звонков была кнопка «открыть
-        папку». Уведомление о готовом транскрипте живёт несколько секунд, и
-        пропустивший его человек оставался один на один с Проводником: понять,
-        распознан ли звонок, перезапустить упавшее распознавание или поправить
-        имена было негде.
+        Три колонки: список, звонок, голоса. Главное в звонке — транскрипт,
+        и он теперь внутри окна. Раньше здесь были только чипы участников и
+        заметка, а сам текст открывался во внешнем редакторе, где ни
+        послушать место, ни поправить, кто что сказал, было нельзя.
 
         Состояние выводится из файлов на диске (см. CallLibrary), поэтому оно
         не расходится с реальностью после падения приложения и переживает
         правку папки руками — а папку правят, это её назначение.
     -->
+    <ui:FluentWindow.Resources>
+        <!-- Кнопка-ссылка: метка времени, имя говорящего. Без рамки и фона. -->
+        <Style x:Key="FlatLinkButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fill" Background="Transparent" CornerRadius="4" Padding="2,0">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fill" Property="Background"
+                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Реплика транскрипта: выделение строки не нужно, только подсветка играющей. -->
+        <Style x:Key="LineItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -33,55 +69,62 @@
 
         <ui:TitleBar Grid.Row="0" x:Name="WindowTitleBar" />
 
-        <Grid Grid.Row="1" Margin="0,4,0,0">
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="380" MinWidth="300" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition x:Name="VoicesColumn" Width="310" />
             </Grid.ColumnDefinitions>
 
             <!-- список -->
-            <Grid Grid.Column="0" Margin="16,0,8,16">
+            <Grid Grid.Column="0" Margin="12,0,6,12">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <Grid Grid.Row="0" Margin="6,0,0,10">
+                    <TextBlock x:Name="ListTitle"
+                               FontFamily="{StaticResource AppDisplayFontFamily}"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <ui:Button x:Name="RecordButton"
+                               HorizontalAlignment="Right"
+                               Icon="{ui:SymbolIcon Record24}"
+                               Click="OnRecordClick" />
+                </Grid>
+
+                <ui:TextBox x:Name="SearchBox"
+                            Grid.Row="1"
+                            Margin="0,0,0,8"
+                            Icon="{ui:SymbolIcon Search24}"
+                            ClearButtonEnabled="True"
+                            TextChanged="OnSearchChanged" />
+
                 <ListBox x:Name="CallList"
-                         Grid.Row="0"
+                         Grid.Row="2"
                          Background="Transparent"
                          BorderThickness="0"
                          HorizontalContentAlignment="Stretch"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                         ItemContainerStyle="{StaticResource ListRowStyle}"
                          SelectionChanged="OnSelectionChanged">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="Margin" Value="0,0,0,4" />
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="Fill"
-                                                Background="Transparent"
-                                                CornerRadius="6"
-                                                Padding="12,10">
-                                            <ContentPresenter />
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Fill" Property="Background"
-                                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Fill" Property="Background"
-                                                        Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}"
+                                               FontSize="{StaticResource AppCaptionFontSize}"
+                                               Opacity="0.6"
+                                               Margin="12,10,0,4" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
 
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type app:CallRow}">
@@ -91,7 +134,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                     <TextBlock Text="{Binding Title}"
                                                FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis" />
@@ -106,7 +149,7 @@
                                         VerticalAlignment="Top"
                                         Background="{Binding StateBackground}"
                                         CornerRadius="10"
-                                        Padding="9,3">
+                                        Padding="8,3">
                                     <TextBlock Text="{Binding StateText}"
                                                FontSize="{StaticResource AppCaptionFontSize}"
                                                Foreground="{Binding StateForeground}" />
@@ -117,7 +160,7 @@
                 </ListBox>
 
                 <TextBlock x:Name="EmptyHint"
-                           Grid.Row="0"
+                           Grid.Row="2"
                            Visibility="Collapsed"
                            TextWrapping="Wrap"
                            Opacity="0.65"
@@ -125,15 +168,15 @@
                            VerticalAlignment="Top" />
 
                 <TextBlock x:Name="TotalsText"
-                           Grid.Row="1"
-                           Margin="12,10,0,0"
+                           Grid.Row="3"
+                           Margin="12,8,0,0"
                            FontSize="{StaticResource AppCaptionFontSize}"
                            Opacity="0.6" />
             </Grid>
 
-            <!-- подробности выбранного -->
+            <!-- звонок -->
             <Border Grid.Column="1"
-                    Margin="8,0,16,16"
+                    Margin="6,0,6,12"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
@@ -149,76 +192,195 @@
 
                     <Grid x:Name="DetailPane" Visibility="Collapsed">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,22,24,8">
-                            <StackPanel>
-                                <TextBlock x:Name="DetailTitle"
-                                           FontFamily="{StaticResource AppDisplayFontFamily}"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="0" Margin="12,14,18,6">
+                            <TextBox x:Name="TitleBox"
+                                     Style="{StaticResource InlineTitleStyle}"
+                                     KeyDown="OnTitleKeyDown"
+                                     LostKeyboardFocus="OnTitleLostFocus" />
+                            <TextBlock x:Name="DetailMeta"
+                                       FontSize="{StaticResource AppCaptionFontSize}"
+                                       Opacity="0.7"
+                                       Margin="7,0,0,10"
+                                       TextWrapping="Wrap" />
 
-                                <TextBlock x:Name="DetailMeta"
-                                           FontSize="{StaticResource AppCaptionFontSize}"
-                                           Opacity="0.7"
-                                           Margin="0,4,0,20"
-                                           TextWrapping="Wrap" />
-
-                                <TextBlock x:Name="ParticipantsLabel"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,0,8" />
-
-                                <app:ParticipantsPicker x:Name="Participants" />
-
-                                <TextBlock x:Name="ParticipantsHint"
-                                           FontSize="{StaticResource AppCaptionFontSize}"
-                                           Opacity="0.7"
-                                           TextWrapping="Wrap"
-                                           Margin="0,2,0,20" />
-
-                                <TextBlock x:Name="NoteLabel"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,0,8" />
-
-                                <ui:TextBox x:Name="NoteBox"
-                                            AcceptsReturn="True"
-                                            TextWrapping="Wrap"
-                                            MinHeight="90"
-                                            VerticalScrollBarVisibility="Auto" />
-                            </StackPanel>
-                        </ScrollViewer>
-
-                        <Border Grid.Row="1"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="0,1,0,0"
-                                Padding="20,14">
-                            <Grid>
-                                <ui:Button x:Name="DeleteButton"
-                                           HorizontalAlignment="Left"
-                                           Icon="{ui:SymbolIcon Delete24}"
-                                           Click="OnDeleteClick" />
-
+                            <Grid Margin="6,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Button x:Name="ListenButton"
+                                               Margin="0,0,6,0"
+                                               Icon="{ui:SymbolIcon Play24}"
+                                               Click="OnListenClick" />
+                                    <ui:Button x:Name="CopyButton"
+                                               Icon="{ui:SymbolIcon Copy24}"
+                                               Click="OnCopyClick" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <ui:Button x:Name="FolderButton"
-                                               Margin="0,0,8,0"
+                                               Margin="0,0,4,0"
+                                               Appearance="Transparent"
                                                Icon="{ui:SymbolIcon FolderOpen24}"
                                                Click="OnFolderClick" />
-                                    <ui:Button x:Name="TranscribeButton"
-                                               Margin="0,0,8,0"
-                                               Icon="{ui:SymbolIcon TextBulletListSquare24}"
-                                               Click="OnTranscribeClick" />
-                                    <ui:Button x:Name="OpenTranscriptButton"
-                                               Appearance="Primary"
-                                               Icon="{ui:SymbolIcon DocumentText24}"
-                                               Click="OnOpenTranscriptClick" />
+                                    <ui:Button x:Name="MoreButton"
+                                               Appearance="Transparent"
+                                               Icon="{ui:SymbolIcon MoreHorizontal24}"
+                                               Click="OnMoreClick" />
                                 </StackPanel>
                             </Grid>
-                        </Border>
+                        </StackPanel>
+
+                        <TabControl Grid.Row="1" x:Name="DetailTabs" Margin="8,0,8,8" Background="Transparent">
+                            <TabItem x:Name="TranscriptTab">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <Border x:Name="Banner"
+                                            Grid.Row="0"
+                                            Visibility="Collapsed"
+                                            Margin="8,8,8,4"
+                                            Padding="12,9"
+                                            CornerRadius="6"
+                                            Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ui:SymbolIcon x:Name="BannerIcon"
+                                                           Symbol="Info24"
+                                                           FontSize="18"
+                                                           Margin="0,0,10,0"
+                                                           VerticalAlignment="Top"
+                                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock x:Name="BannerText" TextWrapping="Wrap" />
+                                                <ProgressBar x:Name="BannerProgress"
+                                                             Visibility="Collapsed"
+                                                             Margin="0,8,0,2"
+                                                             Height="4"
+                                                             Maximum="100" />
+                                            </StackPanel>
+                                            <ui:Button x:Name="BannerButton"
+                                                       Grid.Column="2"
+                                                       Margin="12,0,0,0"
+                                                       Visibility="Collapsed"
+                                                       VerticalAlignment="Center"
+                                                       Click="OnBannerButtonClick" />
+                                        </Grid>
+                                    </Border>
+
+                                    <ListBox x:Name="LineList"
+                                             Grid.Row="1"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Padding="4,4,4,12"
+                                             HorizontalContentAlignment="Stretch"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.CanContentScroll="True"
+                                             VirtualizingPanel.IsVirtualizing="True"
+                                             VirtualizingPanel.VirtualizationMode="Recycling"
+                                             VirtualizingPanel.ScrollUnit="Pixel"
+                                             ItemContainerStyle="{StaticResource LineItemStyle}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type app:TranscriptLineRow}">
+                                                <Border x:Name="LineFill"
+                                                        CornerRadius="6"
+                                                        Padding="6,5,10,5"
+                                                        Margin="0,0,0,1"
+                                                        Background="Transparent">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="52" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0"
+                                                                Style="{StaticResource FlatLinkButton}"
+                                                                VerticalAlignment="Top"
+                                                                HorizontalAlignment="Left"
+                                                                Margin="0,1,0,0"
+                                                                Tag="{Binding}"
+                                                                ToolTip="{Binding PlayHint}"
+                                                                Click="OnStampClick">
+                                                            <TextBlock Text="{Binding Stamp}"
+                                                                       FontFamily="Cascadia Mono, Consolas"
+                                                                       FontSize="11.5"
+                                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                                        </Button>
+                                                        <StackPanel Grid.Column="1">
+                                                            <Button Style="{StaticResource FlatLinkButton}"
+                                                                    HorizontalAlignment="Left"
+                                                                    Margin="-2,0,0,1"
+                                                                    Visibility="{Binding SpeakerVisibility}"
+                                                                    Tag="{Binding}"
+                                                                    Click="OnSpeakerClick">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Ellipse Width="8" Height="8"
+                                                                             Margin="0,1,6,0"
+                                                                             Fill="{Binding SpeakerBrush}" />
+                                                                    <TextBlock Text="{Binding Speaker}"
+                                                                               FontWeight="SemiBold"
+                                                                               FontStyle="{Binding SpeakerFontStyle}"
+                                                                               FontSize="13"
+                                                                               Foreground="{Binding SpeakerBrush}" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <TextBox Style="{StaticResource TranscriptTextStyle}"
+                                                                     Text="{Binding Text, Mode=OneWay}"
+                                                                     Tag="{Binding}"
+                                                                     ContextMenuOpening="OnLineContextMenuOpening" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter TargetName="LineFill" Property="Background"
+                                                                Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <ScrollViewer x:Name="LegacyScroll"
+                                                  Grid.Row="1"
+                                                  Visibility="Collapsed"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  Padding="16,8,16,12">
+                                        <TextBox x:Name="LegacyText" Style="{StaticResource TranscriptTextStyle}" />
+                                    </ScrollViewer>
+                                </Grid>
+                            </TabItem>
+
+                            <TabItem x:Name="NoteTab">
+                                <ui:TextBox x:Name="NoteBox"
+                                            Margin="8,10,8,8"
+                                            AcceptsReturn="True"
+                                            TextWrapping="Wrap"
+                                            VerticalContentAlignment="Top"
+                                            VerticalScrollBarVisibility="Auto" />
+                            </TabItem>
+                        </TabControl>
                     </Grid>
                 </Grid>
+            </Border>
+
+            <!-- голоса -->
+            <Border x:Name="VoicesPane"
+                    Grid.Column="2"
+                    Margin="6,0,12,12"
+                    Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,12,14,14">
+                    <StackPanel x:Name="VoicesHost" />
+                </ScrollViewer>
             </Border>
         </Grid>
     </Grid>
