@@ -76,6 +76,13 @@ public partial class App : Application, IDisposable
     /// <summary>Настройки, под которые собран текущий разделитель голосов.</summary>
     private (string Segmentation, string Embedding, double Threshold)? _diarizerBuiltFor;
     private HotkeyListener? _hotkey;
+
+    /// <summary>Хоткей записи звонка. Живёт в своём потоке, как и хоткей диктовки.</summary>
+    private HotkeyListener? _callHotkey;
+
+    /// <summary>Какое из двух сочетаний занять не удалось — для пункта «занять заново».</summary>
+    private bool _hotkeyFailed;
+    private bool _callHotkeyFailed;
     private TrayIconHost? _tray;
     private OverlayWindow? _overlay;
     private DispatcherTimer? _elapsedTimer;
@@ -148,6 +155,13 @@ public partial class App : Application, IDisposable
 
         _overlay = new OverlayWindow();
         _overlay.Clicked += OnOverlayClicked;
+        _overlay.StopCallRequested += () =>
+        {
+            if (_callRecorder.IsRecording)
+            {
+                _ = ToggleCallRecordingAsync();
+            }
+        };
         _overlay.Moved += (left, top) =>
             _settings.Update(s => s with { OverlayLeft = left, OverlayTop = top });
         ApplyOverlayPosition();
@@ -161,20 +175,36 @@ public partial class App : Application, IDisposable
         _tray.AutoPasteToggled += enabled => _settings.Update(s => s with { AutoPaste = enabled });
         _tray.AutoStartToggled += OnAutoStartToggled;
         _tray.ModelSelected += fileName => _settings.Update(s => s with { ModelFileName = fileName });
-        _tray.RetryHotkeyRequested += StartHotkey;
+        _tray.RetryHotkeyRequested += () =>
+        {
+            StartHotkey();
+            StartCallHotkey();
+        };
         _tray.SettingsRequested += OpenSettings;
         _tray.RecordCallRequested += () => _ = ToggleCallRecordingAsync();
         _tray.CallsRequested += OpenCalls;
-        _tray.BalloonClicked += OnBalloonClicked;
+        _tray.OpenRequested += OpenCalls;
         _tray.MenuOpening += RefreshTrayFromSettings;
 
         _callRecorder.Stopped += (reason, detail) => OnUi(() => OnCallStoppedItself(reason, detail));
+
+        // Волна на пилюле звонка — по своему микрофону. Раньше пилюля звонка
+        // стояла с плоской линией, и на часовой записи нечем было убедиться,
+        // что микрофон вообще что-то слышит.
+        _callRecorder.MicLevel += level => OnUi(() =>
+        {
+            if (_controller is not { State: DictationState.Recording })
+            {
+                _overlay!.PushLevel(level);
+            }
+        });
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _elapsedTimer.Tick += (_, _) => OnElapsedTick();
 
         RefreshTrayFromSettings();
         StartHotkey();
+        StartCallHotkey();
 
         StartModelsWatcher();
 
@@ -352,7 +382,8 @@ public partial class App : Application, IDisposable
             _tray?.ShowBalloon(
                 L.S.NotifyCrashTitle,
                 string.Format(CultureInfo.CurrentCulture, L.S.NotifyCrashBody, AppLog.LogPath),
-                BalloonKind.Warning);
+                BalloonKind.Warning,
+                OpenLog);
         };
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -363,19 +394,6 @@ public partial class App : Application, IDisposable
             AppLog.Warn("Необработанное исключение в фоновой задаче.", args.Exception);
             args.SetObserved();
         };
-    }
-
-    private void OnBalloonClicked()
-    {
-        // Уведомление о сбое ведёт в журнал, уведомление об отсутствии
-        // модели — в раздел моделей. И то и другое лучше, чем тупик.
-        if (AvailableModels().Count == 0)
-        {
-            OpenSettings(SettingsSection.Models);
-            return;
-        }
-
-        OpenLog();
     }
 
     private static void OpenLog()
@@ -432,7 +450,7 @@ public partial class App : Application, IDisposable
     }
 
     private void ShowAlreadyRunning() =>
-        _tray?.ShowBalloon(L.S.NotifyAlreadyRunningTitle, L.S.NotifyAlreadyRunningBody);
+        _tray?.ShowBalloon(L.S.NotifyAlreadyRunningTitle, L.S.NotifyAlreadyRunningBody, onClick: OpenCalls);
 
     // --- сборка движка -----------------------------------------------------
 
@@ -486,7 +504,11 @@ public partial class App : Application, IDisposable
         {
             _engineFailure = null;
             _tray!.SetStatus(L.S.StatusModelMissing);
-            _tray.ShowBalloon(L.S.NotifyNoModelTitle, L.S.NotifyNoModelBody, BalloonKind.Warning);
+            _tray.ShowBalloon(
+                L.S.NotifyNoModelTitle,
+                L.S.NotifyNoModelBody,
+                BalloonKind.Warning,
+                () => OpenSettings(SettingsSection.Models));
             AppLog.Warn("Модель распознавания не найдена.");
             return;
         }
@@ -572,7 +594,8 @@ public partial class App : Application, IDisposable
             _tray.ShowBalloon(
                 L.S.NotifyNoModelTitle,
                 string.Format(CultureInfo.CurrentCulture, L.S.StatusModelLoadFailed, ex.Message),
-                BalloonKind.Warning);
+                BalloonKind.Warning,
+                () => OpenSettings(SettingsSection.Models));
         }
     }
 
@@ -595,21 +618,65 @@ public partial class App : Application, IDisposable
             listener.Pressed += () => OnUi(() => _ = ToggleAsync());
             listener.Start();
             _hotkey = listener;
-            _tray!.SetHotkeyFailed(false);
-            _tray.SetHotkeyDisplay(combo.ToString());
-            _settingsWindow?.ReportHotkeyResult(true);
+            _hotkeyFailed = false;
+            _tray!.SetHotkeyDisplay(combo.ToString());
+            _settingsWindow?.ReportHotkeyResult(HotkeyTarget.Dictation, true);
         }
         catch (Exception ex)
         {
             AppLog.Warn($"Не удалось занять {combo}.", ex);
-            _tray!.SetHotkeyFailed(true);
-            _tray.SetStatus(string.Format(CultureInfo.CurrentCulture, L.S.StatusHotkeyBusy, combo));
-            _tray.ShowBalloon(
-                L.S.NotifyHotkeyBusyTitle,
-                ex.Message + Environment.NewLine + L.S.NotifyHotkeyBusyHint,
-                BalloonKind.Warning);
-            _settingsWindow?.ReportHotkeyResult(false);
+            _hotkeyFailed = true;
+            ReportHotkeyBusy(combo, ex, SettingsSection.Dictation);
+            _settingsWindow?.ReportHotkeyResult(HotkeyTarget.Dictation, false);
         }
+
+        _tray!.SetHotkeyFailed(_hotkeyFailed || _callHotkeyFailed);
+    }
+
+    /// <summary>
+    /// Занять хоткей записи звонка. Устроен так же, как хоткей диктовки.
+    /// </summary>
+    /// <remarks>
+    /// Отдельный слушатель, а не второе сочетание в первом: каждое сочетание
+    /// занимается и освобождается само по себе, и занятое чужой программой
+    /// сочетание звонка не должно отнимать у человека диктовку.
+    /// </remarks>
+    private void StartCallHotkey()
+    {
+        _callHotkey?.Dispose();
+        _callHotkey = null;
+
+        HotkeyCombo combo = _settings.Current.CallHotkey;
+
+        try
+        {
+            var listener = new HotkeyListener(combo);
+            listener.Pressed += () => OnUi(() => _ = ToggleCallRecordingAsync());
+            listener.Start();
+            _callHotkey = listener;
+            _callHotkeyFailed = false;
+            _tray!.SetCallHotkeyDisplay(combo.ToString());
+            _settingsWindow?.ReportHotkeyResult(HotkeyTarget.Call, true);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Не удалось занять {combo} для звонков.", ex);
+            _callHotkeyFailed = true;
+            ReportHotkeyBusy(combo, ex, SettingsSection.Calls);
+            _settingsWindow?.ReportHotkeyResult(HotkeyTarget.Call, false);
+        }
+
+        _tray!.SetHotkeyFailed(_hotkeyFailed || _callHotkeyFailed);
+    }
+
+    private void ReportHotkeyBusy(HotkeyCombo combo, Exception ex, SettingsSection section)
+    {
+        _tray!.SetStatus(string.Format(CultureInfo.CurrentCulture, L.S.StatusHotkeyBusy, combo));
+        _tray.ShowBalloon(
+            L.S.NotifyHotkeyBusyTitle,
+            ex.Message + Environment.NewLine + L.S.NotifyHotkeyBusyHint,
+            BalloonKind.Warning,
+            () => OpenSettings(section));
     }
 
     // --- работа диктовки ---------------------------------------------------
@@ -685,7 +752,7 @@ public partial class App : Application, IDisposable
                 // Запись звонка могла идти всё это время — вернём её индикатор.
                 if (_callRecorder.IsRecording && _settings.Current.ShowOverlay)
                 {
-                    _overlay!.ShowCallRecording();
+                    _overlay!.ShowCallRecording(_settings.Current.CallHotkey.ToString());
                 }
 
                 break;
@@ -829,7 +896,7 @@ public partial class App : Application, IDisposable
                 _tray!.SetRecordingCall(true);
                 if (settings.ShowOverlay && _controller is not { State: DictationState.Recording })
                 {
-                    _overlay!.ShowCallRecording();
+                    _overlay!.ShowCallRecording(settings.CallHotkey.ToString());
                 }
 
                 UpdateElapsedTimer();
@@ -901,7 +968,8 @@ public partial class App : Application, IDisposable
         _tray.ShowBalloon(
             L.S.NotifyCallStoppedTitle,
             detail is null ? message : $"{message} {detail}",
-            BalloonKind.Warning);
+            BalloonKind.Warning,
+            OpenCalls);
     }
 
     /// <summary>
@@ -1002,7 +1070,11 @@ public partial class App : Application, IDisposable
         AppSettings settings = _settings.Current;
         var finished = new TaskCompletionSource<CallSession?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var window = new CallReviewWindow(session, settings.EffectiveMyName, settings.KnownParticipants);
+        var window = new CallReviewWindow(
+            session,
+            settings.EffectiveMyName,
+            CallsWindow.OtherSideLabel(settings),
+            settings.KnownParticipants);
         window.Closed += (_, _) =>
         {
             if (window.Outcome == CallReviewOutcome.Deleted)
@@ -1074,10 +1146,13 @@ public partial class App : Application, IDisposable
             var progress = new Progress<CallTranscriptionStage>(stage =>
                 _tray.SetStatus(L.S.Describe(stage)));
 
-            string path = await transcriber.TranscribeAsync(session, progress);
+            await transcriber.TranscribeAsync(session, progress);
             _tray.SetStatus(string.Format(
                 CultureInfo.CurrentCulture, L.S.StatusCallSaved, Path.GetFileName(session.Directory)));
-            _tray.ShowBalloon(L.S.NotifyCallReadyTitle, path);
+            _tray.ShowBalloon(
+                L.S.NotifyCallReadyTitle,
+                L.S.NotifyCallReadyBody,
+                onClick: () => OpenCalls(session.Directory));
         }
         catch (Exception ex)
         {
@@ -1186,19 +1261,38 @@ public partial class App : Application, IDisposable
     // --- окно настроек -----------------------------------------------------
 
     /// <summary>Показать список записанных разговоров.</summary>
-    private void OpenCalls()
+    private void OpenCalls() => OpenCalls(select: null);
+
+    /// <summary>Показать список записанных разговоров и выбрать в нём звонок.</summary>
+    /// <param name="select">Папка звонка, или <c>null</c> — оставить выбор как есть.</param>
+    private void OpenCalls(string? select)
     {
-        if (_callsWindow is { } existing)
+        CallsWindow window = _callsWindow ?? CreateCallsWindow();
+
+        if (!window.IsVisible)
         {
-            existing.Activate();
-            return;
+            window.Show();
         }
 
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Activate();
+
+        if (select is not null)
+        {
+            window.Select(select);
+        }
+    }
+
+    private CallsWindow CreateCallsWindow()
+    {
         var window = new CallsWindow(_settings, CallsDirectory, LiveCallState, TranscribeCallAsync);
         window.Closed += (_, _) => _callsWindow = null;
-
         _callsWindow = window;
-        window.Show();
+        return window;
     }
 
     /// <summary>
@@ -1272,6 +1366,11 @@ public partial class App : Application, IDisposable
             StartHotkey();
         }
 
+        if (change.AffectsCallHotkey)
+        {
+            StartCallHotkey();
+        }
+
         if (change.AffectsOverlay)
         {
             ApplyOverlayPosition();
@@ -1341,14 +1440,20 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private void OnHotkeyCaptureChanged(bool capturing)
     {
+        // Снимаем оба сочетания: иначе, записывая новое сочетание диктовки,
+        // нельзя было бы выбрать сочетание звонка, и наоборот, — его
+        // перехватила бы система.
         if (capturing)
         {
             _hotkey?.Dispose();
             _hotkey = null;
+            _callHotkey?.Dispose();
+            _callHotkey = null;
         }
         else
         {
             StartHotkey();
+            StartCallHotkey();
         }
     }
 
@@ -1479,6 +1584,8 @@ public partial class App : Application, IDisposable
 
         _hotkey?.Dispose();
         _hotkey = null;
+        _callHotkey?.Dispose();
+        _callHotkey = null;
 
         StopCancelWatcher();
 

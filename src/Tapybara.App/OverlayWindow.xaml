@@ -44,10 +44,21 @@
                         Orientation="Horizontal"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center">
-                <Ellipse x:Name="RecordingDot"
-                         Width="9" Height="9"
-                         Fill="#FF4D4D"
-                         VerticalAlignment="Center" />
+                <!--
+                    Точка — диктовка, кольцо с точкой — звонок. Цвет один и
+                    тот же: красный значит «идёт запись», какая бы она ни была.
+                -->
+                <Grid Width="13" Height="13" VerticalAlignment="Center">
+                    <Ellipse x:Name="RecordingRing"
+                             Stroke="#FF4D4D"
+                             StrokeThickness="2"
+                             Visibility="Collapsed" />
+                    <Ellipse x:Name="RecordingDot"
+                             Width="9" Height="9"
+                             Fill="#FF4D4D"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
+                </Grid>
                 <StackPanel x:Name="LevelBars"
                             Orientation="Horizontal"
                             Height="22"
@@ -64,6 +75,27 @@
                            FontSize="10"
                            Margin="10,0,0,0"
                            VerticalAlignment="Center" />
+
+                <!--
+                    Остановить звонок — отдельной кнопкой, а не щелчком по
+                    пилюле. Щелчок по пилюле звонка запускал диктовку, а
+                    остановить часовую запись случайным касанием ещё хуже.
+                -->
+                <Border x:Name="StopCallButton"
+                        Visibility="Collapsed"
+                        Width="26" Height="26"
+                        CornerRadius="13"
+                        Margin="10,0,-10,0"
+                        Background="#1FFFFFFF"
+                        VerticalAlignment="Center"
+                        MouseLeftButtonDown="OnStopCallPressed"
+                        MouseLeftButtonUp="OnStopCallReleased">
+                    <Rectangle Width="9" Height="9"
+                               RadiusX="1.5" RadiusY="1.5"
+                               Fill="White"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
             </StackPanel>
 
             <!-- Состояние «идёт распознавание» -->

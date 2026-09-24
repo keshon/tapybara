@@ -125,6 +125,21 @@ public partial class CallsWindow : FluentWindow
         Reload(keepSelection: true);
     }
 
+    /// <summary>Выбрать звонок по его папке — например, по щелчку на уведомлении.</summary>
+    public void Select(string directory)
+    {
+        Reload(keepSelection: true);
+
+        CallRow? row = _rows.FirstOrDefault(
+            r => string.Equals(r.Directory, directory, StringComparison.OrdinalIgnoreCase));
+
+        if (row is not null)
+        {
+            CallList.SelectedItem = row;
+            CallList.ScrollIntoView(row);
+        }
+    }
+
     // --- список --------------------------------------------------------------
 
     private void Reload(bool keepSelection)
@@ -276,10 +291,14 @@ public partial class CallsWindow : FluentWindow
     private void UpdateParticipantsHint() =>
         ParticipantsHint.Text = Participants.Selected.Count switch
         {
-            0 => L.S.CallReviewHintNone,
+            0 => string.Format(CultureInfo.CurrentCulture, L.S.CallReviewHintNone, OtherSideLabel(_host.Current)),
             1 => L.S.CallReviewHintOne,
             _ => string.Format(CultureInfo.CurrentCulture, L.S.CallReviewHintMany, Participants.Selected.Count),
         };
+
+    /// <summary>Как подписан собеседник, когда имён нет.</summary>
+    internal static string OtherSideLabel(AppSettings settings) =>
+        string.IsNullOrWhiteSpace(settings.OtherSideName) ? L.S.TranscriptUnknownSpeaker : settings.OtherSideName;
 
     /// <summary>
     /// Имена правятся на месте и сохраняются сразу.

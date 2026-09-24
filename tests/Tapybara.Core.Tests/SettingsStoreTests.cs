@@ -110,6 +110,34 @@ public class SettingsSerializationTests
         Assert.NotNull(Core.Models.ModelCatalog.Find(settings.VadModelFileName));
     }
 
+    /// <summary>
+    /// Два хоткея по умолчанию не совпадают.
+    /// </summary>
+    /// <remarks>
+    /// Одно сочетание на два действия приложение попыталось бы занять дважды,
+    /// и вторая попытка сообщила бы, что сочетание «занято другим
+    /// приложением», — на первом же запуске, у каждого.
+    /// </remarks>
+    [Fact]
+    public void Defaults_GiveCallsTheirOwnHotkey()
+    {
+        var settings = new AppSettings();
+
+        Assert.NotEqual(settings.Hotkey, settings.CallHotkey);
+        Assert.True(settings.CallHotkey.IsUsableAsGlobal);
+        Assert.Equal("Ctrl+Alt+R", settings.CallHotkey.ToString());
+    }
+
+    [Fact]
+    public void RoundTrip_KeepsTheCallHotkey()
+    {
+        var original = new AppSettings { CallHotkey = new HotkeyCombo(HotkeyModifiers.Control | HotkeyModifiers.Shift, 0x4B) };
+
+        AppSettings restored = JsonSerializer.Deserialize<AppSettings>(Serialize(original), Options)!;
+
+        Assert.Equal(original.CallHotkey, restored.CallHotkey);
+    }
+
     [Fact]
     public void Defaults_KeepDictatedTextOutOfTheTrayTooltip() =>
         Assert.False(new AppSettings().ShowTextPreviewInTray);

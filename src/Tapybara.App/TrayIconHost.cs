@@ -41,7 +41,16 @@ public sealed partial class TrayIconHost : IDisposable
 
     private Icon _idleIcon;
     private Icon _activeIcon;
+    private Icon _callIcon;
     private Icon _busyIcon;
+
+    /// <summary>Куда ведёт щелчок по текущему уведомлению.</summary>
+    /// <remarks>
+    /// У каждого уведомления своё место назначения. Прежде щелчок по любому
+    /// из них вёл в одно и то же место — журнал, если модели есть, — и
+    /// «Транскрипт готов» открывал текстовый файл с отладкой вместо звонка.
+    /// </remarks>
+    private Action? _balloonAction;
 
     private DictationState _state = DictationState.Idle;
     private bool _engineBusy;
@@ -49,7 +58,7 @@ public sealed partial class TrayIconHost : IDisposable
 
     public TrayIconHost()
     {
-        (_idleIcon, _activeIcon, _busyIcon) = BuildIcons();
+        (_idleIcon, _activeIcon, _callIcon, _busyIcon) = BuildIcons();
 
         _statusItem = new ToolStripMenuItem { Enabled = false };
 
@@ -126,10 +135,25 @@ public sealed partial class TrayIconHost : IDisposable
             ContextMenuStrip = menu,
         };
 
-        // Двойной клик по иконке — то же, что хоткей: удобно, когда рук на
-        // клавиатуре нет, а надо остановить запись.
-        _icon.DoubleClick += (_, _) => ToggleRequested?.Invoke();
-        _icon.BalloonTipClicked += (_, _) => BalloonClicked?.Invoke();
+        // Щелчок по иконке открывает окно, а не микрофон. Двойной щелчок
+        // раньше включал диктовку, и это худшее, что может сделать
+        // случайный клик: запись, о которой человек не знает. Остановить
+        // идущую запись можно хоткеем, пилюлей и пунктом меню.
+        _icon.MouseClick += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                OpenRequested?.Invoke();
+            }
+        };
+
+        _icon.BalloonTipClicked += (_, _) =>
+        {
+            Action? action = _balloonAction;
+            _balloonAction = null;
+            action?.Invoke();
+        };
+        _icon.BalloonTipClosed += (_, _) => _balloonAction = null;
         menu.Opening += (_, _) => MenuOpening?.Invoke();
 
         ApplyLanguage();
@@ -143,7 +167,9 @@ public sealed partial class TrayIconHost : IDisposable
     public event Action? RecordCallRequested;
     public event Action? SettingsRequested;
     public event Action? RetryHotkeyRequested;
-    public event Action? BalloonClicked;
+
+    /// <summary>Щелчок левой кнопкой по иконке.</summary>
+    public event Action? OpenRequested;
 
     /// <summary>
     /// Меню вот-вот откроется — самое время перечитать, что на диске.
@@ -186,10 +212,13 @@ public sealed partial class TrayIconHost : IDisposable
     {
         Icon oldIdle = _idleIcon;
         Icon oldActive = _activeIcon;
+        Icon oldCall = _callIcon;
         Icon oldBusy = _busyIcon;
 
-        (_idleIcon, _activeIcon, _busyIcon) = BuildIcons();
+        (_idleIcon, _activeIcon, _callIcon, _busyIcon) = BuildIcons();
         ApplyVisualState();
+
+        oldCall.Dispose();
 
         oldIdle.Dispose();
         oldActive.Dispose();
@@ -230,8 +259,8 @@ public sealed partial class TrayIconHost : IDisposable
         _icon.Icon = _state switch
         {
             DictationState.Recording => _activeIcon,
+            _ when _recordingCall => _callIcon,
             DictationState.Transcribing => _busyIcon,
-            _ when _recordingCall => _busyIcon,
             _ => _engineBusy ? _busyIcon : _idleIcon,
         };
 
@@ -278,6 +307,12 @@ public sealed partial class TrayIconHost : IDisposable
     {
         _toggleItem.ShortcutKeyDisplayString = hotkey;
         _toggleItem.ShowShortcutKeys = true;
+    }
+
+    public void SetCallHotkeyDisplay(string hotkey)
+    {
+        _recordCallItem.ShortcutKeyDisplayString = hotkey;
+        _recordCallItem.ShowShortcutKeys = true;
     }
 
     private static string Shorten(string text, int limit)
@@ -348,12 +383,27 @@ public sealed partial class TrayIconHost : IDisposable
     /// треугольником, включая «Транскрипт готов»: успех выглядел так же
     /// тревожно, как отказ.
     /// </remarks>
-    public void ShowBalloon(string title, string message, BalloonKind kind = BalloonKind.Info) =>
+    /// <summary>Показать уведомление.</summary>
+    /// <param name="title">Заголовок.</param>
+    /// <param name="message">Текст.</param>
+    /// <param name="kind">Насколько срочно.</param>
+    /// <param name="onClick">
+    /// Что открыть по щелчку. <c>null</c> — щелчок просто закрывает
+    /// уведомление: лучше ничего, чем место, не связанное с тем, о чём оно.
+    /// </param>
+    public void ShowBalloon(
+        string title,
+        string message,
+        BalloonKind kind = BalloonKind.Info,
+        Action? onClick = null)
+    {
+        _balloonAction = onClick;
         _icon.ShowBalloonTip(
             5000,
             title,
             message,
             kind == BalloonKind.Warning ? ToolTipIcon.Warning : ToolTipIcon.Info);
+    }
 
     /// <summary>«ggml-large-v3-turbo-q5_0.bin» → «large-v3-turbo-q5_0».</summary>
     private static string PrettyModelName(string fileName)
@@ -370,17 +420,28 @@ public sealed partial class TrayIconHost : IDisposable
     /// становилась невидимой, и приложение выглядело незапущенным. Активные
     /// состояния цветные и читаются на любом фоне, а вот нейтральное
     /// приходится выбирать под тему.
+    /// <para>
+    /// Красный — идёт запись, и ничего больше; янтарный — идёт работа.
+    /// Звонок раньше горел янтарным, тем же, что «грузится модель», и
+    /// часовая запись разговора выглядела в трее как затянувшаяся загрузка.
+    /// Звонок — красное кольцо, диктовка — сплошной круг: во время звонка
+    /// можно диктовать, и сплошной круг поверх кольца говорит, что сейчас
+    /// слушают ещё и ради текста.
+    /// </para>
     /// </remarks>
-    private static (Icon Idle, Icon Active, Icon Busy) BuildIcons()
+    private static (Icon Idle, Icon Active, Icon Call, Icon Busy) BuildIcons()
     {
         Color idle = SystemTheme.IsTaskbarLight
             ? Color.FromArgb(64, 64, 70)
             : Color.FromArgb(210, 210, 215);
 
+        Color recording = Color.FromArgb(255, 77, 77);
+
         return (
             CreateDotIcon(idle),
-            CreateDotIcon(Color.FromArgb(255, 77, 77)),
-            // Третий цвет нужен не для красоты: загрузка модели занимает секунды,
+            CreateDotIcon(recording),
+            CreateRingIcon(recording),
+            // Янтарный нужен не для красоты: загрузка модели занимает секунды,
             // и без видимого признака «работаю» это выглядит как зависание.
             CreateDotIcon(Color.FromArgb(255, 176, 32)));
     }
@@ -389,7 +450,7 @@ public sealed partial class TrayIconHost : IDisposable
     /// Нарисовать иконку-кружок нужного цвета.
     /// </summary>
     /// <remarks>
-    /// Иконка рисуется, а не лежит файлом: их всего три, и генерация избавляет
+    /// Иконки рисуются, а не лежат файлами: их всего четыре, и генерация избавляет
     /// от бинарников в репозитории. HICON, который отдаёт <c>GetHicon</c>, не
     /// принадлежит .NET — делаем управляемую копию через <c>Clone</c> и сразу
     /// освобождаем дескриптор, иначе он утекает.
@@ -405,6 +466,33 @@ public sealed partial class TrayIconHost : IDisposable
             graphics.FillEllipse(brush, 5, 5, 22, 22);
         }
 
+        return ToIcon(bitmap);
+    }
+
+    /// <summary>Кольцо с точкой в центре — запись звонка.</summary>
+    /// <remarks>
+    /// Толщина кольца подобрана под 16 пикселей, до которых Windows ужимает
+    /// иконку при масштабе 100%: тоньше — и кольцо на панели задач
+    /// читается как серый кружок.
+    /// </remarks>
+    private static Icon CreateRingIcon(Color color)
+    {
+        using var bitmap = new Bitmap(32, 32);
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.Clear(Color.Transparent);
+            using var pen = new Pen(color, 4.5f);
+            graphics.DrawEllipse(pen, 5.5f, 5.5f, 21, 21);
+            using var brush = new SolidBrush(color);
+            graphics.FillEllipse(brush, 11.5f, 11.5f, 9, 9);
+        }
+
+        return ToIcon(bitmap);
+    }
+
+    private static Icon ToIcon(Bitmap bitmap)
+    {
         nint handle = bitmap.GetHicon();
         try
         {
@@ -427,6 +515,7 @@ public sealed partial class TrayIconHost : IDisposable
         _icon.Dispose();
         _idleIcon.Dispose();
         _activeIcon.Dispose();
+        _callIcon.Dispose();
         _busyIcon.Dispose();
     }
 }

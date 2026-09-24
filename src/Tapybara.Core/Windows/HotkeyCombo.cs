@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Serialization;
 
 namespace Tapybara.Core.Windows;
@@ -33,7 +33,18 @@ public sealed record HotkeyCombo(HotkeyModifiers Modifiers, ushort VirtualKey)
     /// </remarks>
     public static HotkeyCombo Default { get; } = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, VkD);
 
+    /// <summary>
+    /// Ctrl + Alt + R для записи звонка.
+    /// </summary>
+    /// <remarks>
+    /// Рядом с сочетанием диктовки и с той же парой модификаторов: две
+    /// записи с микрофона человек запоминает как пару, а не как два
+    /// отдельных правила. «R» — record.
+    /// </remarks>
+    public static HotkeyCombo DefaultCall { get; } = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, VkR);
+
     private const ushort VkD = 0x44;
+    private const ushort VkR = 0x52;
 
     /// <summary>Годится ли сочетание в глобальные: нужен хотя бы один «настоящий» модификатор.</summary>
     /// <remarks>

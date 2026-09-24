@@ -29,6 +29,8 @@ public sealed record SettingsChange(AppSettings Previous, AppSettings Current)
 
     public bool AffectsHotkey => !Equals(Previous.Hotkey, Current.Hotkey);
 
+    public bool AffectsCallHotkey => !Equals(Previous.CallHotkey, Current.CallHotkey);
+
     public bool AffectsUiLanguage => Previous.UiLanguage != Current.UiLanguage;
 
     public bool AffectsTheme => Previous.Theme != Current.Theme;

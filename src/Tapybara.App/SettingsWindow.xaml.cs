@@ -41,6 +41,13 @@ using VerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace Tapybara.App;
 
+/// <summary>Чьё сочетание клавиш: диктовки или записи звонка.</summary>
+public enum HotkeyTarget
+{
+    Dictation,
+    Call,
+}
+
 /// <summary>Разделы окна настроек.</summary>
 public enum SettingsSection
 {
@@ -110,9 +117,11 @@ public partial class SettingsWindow : FluentWindow
 
     private readonly ModelsPageState _models = new();
 
-    private Button _hotkeyButton = null!;
-    private TextBlock _hotkeyStatus = null!;
-    private bool _capturingHotkey;
+    /// <summary>Кнопка и строка статуса для каждого из двух сочетаний.</summary>
+    private readonly Dictionary<HotkeyTarget, (Button Button, TextBlock Status)> _hotkeyFields = [];
+
+    /// <summary>Какое сочетание сейчас записывается. <c>null</c> — никакое.</summary>
+    private HotkeyTarget? _capturingHotkey;
 
     /// <summary>
     /// Идёт синхронизация контролов со значениями настроек.
@@ -214,17 +223,20 @@ public partial class SettingsWindow : FluentWindow
     public void RefreshFromDisk() => RefreshControls();
 
     /// <summary>Приложение сообщает, удалось ли занять выбранное сочетание.</summary>
-    public void ReportHotkeyResult(bool succeeded)
+    public void ReportHotkeyResult(HotkeyTarget target, bool succeeded)
     {
-        if (_hotkeyStatus is null)
+        if (!_hotkeyFields.TryGetValue(target, out (Button Button, TextBlock Status) field))
         {
             return;
         }
 
-        _hotkeyStatus.Visibility = succeeded ? Visibility.Collapsed : Visibility.Visible;
-        _hotkeyStatus.Text = string.Format(
-            CultureInfo.CurrentCulture, L.S.FieldHotkeyTaken, Settings.Hotkey);
+        field.Status.Visibility = succeeded ? Visibility.Collapsed : Visibility.Visible;
+        field.Status.Text = string.Format(
+            CultureInfo.CurrentCulture, L.S.FieldHotkeyTaken, HotkeyOf(target));
     }
+
+    private HotkeyCombo HotkeyOf(HotkeyTarget target) =>
+        target == HotkeyTarget.Call ? Settings.CallHotkey : Settings.Hotkey;
 
     private SettingsSection CurrentSection() =>
         SectionList.SelectedItem is ListBoxItem { Tag: SectionPage page } ? page.Section : SettingsSection.General;
@@ -234,6 +246,7 @@ public partial class SettingsWindow : FluentWindow
     private void BuildEverything()
     {
         _refreshers.Clear();
+        _hotkeyFields.Clear();
         SectionList.Items.Clear();
 
         Title = L.S.SettingsTitle;
@@ -323,31 +336,7 @@ public partial class SettingsWindow : FluentWindow
     private void BuildDictationSection()
     {
         AddGroup(L.S.GroupHotkey);
-
-        _hotkeyButton = new Button { Content = Settings.Hotkey.ToString(), Width = ControlColumnWidth };
-        _hotkeyButton.Click += (_, _) => BeginHotkeyCapture();
-        Refresh(() =>
-        {
-            if (!_capturingHotkey)
-            {
-                _hotkeyButton.Content = Settings.Hotkey.ToString();
-            }
-        });
-
-        _hotkeyStatus = new TextBlock
-        {
-            Visibility = Visibility.Collapsed,
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 6, 0, 0),
-            Foreground = ThemeBrush("SystemFillColorCautionBrush", Colors.OrangeRed),
-        };
-
-        var hotkeyStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        hotkeyStack.Children.Add(_hotkeyButton);
-        hotkeyStack.Children.Add(_hotkeyStatus);
-
-        AddCard(SymbolRegular.Keyboard24, L.S.FieldHotkey, L.S.FieldHotkeyHint, hotkeyStack);
+        AddCard(SymbolRegular.Keyboard24, L.S.FieldHotkey, L.S.FieldHotkeyHint, HotkeyField(HotkeyTarget.Dictation));
 
         AddGroup(L.S.GroupAudioInput);
         AddCard(
@@ -1116,6 +1105,8 @@ public partial class SettingsWindow : FluentWindow
 
         AddGroup(L.S.GroupRecording);
 
+        AddCard(SymbolRegular.Keyboard24, L.S.FieldHotkey, L.S.FieldCallHotkeyHint, HotkeyField(HotkeyTarget.Call));
+
         AddCard(
             SymbolRegular.Speaker224,
             L.S.FieldSystemAudioDevice,
@@ -1487,26 +1478,76 @@ public partial class SettingsWindow : FluentWindow
 
     // --- захват сочетания клавиш -------------------------------------------
 
-    private void BeginHotkeyCapture()
+    /// <summary>
+    /// Кнопка-сочетание со строкой статуса под ней.
+    /// </summary>
+    /// <remarks>
+    /// Одна на оба сочетания. Захват устроен одинаково, и копия кода для
+    /// второго сочетания разошлась бы с первой на первой же правке.
+    /// </remarks>
+    private StackPanel HotkeyField(HotkeyTarget target)
     {
-        _capturingHotkey = true;
-        _hotkeyButton.Content = L.S.FieldHotkeyCapturing;
-        _hotkeyStatus.Visibility = Visibility.Visible;
-        _hotkeyStatus.Text = L.S.FieldHotkeyCaptureHint;
+        var button = new Button { Content = HotkeyOf(target).ToString(), Width = ControlColumnWidth };
+        button.Click += (_, _) => BeginHotkeyCapture(target);
+
+        var status = new TextBlock
+        {
+            Visibility = Visibility.Collapsed,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = ControlColumnWidth,
+            Margin = new Thickness(0, 6, 0, 0),
+            Foreground = ThemeBrush("SystemFillColorCautionBrush", Colors.OrangeRed),
+        };
+
+        _hotkeyFields[target] = (button, status);
+
+        Refresh(() =>
+        {
+            if (_capturingHotkey != target)
+            {
+                button.Content = HotkeyOf(target).ToString();
+            }
+        });
+
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        stack.Children.Add(button);
+        stack.Children.Add(status);
+        return stack;
+    }
+
+    private void BeginHotkeyCapture(HotkeyTarget target)
+    {
+        if (_capturingHotkey is { } previous && previous != target)
+        {
+            EndHotkeyCapture();
+        }
+
+        _capturingHotkey = target;
+        (Button button, TextBlock status) = _hotkeyFields[target];
+        button.Content = L.S.FieldHotkeyCapturing;
+        status.Visibility = Visibility.Visible;
+        status.Text = L.S.FieldHotkeyCaptureHint;
         HotkeyCaptureChanged?.Invoke(true);
     }
 
     private void EndHotkeyCapture()
     {
-        _capturingHotkey = false;
-        _hotkeyButton.Content = Settings.Hotkey.ToString();
-        _hotkeyStatus.Visibility = Visibility.Collapsed;
+        if (_capturingHotkey is not { } target)
+        {
+            return;
+        }
+
+        _capturingHotkey = null;
+        (Button button, TextBlock status) = _hotkeyFields[target];
+        button.Content = HotkeyOf(target).ToString();
+        status.Visibility = Visibility.Collapsed;
         HotkeyCaptureChanged?.Invoke(false);
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (!_capturingHotkey)
+        if (_capturingHotkey is not { } target)
         {
             base.OnPreviewKeyDown(e);
             return;
@@ -1557,11 +1598,22 @@ public partial class SettingsWindow : FluentWindow
         // ввод заглавной D во всех приложениях сразу.
         if (!combo.IsUsableAsGlobal)
         {
-            _hotkeyButton.Content = L.S.FieldHotkeyCapturing;
+            _hotkeyFields[target].Button.Content = L.S.FieldHotkeyCapturing;
             return;
         }
 
-        Apply(s => s with { Hotkey = combo });
+        // Одно сочетание на два действия заняло бы хоткей дважды: вторая
+        // регистрация провалилась бы и сообщила, что сочетание «занято другим
+        // приложением», — хотя заняли его мы сами.
+        HotkeyCombo other = HotkeyOf(target == HotkeyTarget.Call ? HotkeyTarget.Dictation : HotkeyTarget.Call);
+        if (combo == other)
+        {
+            _hotkeyFields[target].Status.Text = string.Format(
+                CultureInfo.CurrentCulture, L.S.FieldHotkeyDuplicate, combo);
+            return;
+        }
+
+        Apply(s => target == HotkeyTarget.Call ? s with { CallHotkey = combo } : s with { Hotkey = combo });
         EndHotkeyCapture();
 
         // Занять сочетание пробует приложение, и оно же сообщит результат
@@ -2404,7 +2456,7 @@ public partial class SettingsWindow : FluentWindow
 
     protected override void OnClosed(EventArgs e)
     {
-        if (_capturingHotkey)
+        if (_capturingHotkey is not null)
         {
             HotkeyCaptureChanged?.Invoke(false); // не оставить хоткей снятым
         }

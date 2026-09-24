@@ -84,18 +84,13 @@
                            Icon="{ui:SymbolIcon Delete24}"
                            Click="OnDeleteClick" />
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <ui:Button x:Name="LaterButton"
-                               MinWidth="110"
-                               Margin="0,0,8,0"
-                               IsCancel="True"
-                               Click="OnLaterClick" />
-                    <ui:Button x:Name="SaveButton"
-                               MinWidth="130"
-                               Appearance="Primary"
-                               IsDefault="True"
-                               Click="OnSaveClick" />
-                </StackPanel>
+                <ui:Button x:Name="SaveButton"
+                           HorizontalAlignment="Right"
+                           MinWidth="130"
+                           Appearance="Primary"
+                           IsDefault="True"
+                           IsCancel="True"
+                           Click="OnSaveClick" />
             </Grid>
         </Border>
     </Grid>

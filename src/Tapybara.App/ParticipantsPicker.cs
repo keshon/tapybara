@@ -10,6 +10,7 @@ using Tapybara.Core.Calls;
 using Application = System.Windows.Application;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using UiTextBox = Wpf.Ui.Controls.TextBox;
+using TextBlock = System.Windows.Controls.TextBlock;
 using UserControl = System.Windows.Controls.UserControl;
 
 namespace Tapybara.App;
@@ -155,14 +156,13 @@ public sealed class ParticipantsPicker : UserControl
     private void Rebuild()
     {
         _chips.Children.Clear();
-        _chips.Children.Add(BuildChip(_myName, selected: true, fixedChip: true));
+        _chips.Children.Add(BuildMeLabel());
 
         foreach (string name in ChipNames())
         {
             _chips.Children.Add(BuildChip(
                 name,
-                selected: _selected.Contains(name, StringComparer.OrdinalIgnoreCase),
-                fixedChip: false));
+                selected: _selected.Contains(name, StringComparer.OrdinalIgnoreCase)));
         }
 
         _entry.PlaceholderText = L.S.ParticipantsEntryPlaceholder;
@@ -170,31 +170,43 @@ public sealed class ParticipantsPicker : UserControl
         _chips.Children.Add(_entry);
     }
 
-    private ToggleButton BuildChip(string name, bool selected, bool fixedChip)
+    /// <summary>
+    /// Владелец микрофона — подпись, а не чип.
+    /// </summary>
+    /// <remarks>
+    /// Здесь был выключенный чип, отмеченный и полупрозрачный. Выглядел он
+    /// как сломанная кнопка, на которую почему-то не нажать. По смыслу это
+    /// не выбор, а факт: вы на звонке всегда, это ваша дорожка, — и факт
+    /// показываем текстом.
+    /// </remarks>
+    private TextBlock BuildMeLabel() => new()
+    {
+        Text = _myName,
+        Opacity = 0.7,
+        Margin = new Thickness(2, 0, 12, 6),
+        VerticalAlignment = System.Windows.VerticalAlignment.Center,
+        ToolTip = L.S.ParticipantsMeHint,
+    };
+
+    private ToggleButton BuildChip(string name, bool selected)
     {
         var chip = new ToggleButton
         {
             Content = name,
             IsChecked = selected,
-            IsEnabled = !fixedChip,
             Style = (Style)Application.Current.Resources["ParticipantChipStyle"],
-            ToolTip = fixedChip
-                ? L.S.ParticipantsMeHint
-                : selected ? L.S.ParticipantsRemoveHint : L.S.ParticipantsAddHint,
+            ToolTip = selected ? L.S.ParticipantsRemoveHint : L.S.ParticipantsAddHint,
         };
 
-        if (!fixedChip)
+        chip.Click += (_, _) =>
         {
-            chip.Click += (_, _) =>
-            {
-                _selected = selected
-                    ? KnownParticipants.Remove(_selected, name)
-                    : KnownParticipants.Add(_selected, name);
+            _selected = selected
+                ? KnownParticipants.Remove(_selected, name)
+                : KnownParticipants.Add(_selected, name);
 
-                Rebuild();
-                SelectionChanged?.Invoke();
-            };
-        }
+            Rebuild();
+            SelectionChanged?.Invoke();
+        };
 
         return chip;
     }
