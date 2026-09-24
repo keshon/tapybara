@@ -51,12 +51,11 @@ public enum HotkeyTarget
 /// <summary>Разделы окна настроек.</summary>
 public enum SettingsSection
 {
-    Dictation,
-    Recognition,
-    Models,
-    Text,
-    Calls,
     General,
+    Dictation,
+    Calls,
+    Models,
+    Advanced,
     About,
 }
 
@@ -69,10 +68,16 @@ public enum SettingsSection
 /// </para>
 /// <para>
 /// Разделы устроены по вопросу, с которым человек сюда приходит: «поменять
-/// горячую клавишу» — «Диктовка», «взять модель» — «Модели», «поправить
-/// расслышанное слово» — «Текст». Прежняя раскладка была устроена по тому,
-/// как код разложен по классам, и найти в ней нужное можно было только
-/// перебором.
+/// горячую клавишу» — «Диктовка», «взять модель» — «Модели». Всё, для чего
+/// нужно понимать, как устроен конвейер распознавания, — декодирование,
+/// детектор речи, модели голосов, пороги — собрано в «Дополнительно».
+/// Раньше это стояло на равных с «Ваше имя» и «Язык», и человек, зашедший
+/// поменять микрофон, видел то же, что разработчик, отлаживающий разделение
+/// голосов.
+/// </para>
+/// <para>
+/// Словарь замен и подсказка для модели отсюда ушли в главное окно: их
+/// пополняют постоянно, а сюда заходят редко.
 /// </para>
 /// </remarks>
 public partial class SettingsWindow : FluentWindow
@@ -106,6 +111,9 @@ public partial class SettingsWindow : FluentWindow
     /// Возвращает причину отказа или <c>null</c>, если удалось.
     /// </remarks>
     private readonly Func<InstalledModel, Task<string?>> _deleteModel;
+
+    /// <summary>История диктовок — чтобы её можно было очистить отсюда.</summary>
+    private readonly Tapybara.Core.Dictation.DictationJournal _journal;
 
     /// <summary>Действия, возвращающие контролам значения из настроек.</summary>
     /// <remarks>
@@ -148,11 +156,13 @@ public partial class SettingsWindow : FluentWindow
     public SettingsWindow(
         SettingsHost host,
         Func<IReadOnlyList<string>> availableModels,
-        Func<InstalledModel, Task<string?>> deleteModel)
+        Func<InstalledModel, Task<string?>> deleteModel,
+        Tapybara.Core.Dictation.DictationJournal journal)
     {
         _host = host;
         _availableModels = availableModels;
         _deleteModel = deleteModel;
+        _journal = journal;
 
         InitializeComponent();
         BuildEverything();
@@ -252,8 +262,10 @@ public partial class SettingsWindow : FluentWindow
         Title = L.S.SettingsTitle;
         WindowTitleBar.Title = L.S.SettingsTitle;
         CloseButton.Content = L.S.ButtonClose;
-        FooterHint.Text = string.Format(
-            CultureInfo.CurrentCulture, L.S.FooterStoragePath, AppPaths.DataDirectory);
+        // Подвал пуст, пока нечего сообщить: здесь раньше всё время висел путь
+        // к настройкам — сведение, нужное при поломке, на самом видном месте.
+        // Путь теперь в «О программе», а подвал говорит о переносе моделей.
+        FooterHint.Text = string.Empty;
 
         // Порядок идёт от общего к частному. Сначала настройки самой
         // программы, следом два способа ею пользоваться — диктовка и звонки,
@@ -264,9 +276,8 @@ public partial class SettingsWindow : FluentWindow
         AddSection(SettingsSection.General, L.S.SectionGeneral, SymbolRegular.Settings24, "#81C784", BuildGeneralSection);
         AddSection(SettingsSection.Dictation, L.S.SectionDictation, SymbolRegular.Mic24, "#4FC3F7", BuildDictationSection);
         AddSection(SettingsSection.Calls, L.S.SectionCalls, SymbolRegular.Call24, "#F06292", BuildCallsSection);
-        AddSection(SettingsSection.Recognition, L.S.SectionRecognition, SymbolRegular.BrainCircuit24, "#B388FF", BuildRecognitionSection);
         AddSection(SettingsSection.Models, L.S.SectionModels, SymbolRegular.ArrowDownload24, "#4DD0C4", BuildModelsSection);
-        AddSection(SettingsSection.Text, L.S.SectionText, SymbolRegular.TextParagraph24, "#FFB74D", BuildTextSection);
+        AddSection(SettingsSection.Advanced, L.S.SectionAdvanced, SymbolRegular.Beaker24, "#B388FF", BuildAdvancedSection);
         AddSection(SettingsSection.About, L.S.SectionAbout, SymbolRegular.Info24, "#90A4AE", BuildAboutSection);
 
         SectionList.SelectedIndex = 0;
@@ -348,6 +359,14 @@ public partial class SettingsWindow : FluentWindow
                 () => Settings.MicrophoneDeviceId,
                 id => Apply(s => s with { MicrophoneDeviceId = id })));
 
+        // Язык — это «на каком языке я говорю», а не устройство движка. Он
+        // стоял в «Распознавании» рядом с декодированием и порогом детектора.
+        AddCard(
+            SymbolRegular.LocalLanguage24,
+            L.S.FieldRecognitionLanguage,
+            L.S.FieldRecognitionLanguageHint,
+            LanguageCombo(() => Settings.Language, code => Apply(s => s with { Language = code })));
+
         AddGroup(L.S.GroupInsertion);
         AddToggleCard(
             SymbolRegular.ClipboardPaste24,
@@ -363,12 +382,23 @@ public partial class SettingsWindow : FluentWindow
             () => Settings.ExcludeFromClipboardHistory,
             value => Apply(s => s with { ExcludeFromClipboardHistory = value }));
 
+        AddGroup(L.S.GroupParagraphs);
+
         AddToggleCard(
-            SymbolRegular.Eye24,
-            L.S.FieldShowOverlay,
-            L.S.FieldShowOverlayHint,
-            () => Settings.ShowOverlay,
-            value => Apply(s => s with { ShowOverlay = value }));
+            SymbolRegular.TextParagraph24,
+            L.S.FieldSplitParagraphs,
+            description: null,
+            () => Settings.SplitParagraphsByPauses,
+            value => Apply(s => s with { SplitParagraphsByPauses = value }));
+
+        AddCard(
+            SymbolRegular.Timer24,
+            L.S.FieldParagraphPause,
+            description: null,
+            NumberField(
+                () => Settings.ParagraphPauseSeconds,
+                L.S.Seconds,
+                value => Apply(s => s with { ParagraphPauseSeconds = Math.Clamp(value, 0.2, 10) })));
 
         AddGroup(L.S.GroupLimits);
         AddCard(
@@ -381,24 +411,27 @@ public partial class SettingsWindow : FluentWindow
                 value => Apply(s => s with { MaxDictationMinutes = (int)Math.Clamp(value, 1, 24 * 60) })));
     }
 
-    // --- раздел: распознавание ---------------------------------------------
+    // --- раздел: дополнительно ---------------------------------------------
 
-    private void BuildRecognitionSection()
+    /// <summary>
+    /// То, для чего нужно понимать, как устроено распознавание.
+    /// </summary>
+    /// <remarks>
+    /// Разумные значения уже выставлены, и сюда приходят, когда что-то
+    /// конкретное работает не так: теряются тихие слова, путаются голоса,
+    /// медленно на слабой машине.
+    /// </remarks>
+    private void BuildAdvancedSection()
     {
-        AddGroup(L.S.GroupModel);
-
-        var modelBox = new ComboBox { Width = ControlColumnWidth };
-        RefillModelBox(modelBox);
-        modelBox.SelectionChanged += (_, _) =>
+        _page.Children.Add(new TextBlock
         {
-            if (modelBox.SelectedItem is string fileName)
-            {
-                Apply(s => s with { ModelFileName = fileName });
-            }
-        };
+            Text = L.S.AdvancedIntro,
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.8,
+            Margin = new Thickness(2, 0, 24, 14),
+        });
 
-        Refresh(() => RefillModelBox(modelBox));
-        AddCard(SymbolRegular.BrainCircuit24, L.S.FieldModel, L.S.FieldModelHint, modelBox);
+        AddGroup(L.S.GroupRecognition);
 
         AddCard(
             SymbolRegular.Options24,
@@ -415,55 +448,46 @@ public partial class SettingsWindow : FluentWindow
                 L.S.Minutes,
                 value => Apply(s => s with { IdleUnloadMinutes = (int)Math.Clamp(value, 1, 24 * 60) })));
 
-        AddGroup(L.S.GroupLanguageAndStyle);
-
-        AddCard(
-            SymbolRegular.LocalLanguage24,
-            L.S.FieldRecognitionLanguage,
-            L.S.FieldRecognitionLanguageHint,
-            LanguageCombo(() => Settings.Language, code => Apply(s => s with { Language = code })));
-
-        var promptBox = new TextBox
-        {
-            Text = Settings.Prompt ?? string.Empty,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            MinHeight = 64,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        };
-
-        promptBox.LostFocus += (_, _) =>
-        {
-            string value = promptBox.Text.Trim();
-            Apply(s => s with { Prompt = value.Length == 0 ? null : value });
-        };
-
-        Refresh(() =>
-        {
-            if (!promptBox.IsKeyboardFocusWithin)
-            {
-                promptBox.Text = Settings.Prompt ?? string.Empty;
-            }
-        });
-
-        var resetPrompt = new Button
-        {
-            Content = L.S.ButtonDefault,
-            MinWidth = 110,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-
-        resetPrompt.Click += (_, _) =>
-        {
-            promptBox.Text = LanguageDefaults.DefaultPrompt(Settings.Language);
-            Apply(s => s with { Prompt = promptBox.Text });
-        };
-
-        AddStackedCard(SymbolRegular.TextAlignLeft24, L.S.FieldPrompt, L.S.FieldPromptHint, promptBox, resetPrompt);
-
         AddGroup(L.S.GroupSpeechDetection);
         BuildSpeechDetectionCards();
+
+        AddGroup(L.S.GroupVoices);
+
+        AddCard(
+            SymbolRegular.PeopleTeam24,
+            L.S.FieldVoiceEmbeddingModel,
+            L.S.FieldVoiceEmbeddingModelHint,
+            VoiceModelCombo(
+                segmentation: false,
+                () => Settings.VoiceEmbeddingModelFileName,
+                name => Apply(s => s with { VoiceEmbeddingModelFileName = name })));
+
+        AddCard(
+            SymbolRegular.PulseSquare24,
+            L.S.FieldVoiceSegmentationModel,
+            L.S.FieldVoiceSegmentationModelHint,
+            VoiceModelCombo(
+                segmentation: true,
+                () => Settings.VoiceSegmentationModelFileName,
+                name => Apply(s => s with { VoiceSegmentationModelFileName = name })));
+
+        AddCard(
+            SymbolRegular.Options24,
+            L.S.FieldVoiceThreshold,
+            L.S.FieldVoiceThresholdHint,
+            VoiceThresholdField());
+
+        AddGroup(L.S.GroupStorage);
+
+        // Читаем ЖИВОЕ состояние маркера, а не то, с которым стартовал
+        // процесс: иначе переключатель показывал бы прежнее положение сразу
+        // после нажатия и выглядел бы неработающим.
+        AddToggleCard(
+            SymbolRegular.UsbStick24,
+            L.S.FieldPortable,
+            L.S.FieldPortableHint + " " + L.S.RestartRequired + ".",
+            () => AppPaths.IsPortableNow,
+            SetPortable);
     }
 
     private void BuildSpeechDetectionCards()
@@ -640,6 +664,30 @@ public partial class SettingsWindow : FluentWindow
             Margin = new Thickness(2, 0, 24, 16),
         });
 
+        // Какой моделью распознавать — первым: это единственное, что здесь
+        // выбирают чаще одного раза. Раньше выбор жил в «Распознавании» и в
+        // подменю трея, а на странице моделей его не было вовсе.
+        var modelBox = new ComboBox { Width = ControlColumnWidth };
+        RefillModelBox(modelBox);
+        modelBox.SelectionChanged += (_, _) =>
+        {
+            if (modelBox.SelectedItem is string fileName)
+            {
+                Apply(s => s with { ModelFileName = fileName });
+            }
+        };
+
+        Refresh(() => RefillModelBox(modelBox));
+        AddCard(SymbolRegular.BrainCircuit24, L.S.FieldActiveModel, L.S.FieldModelHint, modelBox);
+
+        AddGroup(L.S.GroupDownload);
+        BuildDownloadList();
+
+        AddGroup(L.S.ModelsInstalled);
+        BuildInstalledList();
+
+        // Папка — последней: её выбирают раз в жизни, а на первом запуске
+        // человеку нужно скачать модель, а не решать, где она будет лежать.
         AddGroup(L.S.GroupModelsFolder);
 
         var folderBox = new TextBox
@@ -662,12 +710,6 @@ public partial class SettingsWindow : FluentWindow
                 // запись текущего пути: умолчание зависит от режима хранения,
                 // и в портативном режиме оно другое.
                 () => _ = ChangeModelsFolderAsync(null)));
-
-        AddGroup(L.S.ModelsInstalled);
-        BuildInstalledList();
-
-        AddGroup(L.S.GroupDownload);
-        BuildDownloadList();
     }
 
     private void BuildInstalledList()
@@ -1037,58 +1079,6 @@ public partial class SettingsWindow : FluentWindow
         _ => $"{bytes} B",
     };
 
-    // --- раздел: текст -----------------------------------------------------
-
-    private void BuildTextSection()
-    {
-        AddGroup(L.S.GroupParagraphs);
-
-        AddToggleCard(
-            SymbolRegular.TextParagraph24,
-            L.S.FieldSplitParagraphs,
-            description: null,
-            () => Settings.SplitParagraphsByPauses,
-            value => Apply(s => s with { SplitParagraphsByPauses = value }));
-
-        AddCard(
-            SymbolRegular.Timer24,
-            L.S.FieldParagraphPause,
-            description: null,
-            NumberField(
-                () => Settings.ParagraphPauseSeconds,
-                L.S.Seconds,
-                value => Apply(s => s with { ParagraphPauseSeconds = Math.Clamp(value, 0.2, 10) })));
-
-        AddGroup(L.S.GroupReplacements);
-
-        var replacementsBox = new TextBox
-        {
-            Text = FormatReplacements(Settings.Replacements),
-            AcceptsReturn = true,
-            MinHeight = 120,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas, Courier New"),
-        };
-
-        replacementsBox.LostFocus += (_, _) =>
-            Apply(s => s with { Replacements = ParseReplacements(replacementsBox.Text) });
-
-        Refresh(() =>
-        {
-            if (!replacementsBox.IsKeyboardFocusWithin)
-            {
-                replacementsBox.Text = FormatReplacements(Settings.Replacements);
-            }
-        });
-
-        AddStackedCard(
-            SymbolRegular.ArrowSwap24,
-            L.S.FieldReplacements,
-            L.S.FieldReplacementsHint,
-            replacementsBox,
-            trailing: null);
-    }
-
     // --- раздел: звонки ----------------------------------------------------
 
     private void BuildCallsSection()
@@ -1116,6 +1106,26 @@ public partial class SettingsWindow : FluentWindow
                 () => Settings.SystemAudioDeviceId,
                 id => Apply(s => s with { SystemAudioDeviceId = id })));
 
+        AddGroup(L.S.GroupWhoSpeaks);
+
+        AddCard(
+            SymbolRegular.Person24,
+            L.S.FieldMyName,
+            L.S.FieldMyNameHint,
+            TextField(
+                () => Settings.EffectiveMyName,
+                value => Apply(s => s with { MyName = value.Trim().Length == 0 ? null : value.Trim() })));
+
+        BuildSplitVoicesCard();
+
+        AddCard(
+            SymbolRegular.LocalLanguage24,
+            L.S.FieldOtherSideLanguage,
+            L.S.FieldOtherSideLanguageHint,
+            LanguageCombo(() => Settings.OtherSideLanguage, code => Apply(s => s with { OtherSideLanguage = code })));
+
+        AddGroup(L.S.GroupStorage);
+
         var callsFolderBox = new TextBox
         {
             Text = Settings.CallsDirectory ?? AppPaths.DefaultCallsDirectory,
@@ -1142,8 +1152,43 @@ public partial class SettingsWindow : FluentWindow
                 () => Settings.MaxCallMinutes,
                 L.S.Minutes,
                 value => Apply(s => s with { MaxCallMinutes = (int)Math.Clamp(value, 1, 24 * 60) })));
+    }
 
-        AddGroup(L.S.GroupVoices);
+    /// <summary>
+    /// Разделение голосов: переключатель — или ссылка на недостающие модели.
+    /// </summary>
+    /// <remarks>
+    /// Раньше здесь стояли три карточки с именами файлов ONNX и порогом
+    /// кластеризации — выше, чем «Ваше имя». Выбор файлов и порог ушли в
+    /// «Дополнительно»; здесь осталось то, что человек решает сам: разделять
+    /// или нет, и есть ли для этого всё нужное.
+    /// </remarks>
+    private void BuildSplitVoicesCard()
+    {
+        bool modelsPresent =
+            ModelLocator.Resolve(Settings.VoiceSegmentationModelFileName, Settings.ModelsDirectory) is not null
+            && ModelLocator.Resolve(Settings.VoiceEmbeddingModelFileName, Settings.ModelsDirectory) is not null;
+
+        if (!modelsPresent)
+        {
+            var goToModels = new Button
+            {
+                Content = L.S.SectionModels,
+                MinWidth = 130,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 10, 0, 0),
+            };
+
+            goToModels.Click += (_, _) => GoTo(SettingsSection.Models);
+
+            AddStackedCard(
+                SymbolRegular.PeopleTeam24,
+                L.S.FieldSplitVoices,
+                L.S.FieldSplitVoicesMissing,
+                goToModels,
+                trailing: null);
+            return;
+        }
 
         AddToggleCard(
             SymbolRegular.PeopleTeam24,
@@ -1151,54 +1196,6 @@ public partial class SettingsWindow : FluentWindow
             L.S.FieldSplitVoicesHint,
             () => Settings.SplitVoices,
             value => Apply(s => s with { SplitVoices = value }));
-
-        AddCard(
-            SymbolRegular.PeopleTeam24,
-            L.S.FieldVoiceEmbeddingModel,
-            L.S.FieldVoiceEmbeddingModelHint,
-            VoiceModelCombo(
-                segmentation: false,
-                () => Settings.VoiceEmbeddingModelFileName,
-                name => Apply(s => s with { VoiceEmbeddingModelFileName = name })));
-
-        AddCard(
-            SymbolRegular.PulseSquare24,
-            L.S.FieldVoiceSegmentationModel,
-            L.S.FieldVoiceSegmentationModelHint,
-            VoiceModelCombo(
-                segmentation: true,
-                () => Settings.VoiceSegmentationModelFileName,
-                name => Apply(s => s with { VoiceSegmentationModelFileName = name })));
-
-        AddCard(
-            SymbolRegular.Options24,
-            L.S.FieldVoiceThreshold,
-            L.S.FieldVoiceThresholdHint,
-            VoiceThresholdField());
-
-        AddGroup(L.S.GroupTranscript);
-
-        AddCard(
-            SymbolRegular.Person24,
-            L.S.FieldMyName,
-            L.S.FieldMyNameHint,
-            TextField(
-                () => Settings.EffectiveMyName,
-                value => Apply(s => s with { MyName = value.Trim().Length == 0 ? null : value.Trim() })));
-
-        AddCard(
-            SymbolRegular.PeopleTeam24,
-            L.S.FieldOtherSideName,
-            description: null,
-            TextField(
-                () => Settings.OtherSideName ?? L.S.TranscriptUnknownSpeaker,
-                value => Apply(s => s with { OtherSideName = value.Trim().Length == 0 ? null : value.Trim() })));
-
-        AddCard(
-            SymbolRegular.LocalLanguage24,
-            L.S.FieldOtherSideLanguage,
-            L.S.FieldOtherSideLanguageHint,
-            LanguageCombo(() => Settings.OtherSideLanguage, code => Apply(s => s with { OtherSideLanguage = code })));
     }
 
     // --- раздел: общие -----------------------------------------------------
@@ -1250,7 +1247,15 @@ public partial class SettingsWindow : FluentWindow
 
         AddCard(SymbolRegular.DarkTheme24, L.S.FieldTheme, description: null, themeBox);
 
-        AddGroup(L.S.GroupStartupAndStorage);
+        // Пилюля показывает и диктовку, и звонки — поэтому здесь, а не в «Диктовке».
+        AddToggleCard(
+            SymbolRegular.Eye24,
+            L.S.FieldShowOverlay,
+            L.S.FieldShowOverlayHint,
+            () => Settings.ShowOverlay,
+            value => Apply(s => s with { ShowOverlay = value }));
+
+        AddGroup(L.S.GroupStartup);
 
         var autoStart = new ToggleSwitch
         {
@@ -1283,17 +1288,33 @@ public partial class SettingsWindow : FluentWindow
             AutoStart.IsAvailable ? L.S.FieldAutoStartHint : L.S.FieldAutoStartUnavailable,
             autoStart);
 
-        // Читаем ЖИВОЕ состояние маркера, а не то, с которым стартовал
-        // процесс: иначе переключатель показывал бы прежнее положение сразу
-        // после нажатия и выглядел бы неработающим.
-        AddToggleCard(
-            SymbolRegular.UsbStick24,
-            L.S.FieldPortable,
-            L.S.FieldPortableHint + " " + L.S.RestartRequired + ".",
-            () => AppPaths.IsPortableNow,
-            SetPortable);
-
         AddGroup(L.S.GroupPrivacy);
+
+        AddToggleCard(
+            SymbolRegular.History24,
+            L.S.FieldKeepHistory,
+            L.S.FieldKeepHistoryHint,
+            () => Settings.KeepDictationHistory,
+            value => Apply(s => s with { KeepDictationHistory = value }));
+
+        var clear = new Button { Content = L.S.ButtonClearHistory, MinWidth = 150 };
+        clear.Click += (_, _) =>
+        {
+            ConfirmChoice choice = ConfirmWindow.Ask(this, new ConfirmWindow(
+                L.S.ClearHistoryTitle,
+                L.S.ClearHistoryBody,
+                primaryButton: L.S.ButtonClearHistory,
+                cancelButton: L.S.ButtonCancel,
+                icon: SymbolRegular.Delete24,
+                danger: true));
+
+            if (choice == ConfirmChoice.Primary)
+            {
+                _journal.Clear();
+            }
+        };
+
+        AddCard(SymbolRegular.Delete24, L.S.ButtonClearHistory, description: null, clear);
 
         AddToggleCard(
             SymbolRegular.EyeOff24,
@@ -1356,6 +1377,14 @@ public partial class SettingsWindow : FluentWindow
             ValueText(WhisperEngine.LoadedRuntime));
 
         AddCard(SymbolRegular.Document24, L.S.AboutLicense, description: null, ValueText("MIT"));
+
+        var openData = new Button { Content = L.S.ButtonOpen, MinWidth = 110 };
+        openData.Click += (_, _) => OpenFile(AppPaths.DataDirectory);
+        AddCard(
+            SymbolRegular.FolderOpen24,
+            L.S.AboutDataFolder,
+            string.Format(CultureInfo.CurrentCulture, L.S.FooterStoragePath, AppPaths.DataDirectory),
+            openData);
 
         // Ссылки — кнопками, а не текстом: адрес, который нельзя нажать,
         // придётся перепечатывать руками, а это ровно тот случай, когда
@@ -2250,8 +2279,7 @@ public partial class SettingsWindow : FluentWindow
                 finally
                 {
                     IsEnabled = true;
-                    FooterHint.Text = string.Format(
-                        CultureInfo.CurrentCulture, L.S.FooterStoragePath, AppPaths.DataDirectory);
+                    FooterHint.Text = string.Empty;
                 }
             }
         }
@@ -2330,44 +2358,6 @@ public partial class SettingsWindow : FluentWindow
     {
         string name = Path.GetFileNameWithoutExtension(fileName);
         return name.StartsWith("ggml-", StringComparison.OrdinalIgnoreCase) ? name[5..] : name;
-    }
-
-    // --- словарь замен -----------------------------------------------------
-
-    private static string FormatReplacements(IReadOnlyDictionary<string, string> replacements)
-    {
-        var builder = new StringBuilder();
-        foreach ((string from, string to) in replacements.OrderBy(p => p.Key, StringComparer.CurrentCultureIgnoreCase))
-        {
-            builder.Append(from).Append(" = ").AppendLine(to);
-        }
-
-        return builder.ToString().TrimEnd();
-    }
-
-    /// <summary>Разобрать строки вида «услышано = правильно».</summary>
-    private static Dictionary<string, string> ParseReplacements(string text)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string line in text.Split('\n'))
-        {
-            // Делим по ПЕРВОМУ знаку равенства: в правой части он вполне
-            // может встретиться как часть текста замены.
-            int separator = line.IndexOf('=', StringComparison.Ordinal);
-            if (separator <= 0)
-            {
-                continue;
-            }
-
-            string from = line[..separator].Trim();
-            string to = line[(separator + 1)..].Trim();
-            if (from.Length > 0)
-            {
-                result[from] = to;
-            }
-        }
-
-        return result;
     }
 
     // --- связь с настройками ------------------------------------------------

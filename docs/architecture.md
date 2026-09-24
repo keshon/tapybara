@@ -17,7 +17,7 @@ src/Tapybara.Core/         engine, audio, settings, Win32 plumbing — no UI
   Windows/                 hotkey, keyboard hook, clipboard, input, autostart
   Diagnostics/             the log
 
-src/Tapybara.App/          WPF: tray, overlay, settings window — no logic
+src/Tapybara.App/          WPF: tray, overlay, main and settings windows — no logic
 tests/Tapybara.Core.Tests/ unit tests for the pure logic in Core
 tools/Tapybara.Bench/      console harness for benchmarking and diagnostics
 ```

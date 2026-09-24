@@ -34,17 +34,23 @@ public sealed record HotkeyCombo(HotkeyModifiers Modifiers, ushort VirtualKey)
     public static HotkeyCombo Default { get; } = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, VkD);
 
     /// <summary>
-    /// Ctrl + Alt + R для записи звонка.
+    /// Ctrl + Alt + C для записи звонка.
     /// </summary>
     /// <remarks>
     /// Рядом с сочетанием диктовки и с той же парой модификаторов: две
     /// записи с микрофона человек запоминает как пару, а не как два
-    /// отдельных правила. «R» — record.
+    /// отдельных правила. «C» — call.
+    /// <para>
+    /// Не Ctrl+Alt+R, хотя «record» напрашивался: на машине автора его уже
+    /// держит другая программа, и сочетание по умолчанию, которое не
+    /// занимается при первом же запуске, хуже любого другого. Проверено
+    /// регистрацией, а не угадано.
+    /// </para>
     /// </remarks>
-    public static HotkeyCombo DefaultCall { get; } = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, VkR);
+    public static HotkeyCombo DefaultCall { get; } = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, VkC);
 
+    private const ushort VkC = 0x43;
     private const ushort VkD = 0x44;
-    private const ushort VkR = 0x52;
 
     /// <summary>Годится ли сочетание в глобальные: нужен хотя бы один «настоящий» модификатор.</summary>
     /// <remarks>

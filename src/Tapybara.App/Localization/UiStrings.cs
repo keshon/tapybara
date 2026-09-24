@@ -29,19 +29,11 @@ public sealed record UiStrings
     public required string TrayCancel { get; init; }
     public required string TrayTranscribing { get; init; }
     public required string TrayLoadingModel { get; init; }
-    public required string TrayHistory { get; init; }
-    public required string TrayHistoryEmpty { get; init; }
-    public required string TrayModel { get; init; }
-    public required string TrayNoModels { get; init; }
-    public required string TrayAutoPaste { get; init; }
-    public required string TrayAutoStart { get; init; }
     public required string TrayRetryHotkey { get; init; }
-    public required string TrayModelsFolder { get; init; }
     public required string TraySettings { get; init; }
     public required string TrayExit { get; init; }
     public required string TrayStartRecording { get; init; }
     public required string TrayStopRecording { get; init; }
-    public required string TrayCalls { get; init; }
     public required string StatusRecordingCall { get; init; }
     public required string StatusTranscribingCall { get; init; }
     public required string StatusCallSaved { get; init; }
@@ -64,16 +56,12 @@ public sealed record UiStrings
     public required string StatusModelLoadFailed { get; init; }
     public required string StatusHotkeyBusy { get; init; }
     public required string StatusModelStillLoading { get; init; }
-    public required string StatusInClipboard { get; init; }
-    public required string StatusCopied { get; init; }
     public required string StatusTextReady { get; init; }
     public required string StatusSettingsNotSaved { get; init; }
     public required string NotifyNoModelTitle { get; init; }
     public required string NotifyNoModelBody { get; init; }
     public required string NotifyHotkeyBusyTitle { get; init; }
     public required string NotifyHotkeyBusyHint { get; init; }
-    public required string NotifyAlreadyRunningTitle { get; init; }
-    public required string NotifyAlreadyRunningBody { get; init; }
     public required string NotifyCrashTitle { get; init; }
     public required string NotifyCrashBody { get; init; }
 
@@ -100,9 +88,7 @@ public sealed record UiStrings
     // --- окно настроек: разделы ---
     public required string SettingsTitle { get; init; }
     public required string SectionDictation { get; init; }
-    public required string SectionRecognition { get; init; }
     public required string SectionModels { get; init; }
-    public required string SectionText { get; init; }
     public required string SectionCalls { get; init; }
     public required string SectionGeneral { get; init; }
     public required string SectionAbout { get; init; }
@@ -112,21 +98,16 @@ public sealed record UiStrings
     public required string GroupAudioInput { get; init; }
     public required string GroupInsertion { get; init; }
     public required string GroupLimits { get; init; }
-    public required string GroupModel { get; init; }
-    public required string GroupLanguageAndStyle { get; init; }
     public required string GroupSpeechDetection { get; init; }
     public required string GroupModelsFolder { get; init; }
     public required string GroupDownload { get; init; }
     public required string GroupParagraphs { get; init; }
     public required string GroupReplacements { get; init; }
     public required string GroupRecording { get; init; }
-    public required string GroupTranscript { get; init; }
     public required string GroupAppearance { get; init; }
-    public required string GroupStartupAndStorage { get; init; }
     public required string GroupPrivacy { get; init; }
 
     // --- окно настроек: поля ---
-    public required string FieldModel { get; init; }
     public required string FieldModelHint { get; init; }
     public required string FieldDecoding { get; init; }
     public required string FieldDecodingHint { get; init; }
@@ -158,8 +139,6 @@ public sealed record UiStrings
     public required string FieldMaxDictationHint { get; init; }
     public required string FieldSplitParagraphs { get; init; }
     public required string FieldParagraphPause { get; init; }
-    public required string FieldReplacements { get; init; }
-    public required string FieldReplacementsHint { get; init; }
     public required string FieldUiLanguage { get; init; }
     public required string FieldUiLanguageAuto { get; init; }
     public required string FieldTheme { get; init; }
@@ -185,7 +164,6 @@ public sealed record UiStrings
     public required string FieldMaxCallHint { get; init; }
     public required string FieldMyName { get; init; }
     public required string FieldMyNameHint { get; init; }
-    public required string FieldOtherSideName { get; init; }
     public required string FieldOtherSideLanguage { get; init; }
     public required string FieldOtherSideLanguageHint { get; init; }
     public required string FieldAutoStart { get; init; }
@@ -268,15 +246,10 @@ public sealed record UiStrings
     public required string ParticipantsAddHint { get; init; }
     public required string ParticipantsRemoveHint { get; init; }
     public required string CallReviewTitle { get; init; }
-    public required string CallReviewHeading { get; init; }
-    public required string CallReviewParticipants { get; init; }
-    public required string CallReviewNote { get; init; }
     public required string CallReviewNotePlaceholder { get; init; }
     public required string CallReviewDelete { get; init; }
     public required string CallReviewSave { get; init; }
-    public required string CallReviewHintNone { get; init; }
     public required string CallReviewHintOne { get; init; }
-    public required string CallReviewHintMany { get; init; }
     public required string CallDeleteTitle { get; init; }
     public required string CallDeleteBody { get; init; }
     public required string CallDeleteConfirm { get; init; }
@@ -285,11 +258,9 @@ public sealed record UiStrings
     public required string UnitSeconds { get; init; }
     public required string UnitMinutes { get; init; }
     public required string UnitHoursMinutes { get; init; }
-    public required string CallsTitle { get; init; }
     public required string CallsEmpty { get; init; }
     public required string CallsNothingSelected { get; init; }
     public required string CallsOpenFolder { get; init; }
-    public required string CallsOpenTranscript { get; init; }
     public required string CallsTranscribe { get; init; }
     public required string CallsTranscribeAgain { get; init; }
     public required string CallsTotals { get; init; }
@@ -298,6 +269,49 @@ public sealed record UiStrings
     public required string CallStateTranscribing { get; init; }
     public required string CallStateReady { get; init; }
     public required string CallStateNeedsNames { get; init; }
+    public required string NavDictations { get; init; }
+    public required string NavCalls { get; init; }
+    public required string NavDictionary { get; init; }
+    public required string NavSettings { get; init; }
+    public required string TrayOpen { get; init; }
+    public required string DictationsSearch { get; init; }
+    public required string DictationsEmpty { get; init; }
+    public required string DictationsHistoryOff { get; init; }
+    public required string DictationsCount { get; init; }
+    public required string DictationCopy { get; init; }
+    public required string DictationDelete { get; init; }
+    public required string DictationWords { get; init; }
+    public required string DictionaryIntro { get; init; }
+    public required string DictionaryReplacementsHint { get; init; }
+    public required string DictionaryPeople { get; init; }
+    public required string DictionaryPeopleHint { get; init; }
+    public required string DictionaryPeopleEmpty { get; init; }
+    public required string DictionaryHeardPlaceholder { get; init; }
+    public required string DictionaryCorrectPlaceholder { get; init; }
+    public required string CardHeading { get; init; }
+    public required string CardTitleField { get; init; }
+    public required string CardTitlePlaceholder { get; init; }
+    public required string CardWho { get; init; }
+    public required string CardHintNone { get; init; }
+    public required string CardHintMany { get; init; }
+    public required string CardOpenCall { get; init; }
+    public required string CardReady { get; init; }
+    public required string CardNeedsNames { get; init; }
+    public required string CardWaiting { get; init; }
+    public required string SectionAdvanced { get; init; }
+    public required string GroupWhoSpeaks { get; init; }
+    public required string GroupStorage { get; init; }
+    public required string GroupRecognition { get; init; }
+    public required string GroupStartup { get; init; }
+    public required string FieldActiveModel { get; init; }
+    public required string FieldKeepHistory { get; init; }
+    public required string FieldKeepHistoryHint { get; init; }
+    public required string ButtonClearHistory { get; init; }
+    public required string ClearHistoryTitle { get; init; }
+    public required string ClearHistoryBody { get; init; }
+    public required string FieldSplitVoicesMissing { get; init; }
+    public required string AboutDataFolder { get; init; }
+    public required string AdvancedIntro { get; init; }
     public required string CallsSearchPlaceholder { get; init; }
     public required string DayToday { get; init; }
     public required string DayYesterday { get; init; }
@@ -308,7 +322,6 @@ public sealed record UiStrings
     public required string CallsOpenTranscriptFile { get; init; }
     public required string CallsTabTranscript { get; init; }
     public required string CallsTabNote { get; init; }
-    public required string CallsTitlePlaceholder { get; init; }
     public required string BannerNeedsNamesOne { get; init; }
     public required string BannerNeedsNamesMany { get; init; }
     public required string BannerLegacy { get; init; }
@@ -321,7 +334,6 @@ public sealed record UiStrings
     public required string VoiceUnnamed { get; init; }
     public required string VoiceWho { get; init; }
     public required string VoiceOtherName { get; init; }
-    public required string VoiceNoName { get; init; }
     public required string VoiceSameAs { get; init; }
     public required string VoicePlayQuote { get; init; }
     public required string VoiceMe { get; init; }
@@ -485,19 +497,11 @@ public sealed record UiStrings
         TrayCancel = "Cancel",
         TrayTranscribing = "Transcribing…",
         TrayLoadingModel = "Loading model…",
-        TrayHistory = "Recent dictations",
-        TrayHistoryEmpty = "Nothing yet",
-        TrayModel = "Model",
-        TrayNoModels = "No models found",
-        TrayAutoPaste = "Insert automatically",
-        TrayAutoStart = "Start with Windows",
         TrayRetryHotkey = "Claim the hotkey again",
-        TrayModelsFolder = "Models folder…",
         TraySettings = "Settings…",
         TrayExit = "Exit",
         TrayStartRecording = "Record a call",
         TrayStopRecording = "Stop recording",
-        TrayCalls = "Recorded calls…",
         StatusRecordingCall = "Recording a call · {0}",
         StatusTranscribingCall = "Transcribing the call…",
         StatusCallSaved = "Call saved: {0}",
@@ -519,16 +523,12 @@ public sealed record UiStrings
         StatusModelLoadFailed = "Model failed to load: {0}",
         StatusHotkeyBusy = "{0} is taken by another application",
         StatusModelStillLoading = "The model is still loading — one moment",
-        StatusInClipboard = "In clipboard: {0}",
-        StatusCopied = "Copied to clipboard",
         StatusTextReady = "Inserted · {0} words",
         StatusSettingsNotSaved = "Settings could not be saved — see the log",
         NotifyNoModelTitle = "No recognition model",
         NotifyNoModelBody = "Open Settings › Models to download one. Nothing works until you do.",
         NotifyHotkeyBusyTitle = "Hotkey unavailable",
         NotifyHotkeyBusyHint = "Free it, then choose \"Claim the hotkey again\" from the menu.",
-        NotifyAlreadyRunningTitle = "Tapybara is already running",
-        NotifyAlreadyRunningBody = "It lives here in the tray. Press your hotkey to dictate.",
         NotifyCrashTitle = "Something went wrong",
         NotifyCrashBody = "Tapybara kept running. Details are in the log: {0}",
 
@@ -552,9 +552,7 @@ public sealed record UiStrings
 
         SettingsTitle = "Tapybara settings",
         SectionDictation = "Dictation",
-        SectionRecognition = "Recognition",
         SectionModels = "Models",
-        SectionText = "Text",
         SectionCalls = "Calls",
         SectionGeneral = "General",
         SectionAbout = "About",
@@ -563,20 +561,15 @@ public sealed record UiStrings
         GroupAudioInput = "Microphone",
         GroupInsertion = "Where the text goes",
         GroupLimits = "Safety limits",
-        GroupModel = "Model",
-        GroupLanguageAndStyle = "Language and style",
         GroupSpeechDetection = "Speech detection",
         GroupModelsFolder = "Where models are kept",
         GroupDownload = "Download a model",
         GroupParagraphs = "Paragraphs",
         GroupReplacements = "Replacements",
         GroupRecording = "Recording",
-        GroupTranscript = "Transcript",
         GroupAppearance = "Appearance",
-        GroupStartupAndStorage = "Startup and storage",
         GroupPrivacy = "Privacy",
 
-        FieldModel = "Recognition model",
         FieldModelHint = "Only models already in your models folder are listed",
         FieldDecoding = "Decoding",
         FieldDecodingHint = "How many wordings the model weighs before settling on one. Five by default",
@@ -608,8 +601,6 @@ public sealed record UiStrings
         FieldMaxDictationHint = "A fuse against a dictation you forgot to stop",
         FieldSplitParagraphs = "Split into paragraphs on pauses",
         FieldParagraphPause = "Pause length",
-        FieldReplacements = "Replacements",
-        FieldReplacementsHint = "One per line, as: heard = correct. Works for names with punctuation too, like C# or .NET.",
         FieldUiLanguage = "Interface language",
         FieldUiLanguageAuto = "Same as Windows",
         FieldTheme = "Theme",
@@ -635,7 +626,6 @@ public sealed record UiStrings
         FieldMaxCallHint = "Two channels cost about 230 MB per hour",
         FieldMyName = "Your name in transcripts",
         FieldMyNameHint = "How your own lines are labelled",
-        FieldOtherSideName = "Other side label",
         FieldOtherSideLanguage = "Other side language",
         FieldOtherSideLanguageHint = "Detect automatically is the sensible default: you know what you speak, you do not know what they will.",
         FieldAutoStart = "Start with Windows",
@@ -715,26 +705,19 @@ public sealed record UiStrings
         ParticipantsAddHint = "Add to this call",
         ParticipantsRemoveHint = "Remove from this call",
         CallReviewTitle = "Call recorded",
-        CallReviewHeading = "Who was on this call?",
-        CallReviewParticipants = "People",
-        CallReviewNote = "What it was about",
         CallReviewNotePlaceholder = "Saved next to the recording as note.md",
         CallReviewDelete = "Delete recording",
         CallReviewSave = "Done",
-        CallReviewHintNone = "Without names the other side is labelled “{0}” — or “{0} 1”, “{0} 2” if there are several voices",
         CallReviewHintOne = "One person: no voice splitting needed, and the name goes straight into the transcript",
-        CallReviewHintMany = "{0} people: their voices get split apart, knowing how many to look for",
         CallDeleteTitle = "Delete this recording?",
         CallDeleteBody = "Both tracks, the transcript and the note go with it. This cannot be undone.",
         CallDeleteConfirm = "Delete recording",
         UnitSeconds = "{0} s",
         UnitMinutes = "{0} min",
         UnitHoursMinutes = "{0} h {1} min",
-        CallsTitle = "Recorded calls",
         CallsEmpty = "No recordings yet. Start one from the tray menu, and it will appear here.",
         CallsNothingSelected = "Pick a recording on the left.",
         CallsOpenFolder = "Folder",
-        CallsOpenTranscript = "Transcript",
         CallsTranscribe = "Transcribe",
         CallsTranscribeAgain = "Transcribe again",
         CallsTotals = "{0} recordings · {1} MB",
@@ -743,6 +726,49 @@ public sealed record UiStrings
         CallStateTranscribing = "transcribing",
         CallStateReady = "ready",
         CallStateNeedsNames = "name the voices",
+        NavDictations = "Dictations",
+        NavCalls = "Calls",
+        NavDictionary = "Dictionary",
+        NavSettings = "Settings",
+        TrayOpen = "Open Tapybara",
+        DictationsSearch = "Search dictations",
+        DictationsEmpty = "Everything you dictate appears here, so a dictation that went into the wrong window is never lost. Press {0} in any text field and speak.",
+        DictationsHistoryOff = "History is switched off, so new dictations are not kept. Turn it on in Settings › General.",
+        DictationsCount = "{0} dictations",
+        DictationCopy = "Copy",
+        DictationDelete = "Delete",
+        DictationWords = "{0} words",
+        DictionaryIntro = "What to do with the words the model keeps mishearing. Changes apply to new dictations and transcripts.",
+        DictionaryReplacementsHint = "What was heard on the left, what it should be on the right. Works for names with punctuation too, like C# or .NET.",
+        DictionaryPeople = "People",
+        DictionaryPeopleHint = "Offered as chips after a call and when naming voices, most recent first. Renaming here does not change past transcripts.",
+        DictionaryPeopleEmpty = "Names appear here after your first call.",
+        DictionaryHeardPlaceholder = "heard",
+        DictionaryCorrectPlaceholder = "correct",
+        CardHeading = "Call recorded · {0}",
+        CardTitleField = "Name this call",
+        CardTitlePlaceholder = "For example: release with Kirill",
+        CardWho = "Who was there besides you",
+        CardHintNone = "You can skip this: the voices will be told apart anyway, and you can name them from quotes.",
+        CardHintMany = "{0} people: I'll look for that many voices, then show quotes so you can tell who is who.",
+        CardOpenCall = "Open call",
+        CardReady = "Transcript ready",
+        CardNeedsNames = "Transcript ready — name the voices",
+        CardWaiting = "Waiting for the previous call…",
+        SectionAdvanced = "Advanced",
+        GroupWhoSpeaks = "Who is speaking",
+        GroupStorage = "Storage",
+        GroupRecognition = "Recognition",
+        GroupStartup = "Startup",
+        FieldActiveModel = "Active model",
+        FieldKeepHistory = "Keep dictation history",
+        FieldKeepHistoryHint = "Everything you dictate is kept on this computer, in Tapybara › Dictations. Turn it off if you dictate passwords.",
+        ButtonClearHistory = "Clear history",
+        ClearHistoryTitle = "Clear dictation history?",
+        ClearHistoryBody = "Every saved dictation will be deleted from this computer. This cannot be undone.",
+        FieldSplitVoicesMissing = "Needs two small voice models (34 MB). Get them on the Models page.",
+        AboutDataFolder = "Settings and data",
+        AdvancedIntro = "Sensible values are already set. Change these when something specific is wrong.",
         CallsSearchPlaceholder = "Search calls and transcripts",
         DayToday = "Today",
         DayYesterday = "Yesterday",
@@ -753,7 +779,6 @@ public sealed record UiStrings
         CallsOpenTranscriptFile = "Open transcript.md",
         CallsTabTranscript = "Transcript",
         CallsTabNote = "Note",
-        CallsTitlePlaceholder = "Name this call",
         BannerNeedsNamesOne = "One voice has no name yet. Its quotes are on the right; the name goes into all its lines at once.",
         BannerNeedsNamesMany = "Voices without a name: {0}. Their quotes are on the right; a name goes into all of that voice's lines at once.",
         BannerLegacy = "This call was transcribed by an older version, which did not keep who said what. Transcribe it again to name the voices.",
@@ -766,7 +791,6 @@ public sealed record UiStrings
         VoiceUnnamed = "{0} — no name",
         VoiceWho = "Who is this?",
         VoiceOtherName = "other…",
-        VoiceNoName = "no name",
         VoiceSameAs = "Same person as…",
         VoicePlayQuote = "Listen to this quote",
         VoiceMe = "{0} — your microphone, {1}",
@@ -845,19 +869,11 @@ public sealed record UiStrings
         TrayCancel = "Отменить",
         TrayTranscribing = "Распознаю…",
         TrayLoadingModel = "Загружаю модель…",
-        TrayHistory = "Последние диктовки",
-        TrayHistoryEmpty = "Пока пусто",
-        TrayModel = "Модель",
-        TrayNoModels = "Моделей не найдено",
-        TrayAutoPaste = "Вставлять автоматически",
-        TrayAutoStart = "Запускать с Windows",
         TrayRetryHotkey = "Занять горячую клавишу заново",
-        TrayModelsFolder = "Папка моделей…",
         TraySettings = "Настройки…",
         TrayExit = "Выход",
         TrayStartRecording = "Записать звонок",
         TrayStopRecording = "Остановить запись",
-        TrayCalls = "Записи разговоров…",
         StatusRecordingCall = "Записываю звонок · {0}",
         StatusTranscribingCall = "Распознаю звонок…",
         StatusCallSaved = "Звонок сохранён: {0}",
@@ -879,16 +895,12 @@ public sealed record UiStrings
         StatusModelLoadFailed = "Модель не загрузилась: {0}",
         StatusHotkeyBusy = "{0} занято другим приложением",
         StatusModelStillLoading = "Модель ещё грузится — секунду",
-        StatusInClipboard = "В буфере: {0}",
-        StatusCopied = "Скопировано в буфер обмена",
         StatusTextReady = "Вставлено · слов: {0}",
         StatusSettingsNotSaved = "Настройки не сохранились — смотрите журнал",
         NotifyNoModelTitle = "Нет модели распознавания",
         NotifyNoModelBody = "Откройте «Настройки › Модели» и скачайте её. Без модели ничего не работает.",
         NotifyHotkeyBusyTitle = "Горячая клавиша недоступна",
         NotifyHotkeyBusyHint = "Освободите её и выберите в меню «Занять горячую клавишу заново».",
-        NotifyAlreadyRunningTitle = "Tapybara уже запущена",
-        NotifyAlreadyRunningBody = "Она живёт здесь, в трее. Нажмите горячую клавишу, чтобы диктовать.",
         NotifyCrashTitle = "Что-то пошло не так",
         NotifyCrashBody = "Tapybara продолжает работать. Подробности в журнале: {0}",
 
@@ -912,9 +924,7 @@ public sealed record UiStrings
 
         SettingsTitle = "Настройки Tapybara",
         SectionDictation = "Диктовка",
-        SectionRecognition = "Распознавание",
         SectionModels = "Модели",
-        SectionText = "Текст",
         SectionCalls = "Звонки",
         SectionGeneral = "Общие",
         SectionAbout = "О программе",
@@ -923,20 +933,15 @@ public sealed record UiStrings
         GroupAudioInput = "Микрофон",
         GroupInsertion = "Куда попадает текст",
         GroupLimits = "Предохранители",
-        GroupModel = "Модель",
-        GroupLanguageAndStyle = "Язык и стиль",
         GroupSpeechDetection = "Поиск речи",
         GroupModelsFolder = "Где лежат модели",
         GroupDownload = "Скачать модель",
         GroupParagraphs = "Абзацы",
         GroupReplacements = "Замены",
         GroupRecording = "Запись",
-        GroupTranscript = "Транскрипт",
         GroupAppearance = "Внешний вид",
-        GroupStartupAndStorage = "Запуск и хранение",
         GroupPrivacy = "Приватность",
 
-        FieldModel = "Модель распознавания",
         FieldModelHint = "В списке только то, что уже лежит в папке моделей",
         FieldDecoding = "Декодирование",
         FieldDecodingHint = "Сколько вариантов фразы модель взвешивает, прежде чем выбрать один. По умолчанию пять",
@@ -968,8 +973,6 @@ public sealed record UiStrings
         FieldMaxDictationHint = "Предохранитель на случай забытой диктовки",
         FieldSplitParagraphs = "Разбивать на абзацы по паузам",
         FieldParagraphPause = "Длина паузы",
-        FieldReplacements = "Замены",
-        FieldReplacementsHint = "По одной в строке, в виде: услышано = правильно. Работает и для названий со знаками — C# или .NET.",
         FieldUiLanguage = "Язык интерфейса",
         FieldUiLanguageAuto = "Как в Windows",
         FieldTheme = "Тема",
@@ -995,7 +998,6 @@ public sealed record UiStrings
         FieldMaxCallHint = "Два канала стоят около 230 МБ в час",
         FieldMyName = "Ваше имя в транскриптах",
         FieldMyNameHint = "Как подписывать ваши реплики",
-        FieldOtherSideName = "Подпись собеседника",
         FieldOtherSideLanguage = "Язык собеседника",
         FieldOtherSideLanguageHint = "Определять автоматически — разумное умолчание: свой язык вы знаете, а язык собеседника заранее нет.",
         FieldAutoStart = "Запускать с Windows",
@@ -1075,26 +1077,19 @@ public sealed record UiStrings
         ParticipantsAddHint = "Добавить к этому звонку",
         ParticipantsRemoveHint = "Убрать из этого звонка",
         CallReviewTitle = "Звонок записан",
-        CallReviewHeading = "Кто был на этом звонке?",
-        CallReviewParticipants = "Участники",
-        CallReviewNote = "О чём говорили",
         CallReviewNotePlaceholder = "Сохранится рядом с записью в note.md",
         CallReviewDelete = "Удалить запись",
         CallReviewSave = "Готово",
-        CallReviewHintNone = "Без имён собеседник будет подписан «{0}», а если голосов несколько — «{0} 1», «{0} 2»",
         CallReviewHintOne = "Один собеседник: голоса разделять не нужно, имя попадёт прямо в транскрипт",
-        CallReviewHintMany = "Собеседников {0}: голоса разделим, зная, сколько их искать",
         CallDeleteTitle = "Удалить эту запись?",
         CallDeleteBody = "Вместе с ней уйдут обе дорожки, транскрипт и заметка. Отменить будет нельзя.",
         CallDeleteConfirm = "Удалить запись",
         UnitSeconds = "{0} с",
         UnitMinutes = "{0} мин",
         UnitHoursMinutes = "{0} ч {1} мин",
-        CallsTitle = "Записи разговоров",
         CallsEmpty = "Записей пока нет. Начните запись из меню в трее — она появится здесь.",
         CallsNothingSelected = "Выберите запись слева.",
         CallsOpenFolder = "Папка",
-        CallsOpenTranscript = "Транскрипт",
         CallsTranscribe = "Распознать",
         CallsTranscribeAgain = "Распознать заново",
         CallsTotals = "Записей: {0} · {1} МБ",
@@ -1103,6 +1098,49 @@ public sealed record UiStrings
         CallStateTranscribing = "распознаётся",
         CallStateReady = "готово",
         CallStateNeedsNames = "назовите голоса",
+        NavDictations = "Диктовки",
+        NavCalls = "Звонки",
+        NavDictionary = "Словарь",
+        NavSettings = "Настройки",
+        TrayOpen = "Открыть Tapybara",
+        DictationsSearch = "Поиск по диктовкам",
+        DictationsEmpty = "Здесь появится всё, что вы надиктуете, — диктовка, ушедшая не в то окно, не потеряется. Нажмите {0} в любом поле ввода и говорите.",
+        DictationsHistoryOff = "История выключена, новые диктовки не сохраняются. Включить её можно в «Настройки › Общие».",
+        DictationsCount = "Диктовок: {0}",
+        DictationCopy = "Копировать",
+        DictationDelete = "Удалить",
+        DictationWords = "слов: {0}",
+        DictionaryIntro = "Что делать со словами, которые модель слышит не так. Правки действуют на новые диктовки и распознавания.",
+        DictionaryReplacementsHint = "Слева — как услышано, справа — как должно быть. Работает и для названий со знаками — C# или .NET.",
+        DictionaryPeople = "Люди",
+        DictionaryPeopleHint = "Предлагаются чипами после звонка и при именовании голосов, свежие — первыми. Переименование здесь не меняет прошлые транскрипты.",
+        DictionaryPeopleEmpty = "Имена появятся здесь после первого звонка.",
+        DictionaryHeardPlaceholder = "услышано",
+        DictionaryCorrectPlaceholder = "правильно",
+        CardHeading = "Звонок записан · {0}",
+        CardTitleField = "Как назвать",
+        CardTitlePlaceholder = "Например: релиз с Кириллом",
+        CardWho = "Кто был, кроме вас",
+        CardHintNone = "Можно не отмечать: голоса разделятся и так, а назвать их можно будет по цитатам.",
+        CardHintMany = "Человек: {0}. Поищу столько голосов, а потом покажу цитаты — выберете, кто есть кто.",
+        CardOpenCall = "Открыть звонок",
+        CardReady = "Транскрипт готов",
+        CardNeedsNames = "Транскрипт готов — назовите голоса",
+        CardWaiting = "Жду, пока распознается предыдущий звонок…",
+        SectionAdvanced = "Дополнительно",
+        GroupWhoSpeaks = "Кто говорит",
+        GroupStorage = "Хранение",
+        GroupRecognition = "Распознавание",
+        GroupStartup = "Запуск",
+        FieldActiveModel = "Активная модель",
+        FieldKeepHistory = "Хранить историю диктовок",
+        FieldKeepHistoryHint = "Всё надиктованное хранится на этом компьютере, в Tapybara › Диктовки. Выключите, если диктуете пароли.",
+        ButtonClearHistory = "Очистить историю",
+        ClearHistoryTitle = "Очистить историю диктовок?",
+        ClearHistoryBody = "Все сохранённые диктовки будут удалены с этого компьютера. Отменить будет нельзя.",
+        FieldSplitVoicesMissing = "Нужны две небольшие модели голосов (34 МБ). Скачайте их на странице «Модели».",
+        AboutDataFolder = "Настройки и данные",
+        AdvancedIntro = "Разумные значения уже выставлены. Меняйте, когда что-то конкретное работает не так.",
         CallsSearchPlaceholder = "Поиск по звонкам и тексту",
         DayToday = "Сегодня",
         DayYesterday = "Вчера",
@@ -1113,7 +1151,6 @@ public sealed record UiStrings
         CallsOpenTranscriptFile = "Открыть transcript.md",
         CallsTabTranscript = "Транскрипт",
         CallsTabNote = "Заметка",
-        CallsTitlePlaceholder = "Назовите звонок",
         BannerNeedsNamesOne = "Один голос без имени. Справа его цитаты — имя подставится во все его реплики сразу.",
         BannerNeedsNamesMany = "Голосов без имени: {0}. Справа их цитаты — имя подставится во все реплики голоса сразу.",
         BannerLegacy = "Этот звонок распознан прежней версией, которая не сохраняла, кто что сказал. Распознайте его заново, чтобы назвать голоса.",
@@ -1126,7 +1163,6 @@ public sealed record UiStrings
         VoiceUnnamed = "{0} — без имени",
         VoiceWho = "Кто это?",
         VoiceOtherName = "другое…",
-        VoiceNoName = "без имени",
         VoiceSameAs = "Это тот же человек, что…",
         VoicePlayQuote = "Послушать цитату",
         VoiceMe = "{0} — ваш микрофон, {1}",

@@ -125,7 +125,7 @@ public class SettingsSerializationTests
 
         Assert.NotEqual(settings.Hotkey, settings.CallHotkey);
         Assert.True(settings.CallHotkey.IsUsableAsGlobal);
-        Assert.Equal("Ctrl+Alt+R", settings.CallHotkey.ToString());
+        Assert.Equal("Ctrl+Alt+C", settings.CallHotkey.ToString());
     }
 
     [Fact]

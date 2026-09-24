@@ -258,6 +258,16 @@ public sealed record AppSettings
     /// </remarks>
     public bool CallRecordingAcknowledged { get; init; }
 
+    /// <summary>
+    /// Хранить историю диктовок на диске.
+    /// </summary>
+    /// <remarks>
+    /// Включено по умолчанию: потерянная диктовка — потерянная работа, а
+    /// вставка уходит не в то окно чаще, чем хотелось бы. Выключается одной
+    /// галочкой для тех, кто диктует пароли. См. <see cref="Dictation.DictationJournal"/>.
+    /// </remarks>
+    public bool KeepDictationHistory { get; init; } = true;
+
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;
 

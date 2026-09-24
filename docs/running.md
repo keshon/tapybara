@@ -24,9 +24,14 @@ otherwise inexplicable.
 Unzip the release anywhere and run `Tapybara.exe`. There is no installer, and
 nothing is written outside the data folder.
 
-A dot appears in the system tray. Click it to open the list of recorded calls;
-right-click for the menu. **Open Settings › Models and download a model** —
-nothing works until you do.
+A dot appears in the system tray. Click it to open the Tapybara window —
+dictations, calls and the dictionary; right-click for the menu. **Open
+Settings › Models and download a model** — nothing works until you do.
+
+Every dictation is kept in Tapybara › Dictations, grouped by day and
+searchable, so text that went into the wrong window can be copied again. The
+history lives next to the settings as `dictations.jsonl`; Settings › General
+switches it off or clears it.
 
 ## Models
 
@@ -72,18 +77,21 @@ half-written model that looks valid.
 
 ## Settings
 
-The window is reached from the tray and organised by the question you arrived
-with:
+The window opens from the tray or from the Tapybara window, and is organised by
+the question you arrived with:
 
 | Section | What is there |
 |---|---|
-| **General** | Interface language, theme, start with Windows, portable mode, privacy |
-| **Dictation** | Hotkey, microphone, where the text goes, maximum length |
-| **Calls** | Output device to record, folder, limits, telling voices apart, transcript labels |
-| **Recognition** | Which model, decoding effort, language, prompt, speech detection, idle unload |
-| **Models** | Where models live, what is installed, what to download |
-| **Text** | Paragraph splitting, replacements |
-| **About** | Version, compute backend, diagnostics, log |
+| **General** | Interface language, theme, floating indicator, start with Windows, dictation history |
+| **Dictation** | Hotkey, microphone, language, where the text goes, paragraphs, maximum length |
+| **Calls** | Hotkey, output device to record, your name, telling voices apart, folder, limits |
+| **Models** | Which model is active, what to download, what is installed, where they live |
+| **Advanced** | Decoding effort, idle unload, speech detection, voice models and threshold, portable mode |
+| **About** | Version, compute backend, where data lives, diagnostics, log |
+
+Everything that needs knowing how recognition works is under **Advanced**;
+sensible values are already set. Replacements and the prompt live in the
+Tapybara window under **Dictionary**, because they are added to all the time.
 
 Settings live in `%APPDATA%\Tapybara\settings.json` and are written
 atomically, but you should not need to touch the file. A log sits next to it in
@@ -96,7 +104,7 @@ empty file named **`portable.txt`** next to the executable switches the
 application to a `Data` folder beside itself instead — useful on a USB stick or
 when you would rather leave nothing behind in the system. The older
 `Tapybara.portable` name still works. There is also a toggle in
-Settings › General, which creates the same file.
+Settings › Advanced, which creates the same file.
 
 Detection is deliberately file-based rather than a setting: reading a setting
 would require already knowing where settings live.
@@ -125,20 +133,24 @@ Keep the prompt short and representative of what you actually dictate.
 ### Replacements
 
 Speech recognition mangles product names and jargon in predictable ways. The
-replacements list fixes them after the fact, matching whole words
-case-insensitively, one per line:
+replacements in Tapybara › Dictionary fix them after the fact, matching whole
+words case-insensitively — what was heard on the left, what it should be on the
+right:
 
-```
-хакинг фейс = Hugging Face
-си шарп = C#
-```
+| Heard | Correct |
+|---|---|
+| хакинг фейс | Hugging Face |
+| си шарп | C# |
+
+A right-click on a line of a call transcript adds a replacement without leaving
+the call.
 
 Names that end in punctuation — `C#`, `C++`, `.NET` — work as replacement
 targets and as keys.
 
 ### Speech detection
 
-The detector is measured, not guessed. Settings › Recognition has a **Measure**
+The detector is measured, not guessed. Settings › Advanced has a **Measure**
 button: count from one to ten at your usual pace, and the detector runs at
 several sensitivities so you can see where it starts losing speech. The
 recommendation is deliberately one step softer than the strictest setting that
@@ -151,8 +163,8 @@ A call is recorded as two separate tracks — your microphone and your system
 audio — and merged into one chronological `transcript.md` with timestamps and
 names.
 
-Start and stop a recording with `Ctrl`+`Alt`+`R` (changeable in Settings ›
-Calls) or from the tray menu. While it runs, the floating indicator shows a red
+Start and stop a recording with `Ctrl`+`Alt`+`C` (changeable in Settings ›
+Calls), from the tray menu or from the Calls page. While it runs, the floating indicator shows a red
 ring and a ■ button that stops it; clicking the rest of the indicator does
 nothing, so a stray click cannot start a dictation on top of the call.
 
@@ -162,10 +174,11 @@ talk through a headset while your speakers are the system default, recording
 
 ### Who was on the call
 
-When a recording stops, transcription starts straight away and a small window
-asks who was there. Names are chips — the people you talked to most recently
-come first — and there is a field for anyone new. It does not take focus,
-because calls usually end on top of something you are still typing into, and
+When a recording stops, transcription starts straight away and a card appears
+by the tray: how far transcription has got, a name for the call, and who was
+there. Names are chips — the people you talked to most recently come first —
+and there is a field for anyone new. The card does not take focus, because
+calls usually end on top of something you are still typing into, and
 transcription does not wait for it: the answer is read when transcription
 reaches the point of telling voices apart, which is the end.
 
@@ -183,11 +196,11 @@ marked so in the list. Ticking the participants after transcription has
 finished is fine too: the transcript is rebuilt from the stored lines, and if
 the count changed, only the voice split runs again.
 
-Nothing is lost if you close the window: names and the note are saved however
-it is closed. When the transcript is ready, clicking the notification opens
-that call. **Recorded calls** — a click on the tray icon — lists everything
-recorded, what state each is in, and lets you fix names or transcribe again
-later.
+Nothing is lost if you close the card: the name and the participants are saved
+however it is closed. When the transcript is ready, the card says so and offers
+to open the call; if it is already closed, a notification does, and clicking it
+opens that call. The Calls page of the Tapybara window lists everything recorded,
+what state each is in, and lets you fix names or transcribe again later.
 
 ### Naming the voices
 
@@ -244,7 +257,7 @@ that boundary. Run both at the same level, or paste manually.
 it says `Cpu`, the GPU path failed — usually an outdated graphics driver, since
 the Vulkan runtime ships inside it.
 
-**Recognition is nonsense.** Check the language in Settings › Recognition. A
+**Recognition is nonsense.** Check the language in Settings › Dictation. A
 language forced onto the wrong speech does not degrade the result gently; it
 produces confident nonsense. `auto` is the safe setting.
 
