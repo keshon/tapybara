@@ -243,6 +243,11 @@ public partial class App : Application, IDisposable
         {
             OpenSettings();
         }
+
+        if (e.Args.Any(a => string.Equals(a, "--calls", StringComparison.OrdinalIgnoreCase)))
+        {
+            OpenCalls();
+        }
     }
 
     private static string AppVersion =>
@@ -1477,13 +1482,18 @@ public partial class App : Application, IDisposable
 
     private CallsWindow CreateCallsWindow()
     {
-        var window = new CallsWindow(
+        var window = new CallsWindow(new CallsServices(
             _settings,
             CallsDirectory,
             LiveCallState,
             LiveCallPercent,
             TranscribeCallAsync,
-            ReconcileCallAsync);
+            ReconcileCallAsync,
+            ResplitCallAsync,
+            RenderCall,
+            DeleteCall,
+            () => _ = ToggleCallRecordingAsync(),
+            CanSplitVoices));
         window.Closed += (_, _) => _callsWindow = null;
         _callsWindow = window;
         return window;
@@ -1514,6 +1524,47 @@ public partial class App : Application, IDisposable
         return string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase)
             ? CallState.Transcribing
             : null;
+    }
+
+    /// <summary>Разделить голоса звонка заново, по уже распознанному.</summary>
+    private Task ResplitCallAsync(string directory, int voices) =>
+        RunCallJobAsync(
+            directory,
+            (transcriber, progress, token) => transcriber.ResplitAsync(directory, voices, progress, token),
+            announce: false);
+
+    /// <summary>
+    /// Перерисовать transcript.md после правки имени.
+    /// </summary>
+    /// <remarks>
+    /// Без распознавателя и без очереди: это миллисекунды, и ждать ради них
+    /// конца распознавания другого звонка — значит показать человеку, что
+    /// имя, которое он только что выбрал, не применилось.
+    /// </remarks>
+    private void RenderCall(string directory)
+    {
+        AppSettings settings = _settings.Current;
+        try
+        {
+            CallTranscriptRenderer.Write(
+                directory,
+                settings.EffectiveMyName,
+                CallsWindow.OtherSideLabel(settings),
+                L.S.TranscriptLabels);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error("Не удалось перерисовать транскрипт.", ex);
+        }
+    }
+
+    /// <summary>Есть ли чем разделять голоса: включено и обе модели на месте.</summary>
+    private bool CanSplitVoices()
+    {
+        AppSettings settings = _settings.Current;
+        return settings.SplitVoices
+               && ModelLocator.Resolve(settings.VoiceSegmentationModelFileName, settings.ModelsDirectory) is not null
+               && ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory) is not null;
     }
 
     /// <summary>Сколько процентов распознано у звонка, если он распознаётся сейчас.</summary>

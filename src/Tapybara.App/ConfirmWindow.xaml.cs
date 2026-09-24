@@ -100,6 +100,25 @@ public partial class ConfirmWindow : FluentWindow
         DetailRows.Children.Add(row);
     }
 
+    /// <summary>
+    /// Добавить в карточку под текстом произвольный элемент — например, поле ввода.
+    /// </summary>
+    /// <remarks>
+    /// Короткий вопрос с парой полей — «что услышано, как правильно» — не
+    /// стоит отдельного окна со своей разметкой, заголовком и кнопками,
+    /// которые разошлись бы с этими.
+    /// </remarks>
+    public void AddContent(UIElement element)
+    {
+        DetailCard.Visibility = Visibility.Visible;
+        if (element is FrameworkElement framed && DetailRows.Children.Count > 0)
+        {
+            framed.Margin = new Thickness(0, 12, 0, 0);
+        }
+
+        DetailRows.Children.Add(element);
+    }
+
     /// <summary>Показать и дождаться ответа.</summary>
     public static ConfirmChoice Ask(Window? owner, ConfirmWindow window)
     {

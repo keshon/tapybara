@@ -298,6 +298,46 @@ public sealed record UiStrings
     public required string CallStateTranscribing { get; init; }
     public required string CallStateReady { get; init; }
     public required string CallStateNeedsNames { get; init; }
+    public required string CallsSearchPlaceholder { get; init; }
+    public required string DayToday { get; init; }
+    public required string DayYesterday { get; init; }
+    public required string CallsListen { get; init; }
+    public required string CallsStopListening { get; init; }
+    public required string CallsCopyText { get; init; }
+    public required string CallsMore { get; init; }
+    public required string CallsOpenTranscriptFile { get; init; }
+    public required string CallsTabTranscript { get; init; }
+    public required string CallsTabNote { get; init; }
+    public required string CallsTitlePlaceholder { get; init; }
+    public required string BannerNeedsNamesOne { get; init; }
+    public required string BannerNeedsNamesMany { get; init; }
+    public required string BannerLegacy { get; init; }
+    public required string BannerNotTranscribed { get; init; }
+    public required string BannerTranscribing { get; init; }
+    public required string BannerRecording { get; init; }
+    public required string BannerDamaged { get; init; }
+    public required string VoicesHeader { get; init; }
+    public required string VoicesFound { get; init; }
+    public required string VoiceUnnamed { get; init; }
+    public required string VoiceWho { get; init; }
+    public required string VoiceOtherName { get; init; }
+    public required string VoiceNoName { get; init; }
+    public required string VoiceSameAs { get; init; }
+    public required string VoicePlayQuote { get; init; }
+    public required string VoiceMe { get; init; }
+    public required string VoicesResplit { get; init; }
+    public required string VoiceTheOtherSide { get; init; }
+    public required string VoiceNamePlaceholder { get; init; }
+    public required string LineSaidBy { get; init; }
+    public required string LinePlayFrom { get; init; }
+    public required string LineCopy { get; init; }
+    public required string LineAddReplacement { get; init; }
+    public required string LineYourMicrophone { get; init; }
+    public required string ReplacementTitle { get; init; }
+    public required string ReplacementHeard { get; init; }
+    public required string ReplacementCorrect { get; init; }
+    public required string ReplacementHint { get; init; }
+    public required string ButtonAdd { get; init; }
     public required string CallStateNotTranscribed { get; init; }
     public required string CallStateDamaged { get; init; }
     public required string TranscriptBleedRemoved { get; init; }
@@ -703,6 +743,46 @@ public sealed record UiStrings
         CallStateTranscribing = "transcribing",
         CallStateReady = "ready",
         CallStateNeedsNames = "name the voices",
+        CallsSearchPlaceholder = "Search calls and transcripts",
+        DayToday = "Today",
+        DayYesterday = "Yesterday",
+        CallsListen = "Listen",
+        CallsStopListening = "Stop",
+        CallsCopyText = "Copy text",
+        CallsMore = "More",
+        CallsOpenTranscriptFile = "Open transcript.md",
+        CallsTabTranscript = "Transcript",
+        CallsTabNote = "Note",
+        CallsTitlePlaceholder = "Name this call",
+        BannerNeedsNamesOne = "One voice has no name yet. Its quotes are on the right; the name goes into all its lines at once.",
+        BannerNeedsNamesMany = "Voices without a name: {0}. Their quotes are on the right; a name goes into all of that voice's lines at once.",
+        BannerLegacy = "This call was transcribed by an older version, which did not keep who said what. Transcribe it again to name the voices.",
+        BannerNotTranscribed = "Not transcribed yet.",
+        BannerTranscribing = "Transcribing… {0}%",
+        BannerRecording = "The recording is still going.",
+        BannerDamaged = "There is no audio in this recording.",
+        VoicesHeader = "Voices",
+        VoicesFound = "{0} found · you separately",
+        VoiceUnnamed = "{0} — no name",
+        VoiceWho = "Who is this?",
+        VoiceOtherName = "other…",
+        VoiceNoName = "no name",
+        VoiceSameAs = "Same person as…",
+        VoicePlayQuote = "Listen to this quote",
+        VoiceMe = "{0} — your microphone, {1}",
+        VoicesResplit = "Split wrong? Look for this many voices:",
+        VoiceTheOtherSide = "The other side",
+        VoiceNamePlaceholder = "Name",
+        LineSaidBy = "Said by",
+        LinePlayFrom = "Listen from {0}",
+        LineCopy = "Copy",
+        LineAddReplacement = "Add a replacement…",
+        LineYourMicrophone = "Your microphone",
+        ReplacementTitle = "Add a replacement",
+        ReplacementHeard = "Heard",
+        ReplacementCorrect = "Correct",
+        ReplacementHint = "Applies to new dictations and transcripts. For this call, transcribe it again.",
+        ButtonAdd = "Add",
         CallStateNotTranscribed = "not transcribed",
         CallStateDamaged = "no audio",
         TranscriptBleedRemoved = "Other-side speech removed from your channel",
@@ -1023,6 +1103,46 @@ public sealed record UiStrings
         CallStateTranscribing = "распознаётся",
         CallStateReady = "готово",
         CallStateNeedsNames = "назовите голоса",
+        CallsSearchPlaceholder = "Поиск по звонкам и тексту",
+        DayToday = "Сегодня",
+        DayYesterday = "Вчера",
+        CallsListen = "Слушать",
+        CallsStopListening = "Остановить",
+        CallsCopyText = "Копировать текст",
+        CallsMore = "Ещё",
+        CallsOpenTranscriptFile = "Открыть transcript.md",
+        CallsTabTranscript = "Транскрипт",
+        CallsTabNote = "Заметка",
+        CallsTitlePlaceholder = "Назовите звонок",
+        BannerNeedsNamesOne = "Один голос без имени. Справа его цитаты — имя подставится во все его реплики сразу.",
+        BannerNeedsNamesMany = "Голосов без имени: {0}. Справа их цитаты — имя подставится во все реплики голоса сразу.",
+        BannerLegacy = "Этот звонок распознан прежней версией, которая не сохраняла, кто что сказал. Распознайте его заново, чтобы назвать голоса.",
+        BannerNotTranscribed = "Звонок ещё не распознан.",
+        BannerTranscribing = "Распознаю… {0}%",
+        BannerRecording = "Запись ещё идёт.",
+        BannerDamaged = "В этой записи нет звука.",
+        VoicesHeader = "Голоса",
+        VoicesFound = "нашлось {0} · вы — отдельно",
+        VoiceUnnamed = "{0} — без имени",
+        VoiceWho = "Кто это?",
+        VoiceOtherName = "другое…",
+        VoiceNoName = "без имени",
+        VoiceSameAs = "Это тот же человек, что…",
+        VoicePlayQuote = "Послушать цитату",
+        VoiceMe = "{0} — ваш микрофон, {1}",
+        VoicesResplit = "Разделено неверно? Искать голосов:",
+        VoiceTheOtherSide = "Собеседник",
+        VoiceNamePlaceholder = "Имя",
+        LineSaidBy = "Эту реплику сказал",
+        LinePlayFrom = "Слушать с {0}",
+        LineCopy = "Копировать",
+        LineAddReplacement = "Добавить замену…",
+        LineYourMicrophone = "Ваш микрофон",
+        ReplacementTitle = "Добавить замену",
+        ReplacementHeard = "Услышано",
+        ReplacementCorrect = "Правильно",
+        ReplacementHint = "Сработает в новых диктовках и распознаваниях. Для этого звонка — распознайте его заново.",
+        ButtonAdd = "Добавить",
         CallStateNotTranscribed = "не распознано",
         CallStateDamaged = "нет звука",
         TranscriptBleedRemoved = "Отсеяно чужой речи из своего канала",

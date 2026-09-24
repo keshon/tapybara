@@ -48,4 +48,108 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!--
+        Текст реплики в транскрипте: выглядит как обычный текст, но его можно
+        выделить и скопировать. TextBlock выделять не умеет, а стандартный
+        TextBox рисует рамку и фон поля ввода — транскрипт превратился бы в
+        стопку полей формы.
+    -->
+    <Style x:Key="TranscriptTextStyle" TargetType="TextBox">
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="IsReadOnlyCaretVisible" Value="False" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  Focusable="False"
+                                  HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Hidden" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Заголовок, который правится на месте: название звонка. Рамка поля
+        появляется только под мышью и в фокусе — в покое это заголовок, а не
+        форма, и переименование не требует отдельной кнопки «изменить».
+    -->
+    <Style x:Key="InlineTitleStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="3,1" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource AppDisplayFontFamily}" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Frame"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Frame" Property="BorderBrush"
+                                    Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Frame" Property="BorderBrush"
+                                    Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            <Setter TargetName="Frame" Property="Background"
+                                    Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Строка в списке: скруглённая подсветка под мышью и у выбранной, как
+        в боковом меню настроек. Нужна и списку звонков, и списку диктовок.
+    -->
+    <Style x:Key="ListRowStyle" TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Fill"
+                            Background="Transparent"
+                            CornerRadius="6"
+                            Padding="12,9">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fill" Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Fill" Property="Background"
+                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>
