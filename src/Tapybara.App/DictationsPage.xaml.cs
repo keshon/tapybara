@@ -44,18 +44,26 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
     private readonly DictationJournal _journal;
     private readonly SettingsHost _settings;
     private readonly Action _openSettings;
+    private readonly Action _openModels;
     private readonly LiveActivity _live;
     private readonly RecordPill _dictate = new(call: false);
     private readonly ObservableCollection<DictationRow> _rows = [];
     private readonly ICollectionView _view;
 
-    public DictationsPage(DictationJournal journal, SettingsHost settings, Action openSettings, LiveActivity live, Action dictate)
+    public DictationsPage(
+        DictationJournal journal,
+        SettingsHost settings,
+        Action openSettings,
+        LiveActivity live,
+        Action dictate,
+        Action openModels)
     {
         InitializeComponent();
 
         _journal = journal;
         _settings = settings;
         _openSettings = openSettings;
+        _openModels = openModels;
         _live = live;
 
         // Кнопка — для тех, кто пришёл сюда, а не в другое приложение:
@@ -154,7 +162,29 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
         }
 
         _dictate.ToolTip = L.S.DictateHint;
+        ShowBlock();
     }
+
+    /// <summary>Сказать прямо здесь, почему «Диктовать» ничего не начал.</summary>
+    private void ShowBlock()
+    {
+        DictationBlock block = _live.Block;
+        BlockedBanner.Visibility = block == DictationBlock.None ? Visibility.Collapsed : Visibility.Visible;
+        BlockedText.Text = block switch
+        {
+            DictationBlock.NoModel => L.S.DictationNoModel,
+            DictationBlock.Failed => string.Format(L.S.Formatting, L.S.StatusModelLoadFailed, _live.BlockDetail),
+            _ => L.S.StatusModelStillLoading,
+        };
+
+        // Пока модель грузится, жать нечего — нужно только подождать.
+        BlockedButton.Visibility = block is DictationBlock.NoModel or DictationBlock.Failed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        BlockedButton.Content = block == DictationBlock.NoModel ? L.S.DictationDownloadModel : L.S.DictationOpenModels;
+    }
+
+    private void OnOpenModelsClick(object sender, RoutedEventArgs e) => _openModels();
 
     private static string Day(DateTimeOffset at)
     {

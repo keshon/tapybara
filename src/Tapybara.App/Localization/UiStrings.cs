@@ -388,6 +388,9 @@ public sealed record UiStrings
     public required string VoiceSameAs { get; init; }
     public required string VoicePlayQuote { get; init; }
     public required string VoiceMe { get; init; }
+    public required string DictationNoModel { get; init; }
+    public required string DictationDownloadModel { get; init; }
+    public required string DictationOpenModels { get; init; }
     public required string RecordCall { get; init; }
     public required string RecordDictate { get; init; }
     public required string RecordStop { get; init; }
@@ -949,6 +952,9 @@ public sealed record UiStrings
         VoiceOtherName = "other…",
         VoiceSameAs = "Same person as…",
         VoicePlayQuote = "Listen to this quote",
+        DictationNoModel = "Dictation needs a recognition model, and none is downloaded yet.",
+        DictationDownloadModel = "Download a model",
+        DictationOpenModels = "Open Models",
         RecordCall = "Record a call",
         RecordDictate = "Dictate",
         RecordStop = "Stop",
@@ -1378,6 +1384,9 @@ public sealed record UiStrings
         VoiceOtherName = "другое…",
         VoiceSameAs = "Это тот же человек, что…",
         VoicePlayQuote = "Послушать цитату",
+        DictationNoModel = "Для диктовки нужна модель распознавания, а она ещё не скачана.",
+        DictationDownloadModel = "Скачать модель",
+        DictationOpenModels = "Открыть модели",
         RecordCall = "Записать звонок",
         RecordDictate = "Диктовать",
         RecordStop = "Стоп",
