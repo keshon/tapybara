@@ -76,7 +76,9 @@ assets/icon-512.png              the mark, for the page header
 assets/og-banner.png / .webp     1200×630 social preview
 assets/readme-banner.webp        1600×420, the header of README.md
 assets/favicon/                  ico + png set + apple-touch
-assets/screens/                  real screenshots
+assets/screens/                  real screenshots: pill-*.webp, and
+                                 calls / dictations / dictionary / settings /
+                                 welcome, each as -dark.webp and -light.webp
 ```
 
 ### Two traps worth knowing
@@ -91,9 +93,19 @@ not show, and the files are a third of the size.
 the site, the social banner, the README banner — uses that exact value. Change
 one and the other has to change with it, or the seam reappears.
 
+**Window screenshots come in pairs.** Each window is captured once in the
+dark theme and once in the light, and the page shows the one matching its own
+theme, including one picked with the switch — a light window on the dark page
+reads as a clipping from another site. Both images carry `loading="lazy"`, and
+a hidden lazy image is never fetched, so a visitor downloads only one.
+
 ### Taking the screenshots
 
-The settings screenshots are the real window, captured live. The indicator
+The window screenshots are the real windows, captured live, all at the same
+1280×800 so that switching between them on the page does not make it jump.
+The data in them is written for the page and seeded into a test profile — the
+call is the same conversation as the demo above it on the site, with the same
+three people — never a real profile. The indicator
 screenshots are taken by constructing `OverlayWindow` directly and passing it
 level values as numbers, rather than by starting a real dictation: a picture
 for a website is no reason to switch on somebody's microphone, and it also
