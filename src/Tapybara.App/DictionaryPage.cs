@@ -59,7 +59,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private readonly SettingsHost _settings;
     private readonly VoiceBook _voices;
-    private readonly StackPanel _root = new() { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly StackPanel _root = new() { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 960, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _replacements = new();
     private readonly List<ReplacementRow> _rows = [];
     private readonly StackPanel _people = new();
@@ -341,9 +341,11 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var variants = new WrapPanel();
+        // Узкое: поле ввода — хвост ряда плашек, а не ещё одна плашка. Шириной
+        // с плашку оно уезжало на отдельную строку уже при трёх вариантах.
         var newVariant = new TextBox
         {
-            MinWidth = 140,
+            Width = 120,
             ClearButtonEnabled = false,
             Margin = new Thickness(0, 0, 0, Tokens.Space1),
         };
@@ -458,15 +460,16 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private void AddVariantChip(ReplacementRow row, string variant)
     {
-        var dismiss = new Button
-        {
-            Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss12 },
-            Appearance = ControlAppearance.Transparent,
-            Padding = new Thickness(6),
-            Margin = new Thickness(Tokens.Space1, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = L.S.ButtonDelete,
-        };
+        // Плоский крестик, а не кнопка в рамке: рамка внутри плашки делала
+        // из каждого варианта две коробки, и строка из трёх вариантов
+        // читалась как шесть элементов.
+        System.Windows.Controls.Button dismiss = Ui.Link(string.Empty);
+        dismiss.Content = new SymbolIcon { Symbol = SymbolRegular.Dismiss12, FontSize = 12 };
+        dismiss.Padding = new Thickness(Tokens.Space1);
+        dismiss.Margin = new Thickness(Tokens.Space1, 0, 0, 0);
+        dismiss.VerticalAlignment = VerticalAlignment.Center;
+        dismiss.ToolTip = L.S.ButtonDelete;
+        dismiss.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");
 
         TextBlock text = Ui.Body(variant);
         text.VerticalAlignment = VerticalAlignment.Center;
@@ -475,7 +478,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         var chip = new Border
         {
             Height = 32,
-            Padding = new Thickness(Tokens.Space3, 0, 2, 0),
+            Padding = new Thickness(Tokens.Space3, 0, Tokens.Space1, 0),
             Margin = new Thickness(0, 0, Tokens.Space1 + 2, Tokens.Space1),
             CornerRadius = Tokens.ControlRadius,
             BorderThickness = new Thickness(1),
