@@ -1178,17 +1178,18 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>
-    /// Собрать снятие слепков голоса, если запоминание включено и модель есть.
+    /// Собрать снятие слепков голоса, если модель есть.
     /// </summary>
     /// <returns><c>null</c> — слепков не будет, звонок от этого не хуже.</returns>
+    /// <remarks>
+    /// Не зависит от «Запоминать голоса»: слепки нужны и для сверки реплик
+    /// между собой (<see cref="VoiceCheck"/>), а это точность транскрипта, а не
+    /// память о людях. Сохраняет слепки только <c>CallTranscriber</c>, и
+    /// только при включённом запоминании.
+    /// </remarks>
     private VoiceprintExtractor? EnsureVoiceprints()
     {
         AppSettings settings = _settings.Current;
-        if (!settings.RememberVoices)
-        {
-            return null;
-        }
-
         string? embedding = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory);
         if (embedding is null)
         {
@@ -1245,7 +1246,10 @@ public partial class App : Application, IDisposable
             }
         }
 
-        if (session.Participants.Count == 1)
+        // «По построению» верно, только если на той стороне и правда был один
+        // человек. Отметили одного, а говорили трое — и в книгу под его именем
+        // ложился слепок всей стороны разом, с чужими голосами внутри.
+        if (session.Participants.Count == 1 && !VoiceCheck.MoreVoicesLikely(transcript, out _))
         {
             float[]? whole = transcript.VoicePrints.GetValueOrDefault(CallVoices.WholeOtherSide)
                              ?? (transcript.VoicePrints.Count == 1 ? transcript.VoicePrints.Values.First() : null);
@@ -1738,6 +1742,8 @@ public partial class App : Application, IDisposable
             TranscribeCallAsync,
             ReconcileCallAsync,
             ResplitCallAsync,
+            VerifyCallAsync,
+            RefreshCallPrintsAsync,
             RenderCall,
             DeleteCall,
             () => _ = ToggleCallRecordingAsync(),
@@ -1781,6 +1787,37 @@ public partial class App : Application, IDisposable
             ? CallState.Transcribing
             : null;
     }
+
+    /// <summary>Сверить реплики с голосами у звонка, распознанного до появления проверки.</summary>
+    /// <remarks>
+    /// Звонок открывают и сразу после запуска, пока грузится модель, — а
+    /// очередь работы над звонками появляется вместе с ней. Сверка ждёт её,
+    /// а не пропадает молча: окно попросит её для этого звонка только раз.
+    /// </remarks>
+    private async Task VerifyCallAsync(string directory)
+    {
+        for (int waited = 0; _callTranscriber is null && waited < 120; waited++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
+        }
+
+        if (_callTranscriber is null)
+        {
+            return;
+        }
+
+        await RunCallJobAsync(
+            directory,
+            (transcriber, progress, token) => transcriber.VerifyAsync(directory, progress, token),
+            announce: false).ConfigureAwait(true);
+    }
+
+    /// <summary>Снять слепки голосов заново после того, как человек переселил реплики.</summary>
+    private Task RefreshCallPrintsAsync(string directory) =>
+        RunCallJobAsync(
+            directory,
+            (transcriber, progress, token) => transcriber.RefreshPrintsAsync(directory, progress, token),
+            announce: false);
 
     /// <summary>Разделить голоса звонка заново, по уже распознанному.</summary>
     private Task ResplitCallAsync(string directory, int voices) =>

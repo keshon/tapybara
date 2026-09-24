@@ -28,6 +28,13 @@ public class SpeakerAssignmentTests
     public void For_PrefersTheLongerOverlapOverTheEarlierOne() =>
         Assert.Equal(1, At(1.8, 5, Span(0, 2, 0), Span(2, 6, 1)));
 
+    /// <summary>
+    /// Считается сумма по всем кускам голоса, а не самый длинный кусок.
+    /// </summary>
+    [Fact]
+    public void For_SumsAVoiceAcrossItsPieces() =>
+        Assert.Equal(0, At(0, 10, Span(0, 2, 0), Span(2, 6, 1), Span(6, 8, 0), Span(8, 10, 0)));
+
     [Fact]
     public void For_ReturnsNothingWhenNoVoiceOverlaps() =>
         Assert.Null(At(10, 12, Span(0, 2, 0), Span(2, 6, 1)));

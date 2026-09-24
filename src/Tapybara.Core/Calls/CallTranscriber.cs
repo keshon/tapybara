@@ -182,6 +182,7 @@ public sealed class CallTranscriber(
                 .ConfigureAwait(false);
         }
 
+        transcript = await CheckVoicesAsync(session, transcript, current, cancellationToken).ConfigureAwait(false);
         transcript = await WithPrintsAsync(session, transcript, current, cancellationToken).ConfigureAwait(false);
 
         string path = Store(session.Directory, transcript, current);
@@ -227,11 +228,73 @@ public sealed class CallTranscriber(
             progress,
             cancellationToken).ConfigureAwait(false);
 
+        split = await CheckVoicesAsync(session, split, current, cancellationToken).ConfigureAwait(false);
         split = await WithPrintsAsync(session, split, current, cancellationToken).ConfigureAwait(false);
 
         string path = Store(callDirectory, split, current);
         progress?.Report(new(CallTranscriptionStage.Done, 100));
         return path;
+    }
+
+    /// <summary>
+    /// Проверить реплики по слепкам голоса у звонка, которого проверка ещё не касалась.
+    /// </summary>
+    /// <returns>Путь к транскрипту, или <c>null</c>, если проверять нечего или нечем.</returns>
+    /// <remarks>
+    /// Для звонков, распознанных до появления проверки: они открываются, и
+    /// проверка проходит один раз, в фоне, — полминуты процессора на час
+    /// записи. Имена голосов сохраняются: реплики переезжают только между
+    /// уже найденными голосами, и «B» остаётся «B».
+    /// </remarks>
+    public async Task<string?> VerifyAsync(
+        string callDirectory,
+        IProgress<CallTranscriptionProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (CallMeta.Load(callDirectory) is not { } session
+            || CallTranscriptStore.Load(callDirectory) is not { VoicesChecked: false } transcript
+            || voiceprints?.Invoke() is null)
+        {
+            return null;
+        }
+
+        AppSettings current = settings();
+        CallTranscript checkedOne = await CheckVoicesAsync(session, transcript, current, cancellationToken).ConfigureAwait(false);
+        if (!checkedOne.VoicesChecked)
+        {
+            return null;
+        }
+
+        checkedOne = await WithPrintsAsync(session, checkedOne, current, cancellationToken).ConfigureAwait(false);
+        return Keep(callDirectory, checkedOne);
+    }
+
+    /// <summary>
+    /// Снять слепки голосов заново — после того как человек переселил реплики.
+    /// </summary>
+    /// <returns>Путь к транскрипту, или <c>null</c>, если нечего или нечем.</returns>
+    /// <remarks>
+    /// Слепок голоса снят с его реплик. Человек убрал из голоса чужую — и
+    /// слепок, снятый до этого, всё ещё помнит чужой голос: по нему пошла бы
+    /// подсказка на следующем звонке, а при назывании он лёг бы в книгу
+    /// голосов. Проверка реплик здесь не повторяется: она могла бы вернуть
+    /// реплику туда, откуда человек её только что убрал.
+    /// </remarks>
+    public async Task<string?> RefreshPrintsAsync(
+        string callDirectory,
+        IProgress<CallTranscriptionProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (CallMeta.Load(callDirectory) is not { } session
+            || CallTranscriptStore.Load(callDirectory) is not { } transcript)
+        {
+            return null;
+        }
+
+        CallTranscript refreshed = await WithPrintsAsync(session, transcript, settings(), cancellationToken).ConfigureAwait(false);
+        return CallTranscriptStore.Update(callDirectory, t => t with { VoicePrints = refreshed.VoicePrints }) is null
+            ? null
+            : Render(callDirectory);
     }
 
     /// <summary>
@@ -341,6 +404,83 @@ public sealed class CallTranscriber(
             VoicesSplit = true,
             ExpectedVoices = Math.Max(expected, 0),
         };
+    }
+
+    /// <summary>
+    /// Проверить реплики собеседников по слепкам голоса (<see cref="VoiceCheck"/>).
+    /// </summary>
+    /// <remarks>
+    /// Не зависит от «Запоминать голоса»: слепки здесь не сохраняются, а
+    /// служат только сверке реплик между собой. Сбой проверки не стоит
+    /// транскрипта — он уже собран, просто останется без неё.
+    /// </remarks>
+    private async Task<CallTranscript> CheckVoicesAsync(
+        CallSession session,
+        CallTranscript transcript,
+        AppSettings current,
+        CancellationToken cancellationToken)
+    {
+        if (voiceprints?.Invoke() is not { } extractor
+            || !transcript.Lines.Any(l => l.Channel == CallChannel.Theirs))
+        {
+            return transcript;
+        }
+
+        try
+        {
+            return await Task.Run(
+                () =>
+                {
+                    float[] audio = ReadOtherSide(session, current);
+                    if (audio.Length == 0)
+                    {
+                        return transcript;
+                    }
+
+                    // Один экстрактор на всё приложение: проверка старого звонка
+                    // может совпасть со слепками нового.
+                    CallTranscript checkedOne = VoiceCheck.Check(transcript, line =>
+                    {
+                        lock (extractor)
+                        {
+                            return extractor.Embed(VoiceCheck.Slice(audio, line));
+                        }
+                    });
+
+                    int moved = checkedOne.Lines.Zip(transcript.Lines).Count(p => p.First.Voice != p.Second.Voice);
+                    int doubtful = checkedOne.Lines.Count(l => l.IsDoubtful);
+                    AppLog.Info($"Реплики сверены с голосами: переселено {moved}, под сомнением {doubtful}.");
+                    return checkedOne;
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or ArgumentException)
+        {
+            AppLog.Warn("Не удалось сверить реплики с голосами — транскрипт останется без проверки.", ex);
+            return transcript;
+        }
+    }
+
+    /// <summary>Чужой канал целиком — нормализованный, если так настроено.</summary>
+    private static float[] ReadOtherSide(CallSession session, AppSettings current)
+    {
+        float[] samples = AudioFile.ReadMono16k(session.SystemPath);
+        return current.NormalizeAudio && samples.Length > 0 ? AudioNormalizer.Normalize(samples) : samples;
+    }
+
+    /// <summary>
+    /// Записать проверенный транскрипт, НЕ сбрасывая имена голосов.
+    /// </summary>
+    /// <remarks>
+    /// В отличие от <see cref="Store"/>: там голоса найдены заново и буквы
+    /// значат другое, здесь — те же голоса, только реплики между ними
+    /// уточнены. Голос, у которого не осталось реплик, уходит из списка.
+    /// </remarks>
+    private string? Keep(string callDirectory, CallTranscript transcript)
+    {
+        CallTranscriptStore.Save(callDirectory, transcript);
+        CallMeta.Update(callDirectory, s => s with { Voices = transcript.Voices });
+        return Render(callDirectory);
     }
 
     /// <summary>
