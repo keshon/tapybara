@@ -11,6 +11,10 @@
 *.md      text
 *.json    text
 
+# cmd спотыкается о метки и goto в файлах с LF — только CRLF, на любой машине.
+*.cmd     text eol=crlf
+*.bat     text eol=crlf
+
 *.png  binary
 *.webp binary
 *.ico  binary

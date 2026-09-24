@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 rem ---------------------------------------------------------------------------
 rem  Tapybara build helper.
 rem
@@ -16,9 +16,17 @@ rem
 rem  Messages are English on purpose: a .cmd file with non-ASCII text is at the
 rem  mercy of whatever code page the console happens to be in, and a build
 rem  script that garbles its own output is worse than one that speaks English.
+rem
+rem  Save this file as plain ASCII, never "UTF-8 with BOM". cmd reads the three
+rem  BOM bytes as part of the first line, "@echo off" fails as an unknown
+rem  command, and every line after it is echoed to the console. CI checks it.
+rem
+rem  dotnet runs with -v q: the result and any warnings or errors, not the
+rem  hundred lines of restore and per-project progress.
 rem ---------------------------------------------------------------------------
 setlocal
 cd /d "%~dp0"
+set QUIET=--nologo -v q
 
 set MODE=%~1
 if "%MODE%"=="" set MODE=build
@@ -86,7 +94,7 @@ rem ---------------------------------------------------------------------------
 :build
 call :stop
 echo Building Release...
-dotnet build -c Release
+dotnet build -c Release %QUIET%
 if errorlevel 1 exit /b 1
 echo.
 echo Done: %EXE%
@@ -96,7 +104,7 @@ rem ---------------------------------------------------------------------------
 :run
 call :stop
 echo Building Release...
-dotnet build -c Release
+dotnet build -c Release %QUIET%
 if errorlevel 1 exit /b 1
 echo Starting...
 start "" "%EXE%"
@@ -107,7 +115,7 @@ rem ---------------------------------------------------------------------------
 :debug
 call :stop
 echo Building Debug...
-dotnet build
+dotnet build %QUIET%
 if errorlevel 1 exit /b 1
 echo Starting...
 start "" "%DEBUG_EXE%"
@@ -116,7 +124,7 @@ exit /b 0
 rem ---------------------------------------------------------------------------
 :test
 echo Running tests...
-dotnet test "%TESTS%" -c Release --nologo
+dotnet test "%TESTS%" -c Release %QUIET%
 exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------
@@ -137,7 +145,7 @@ echo Publishing self-contained build into dist\ ...
 rem Not PublishSingleFile: the native whisper libraries live in runtimes\
 rem subfolders and are loaded by path at run time, so a folder is the shape
 rem that actually works. Self-contained means the machine needs no .NET.
-dotnet publish "%APP%" -c Release -r win-x64 --self-contained true %CUDA% -o dist
+dotnet publish "%APP%" -c Release -r win-x64 --self-contained true %CUDA% -o dist %QUIET%
 if errorlevel 1 exit /b 1
 echo.
 echo Done: dist\Tapybara.exe

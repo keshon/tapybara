@@ -43,6 +43,19 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      # Скрипт сборки с BOM «работает», но печатает в консоль каждую свою
+      # строку: cmd читает три байта BOM как часть первой команды, и
+      # «@echo off» не срабатывает. Редактор добавляет BOM молча, поэтому
+      # ловим его здесь, а не глазами.
+      - name: Check that scripts have no BOM
+        shell: pwsh
+        run: |
+          $bad = Get-ChildItem -Recurse -File -Include *.cmd, *.bat | Where-Object {
+            $b = [IO.File]::ReadAllBytes($_.FullName)
+            $b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF
+          }
+          if ($bad) { $bad | ForEach-Object { "BOM in $($_.FullName)" }; exit 1 }
+
       - name: Restore
         run: dotnet restore
 
@@ -164,8 +177,9 @@ jobs:
             ''
             'Self-contained build for Windows x64 - .NET is not required on the target machine.'
             ''
-            'Unzip anywhere and run `Tapybara.exe`. On first launch, open **Settings > Models**'
-            'and download a recognition model; nothing works until you do.'
+            'Unzip anywhere and run `Tapybara.exe`. On first launch a short window walks you'
+            'through downloading a recognition model, checking the microphone and dictating'
+            'a first sentence; nothing works until a model is there.'
             ''
             'For a portable install, put an empty file named `portable.txt` next to the'
             'executable - settings and models then live in a `Data` folder beside it instead'

@@ -18,6 +18,11 @@ indent_size = 2
 [*.md]
 trim_trailing_whitespace = false
 
+# Скрипты cmd — только ASCII и без BOM: cmd читает BOM как часть первой
+# строки, «@echo off» не срабатывает, и скрипт печатает каждую свою строку.
+[*.{cmd,bat}]
+charset = latin1
+
 [*.cs]
 # --- using-директивы ---
 csharp_using_directive_placement = outside_namespace:warning
