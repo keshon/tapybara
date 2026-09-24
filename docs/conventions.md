@@ -78,6 +78,11 @@ detector threshold resets to 0.35 and nothing tells them. Add properties, don't
 rename them; if a rename is truly needed, read the old key too for a few
 releases.
 
+**Data files next to the settings.** `settings.json`, `dictations.jsonl`
+(one dictation per line) and `voices.json` (the voice book). They travel with
+portable mode because they live in the same folder; renaming one strands the
+user's history or forgets every voice they named.
+
 **Call folder layout.** `mic.wav`, `system.wav`, `meta.json`, `transcript.json`, `transcript.md`,
 declared as constants on `CallSession`. They are English and independent of the
 interface language on purpose: they are read by code as well as by people, and

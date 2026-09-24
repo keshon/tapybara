@@ -163,6 +163,16 @@ switch (command)
         SplitVoices(positional[1], speakerCount ?? 0, clusterThreshold);
         break;
 
+    case "voiceprint":
+        if (positional.Length < 2)
+        {
+            Console.Error.WriteLine("Укажи файл: bench voiceprint <a.wav> [b.wav]");
+            return 1;
+        }
+
+        CompareVoices(positional[1], positional.Length > 2 ? positional[2] : null);
+        break;
+
     case "call":
         await RecordCallAsync(positional.Length > 1
             ? double.Parse(positional[1], CultureInfo.InvariantCulture)
@@ -182,6 +192,7 @@ switch (command)
               bench transcribe <папка>       собрать транскрипт записанного звонка
               bench vad <файл.wav>           что детектор считает речью в файле
               bench diarize <файл.wav>       разделить голоса в дорожке
+              bench voiceprint <a> [b]       сходство слепков голоса: двух файлов или половин одного
               bench check                    проверить хоткей и буфер обмена
 
             Модель задаётся куском имени файла: `bench run turbo`.
@@ -320,6 +331,53 @@ async Task RunAsync(string? modelHint, string wavPath)
 /// на глаз: какая модель слепков лучше слышит русские голоса. Обе обучены
 /// на других языках, и «должно переноситься» — не измерение.
 /// </remarks>
+/// <summary>
+/// Сходство слепков голоса — чтобы проверять порог книги голосов на живых записях.
+/// </summary>
+/// <remarks>
+/// С одним файлом сравниваются его половины: это один и тот же человек, и
+/// сходство должно быть заметно выше <see cref="VoiceBook.MatchThreshold"/>.
+/// С двумя — два файла, например два разных человека.
+/// </remarks>
+void CompareVoices(string first, string? second)
+{
+    string? embedding = ModelLocator.Resolve(new AppSettings().VoiceEmbeddingModelFileName);
+    if (embedding is null)
+    {
+        Console.Error.WriteLine("Нет модели слепков голоса.");
+        return;
+    }
+
+    float[] a = AudioNormalizer.Normalize(AudioFile.ReadMono16k(first));
+    float[] b;
+    if (second is null)
+    {
+        b = a[(a.Length / 2)..];
+        a = a[..(a.Length / 2)];
+    }
+    else
+    {
+        b = AudioNormalizer.Normalize(AudioFile.ReadMono16k(second));
+    }
+
+    using var extractor = new VoiceprintExtractor(embedding);
+    var timer = Stopwatch.StartNew();
+    float[]? printA = extractor.Embed(a);
+    float[]? printB = extractor.Embed(b);
+    timer.Stop();
+
+    if (printA is null || printB is null)
+    {
+        Console.Error.WriteLine("Слишком мало речи для слепка.");
+        return;
+    }
+
+    double similarity = VoiceBook.Similarity(printA, printB);
+    Console.WriteLine($"Модель:    {Path.GetFileName(embedding)}, размерность {printA.Length}");
+    Console.WriteLine($"Отрезки:   {a.Length / 16000.0:F1} с и {b.Length / 16000.0:F1} с, {timer.Elapsed.TotalSeconds:F2} с на оба");
+    Console.WriteLine($"Сходство:  {similarity:F3} (порог подсказки {VoiceBook.MatchThreshold:F2})");
+}
+
 void SplitVoices(string wavPath, int expected, float? threshold)
 {
     if (!File.Exists(wavPath))

@@ -98,6 +98,24 @@ public partial class App : Application, IDisposable
     /// <summary>История диктовок на диске.</summary>
     private DictationJournal _journal = null!;
 
+    /// <summary>Книга голосов: как звучат люди, с которыми разговаривали.</summary>
+    private VoiceBook _voiceBook = null!;
+
+    /// <summary>
+    /// Снятие слепков голоса. Собирается лениво, как и разделитель.
+    /// </summary>
+    /// <remarks>
+    /// Та же модель слепков, что внутри разделителя, но отдельным объектом:
+    /// разделитель слепки наружу не отдаёт.
+    /// </remarks>
+    private VoiceprintExtractor? _voiceprints;
+
+    /// <summary>Модель, под которую собран текущий <see cref="_voiceprints"/>.</summary>
+    private string? _voiceprintsBuiltFor;
+
+    /// <summary>Окно первого запуска, пока оно открыто.</summary>
+    private WelcomeWindow? _welcomeWindow;
+
     /// <summary>Открытые карточки «звонок записан» — по папке звонка.</summary>
     private readonly Dictionary<string, CallReviewWindow> _reviewCards = new(StringComparer.OrdinalIgnoreCase);
 
@@ -226,6 +244,7 @@ public partial class App : Application, IDisposable
         _elapsedTimer.Tick += (_, _) => OnElapsedTick();
 
         _journal = new DictationJournal(AppPaths.DictationsPath);
+        _voiceBook = new VoiceBook(AppPaths.VoicesPath);
 
         StartHotkey();
         StartCallHotkey();
@@ -235,6 +254,20 @@ public partial class App : Application, IDisposable
         // Оборванные прошлым разом записи чиним в фоне: операция дисковая,
         // а старт приложения задерживать незачем.
         _ = Task.Run(() => CallRepair.RepairAll(CallsDirectory()));
+
+        // Первый запуск — окно, которое ведёт до первой фразы. У тех, кто
+        // обновился и модель уже скачал, флаг ставится молча.
+        if (!_settings.Current.OnboardingDone)
+        {
+            if (AvailableModels().Count > 0)
+            {
+                _settings.Update(s => s with { OnboardingDone = true });
+            }
+            else
+            {
+                ShowWelcome();
+            }
+        }
 
         _ = RebuildEngineAsync();
 
@@ -252,6 +285,13 @@ public partial class App : Application, IDisposable
         else if (e.Args.Any(a => string.Equals(a, "--open", StringComparison.OrdinalIgnoreCase)))
         {
             OpenMain();
+        }
+
+        // Пройти первый запуск заново — например, чтобы показать программу
+        // другому человеку на его машине.
+        if (e.Args.Any(a => string.Equals(a, "--welcome", StringComparison.OrdinalIgnoreCase)))
+        {
+            ShowWelcome();
         }
     }
 
@@ -543,11 +583,18 @@ public partial class App : Application, IDisposable
         {
             _engineFailure = null;
             _tray!.SetStatus(L.S.StatusModelMissing);
-            _tray.ShowBalloon(
-                L.S.NotifyNoModelTitle,
-                L.S.NotifyNoModelBody,
-                BalloonKind.Warning,
-                () => OpenSettings(SettingsSection.Models));
+
+            // Окно первого запуска и так говорит, что модель нужна, и
+            // помогает её скачать. Уведомление поверх него — второй голос,
+            // твердящий то же самое.
+            if (_welcomeWindow is null)
+            {
+                _tray.ShowBalloon(
+                    L.S.NotifyNoModelTitle,
+                    L.S.NotifyNoModelBody,
+                    BalloonKind.Warning,
+                    () => OpenSettings(SettingsSection.Models));
+            }
             AppLog.Warn("Модель распознавания не найдена.");
             return;
         }
@@ -600,7 +647,8 @@ public partial class App : Application, IDisposable
             _transcriber,
             () => _settings.Current,
             () => L.S.TranscriptLabels,
-            EnsureDiarizer);
+            EnsureDiarizer,
+            EnsureVoiceprints);
 
         _controller = new DictationController(_transcriber, () => _settings.Current);
         _controller.StateChanged += state => OnUi(() => OnStateChanged(state));
@@ -1083,6 +1131,85 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>
+    /// Собрать снятие слепков голоса, если запоминание включено и модель есть.
+    /// </summary>
+    /// <returns><c>null</c> — слепков не будет, звонок от этого не хуже.</returns>
+    private VoiceprintExtractor? EnsureVoiceprints()
+    {
+        AppSettings settings = _settings.Current;
+        if (!settings.RememberVoices)
+        {
+            return null;
+        }
+
+        string? embedding = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory);
+        if (embedding is null)
+        {
+            return null;
+        }
+
+        if (_voiceprints is not null && _voiceprintsBuiltFor == embedding)
+        {
+            return _voiceprints;
+        }
+
+        _voiceprints?.Dispose();
+        _voiceprints = null;
+        _voiceprintsBuiltFor = null;
+
+        try
+        {
+            _voiceprints = new VoiceprintExtractor(embedding);
+            _voiceprintsBuiltFor = embedding;
+        }
+        catch (Exception ex)
+        {
+            // Та же осторожность, что у разделителя: чужая или битая модель
+            // роняет нативную сторону, а звонок из-за подсказок имён терять нельзя.
+            AppLog.Error("Не удалось собрать снятие слепков голоса.", ex);
+        }
+
+        return _voiceprints;
+    }
+
+    /// <summary>
+    /// Запомнить голоса, имена которых известны наверняка.
+    /// </summary>
+    /// <remarks>
+    /// Наверняка — это когда человек назвал голос сам, или когда на той
+    /// стороне был один отмеченный участник: весь чужой канал — он, по
+    /// построению. Так книга голосов учится и на разговорах один на один, где
+    /// человек ничего не называл, а только отметил собеседника.
+    /// </remarks>
+    private void LearnCertainVoices(string directory)
+    {
+        if (!_settings.Current.RememberVoices
+            || CallMeta.Load(directory) is not { } session
+            || CallTranscriptStore.Load(directory) is not { } transcript)
+        {
+            return;
+        }
+
+        foreach ((string voice, string name) in session.VoiceNames)
+        {
+            if (transcript.VoicePrints.TryGetValue(voice, out float[]? print))
+            {
+                _voiceBook.Learn(name, print);
+            }
+        }
+
+        if (session.Participants.Count == 1)
+        {
+            float[]? whole = transcript.VoicePrints.GetValueOrDefault(CallVoices.WholeOtherSide)
+                             ?? (transcript.VoicePrints.Count == 1 ? transcript.VoicePrints.Values.First() : null);
+            if (whole is not null)
+            {
+                _voiceBook.Learn(session.Participants[0], whole);
+            }
+        }
+    }
+
+    /// <summary>
     /// Спросить, кто был на звонке, — не задерживая распознавание.
     /// </summary>
     /// <remarks>
@@ -1238,6 +1365,11 @@ public partial class App : Application, IDisposable
         {
             var progress = new Progress<CallTranscriptionProgress>(OnCallProgress);
             string? path = await work(transcriber, progress, cancellation.Token).ConfigureAwait(true);
+
+            if (path is not null)
+            {
+                LearnCertainVoices(directory);
+            }
 
             if (path is not null && announce)
             {
@@ -1440,6 +1572,25 @@ public partial class App : Application, IDisposable
 
     // --- окно настроек -----------------------------------------------------
 
+    private void ShowWelcome()
+    {
+        if (_welcomeWindow is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+
+        var window = new WelcomeWindow(
+            _settings,
+            AvailableModels,
+            OnModelsChanged,
+            () => OpenSettings(SettingsSection.Models));
+        window.Closed += (_, _) => _welcomeWindow = null;
+
+        _welcomeWindow = window;
+        window.Show();
+    }
+
     /// <summary>Показать раздел звонков и выбрать в нём звонок.</summary>
     /// <param name="select">Папка звонка, или <c>null</c> — оставить выбор как есть.</param>
     private void OpenCalls(string? select)
@@ -1493,7 +1644,8 @@ public partial class App : Application, IDisposable
             RenderCall,
             DeleteCall,
             () => _ = ToggleCallRecordingAsync(),
-            CanSplitVoices),
+            CanSplitVoices,
+            _voiceBook),
             _journal,
             () => OpenSettings(SettingsSection.General));
 
@@ -1587,7 +1739,7 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync, _journal);
+        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync, _journal, _voiceBook);
         window.HotkeyCaptureChanged += OnHotkeyCaptureChanged;
         window.ModelsChanged += OnModelsChanged;
         window.Closed += (_, _) => _settingsWindow = null;
@@ -1835,6 +1987,7 @@ public partial class App : Application, IDisposable
         // Запись звонка на выходе не бросаем: файлы дописываются и закрываются.
         _callRecorder.Dispose();
         _diarizer?.Dispose();
+        _voiceprints?.Dispose();
 
         DisposeEngineAndControllerOnExit();
 

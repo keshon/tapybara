@@ -24,9 +24,12 @@ otherwise inexplicable.
 Unzip the release anywhere and run `Tapybara.exe`. There is no installer, and
 nothing is written outside the data folder.
 
-A dot appears in the system tray. Click it to open the Tapybara window —
-dictations, calls and the dictionary; right-click for the menu. **Open
-Settings › Models and download a model** — nothing works until you do.
+A dot appears in the system tray, and on the very first launch a short window
+walks you through downloading a model, checking the microphone and dictating a
+first sentence — nothing works until a model is there. Later, click the tray
+icon to open the Tapybara window — dictations, calls and the dictionary;
+right-click for the menu. `Tapybara.exe --welcome` opens the first-run window
+again.
 
 Every dictation is kept in Tapybara › Dictations, grouped by day and
 searchable, so text that went into the wrong window can be copied again. The
@@ -221,6 +224,30 @@ Settings.
 
 Calls transcribed before this version kept only the markdown, so their voices
 cannot be named; the window says so and offers to transcribe them again.
+
+### Remembering voices
+
+When you name a voice, its voiceprint — a few hundred numbers from the same
+model that tells voices apart — is kept under that name. On the next call each
+unnamed voice is compared with the ones you have named before, and the panel
+says "Sounds like Kirill · 84%" with a button to accept it; when every voice is
+recognised, one button accepts them all. Nothing is named without you: a
+suggestion that is wrong costs a click, a label that is wrong would put
+someone else's name in the transcript.
+
+A call with a single ticked participant teaches the book on its own — the
+whole far track is that person by construction — so one-to-one calls are
+enough for Tapybara to recognise people later on group calls.
+
+A voiceprint is biometric data. It is stored in `voices.json` next to the
+settings and never leaves the computer. Settings › Calls turns remembering off
+and has a button that forgets every voice; Tapybara › Dictionary › People
+forgets one person, and renaming a person there carries the voice along.
+
+On the author's recordings the same person on two different calls scored
+0.81, two halves of one recording 0.91, and different people 0.25–0.35; a
+suggestion needs 0.62 and a clear lead over the next candidate.
+`bench voiceprint a.wav b.wav` measures it on your own recordings.
 
 ### Telling voices apart
 

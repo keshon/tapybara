@@ -42,14 +42,17 @@ namespace Tapybara.App;
 public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDisposable
 {
     private readonly SettingsHost _settings;
+    private readonly VoiceBook _voices;
     private readonly StackPanel _root = new() { Margin = new Thickness(6, 0, 28, 24), MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _replacements = new();
     private readonly StackPanel _people = new();
     private readonly TextBox _prompt;
 
-    public DictionaryPage(SettingsHost settings)
+    public DictionaryPage(SettingsHost settings, VoiceBook voices)
     {
         _settings = settings;
+        _voices = voices;
+        _voices.Changed += OnVoicesChanged;
 
         _prompt = new TextBox
         {
@@ -77,7 +80,16 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     public void Dispose()
     {
         _settings.Changed -= OnSettingsChanged;
+        _voices.Changed -= OnVoicesChanged;
         GC.SuppressFinalize(this);
+    }
+
+    private void OnVoicesChanged()
+    {
+        if (!IsKeyboardFocusWithin)
+        {
+            Dispatcher.BeginInvoke(Build);
+        }
     }
 
     /// <summary>Подставить надписи текущего языка.</summary>
@@ -329,7 +341,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private StackPanel PersonRow(string name)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 6) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 16, 6) };
         var box = new TextBox { Text = name, Width = 170 };
         var remove = new Button
         {
@@ -353,15 +365,50 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
                 KnownParticipants = [.. s.KnownParticipants.Select(n => n == name ? renamed : n)
                     .Distinct(StringComparer.OrdinalIgnoreCase)],
             });
+
+            // Голос переезжает вместе с именем: иначе переименованный человек
+            // перестал бы узнаваться, а старое имя всплывало бы в подсказках.
+            _voices.Rename(name, renamed);
         };
 
-        remove.Click += (_, _) => _settings.Update(s => s with
+        // Убрать человека — значит и забыть его голос: подсказывать имя,
+        // которого больше нет в списке, было бы странно.
+        remove.Click += (_, _) =>
         {
-            KnownParticipants = [.. KnownParticipants.Remove(s.KnownParticipants, name)],
-        });
+            _voices.Forget(name);
+            _settings.Update(s => s with
+            {
+                KnownParticipants = [.. KnownParticipants.Remove(s.KnownParticipants, name)],
+            });
+        };
 
         row.Children.Add(box);
         row.Children.Add(remove);
+
+        if (_voices.PrintsOf(name) > 0)
+        {
+            var known = new TextBlock
+            {
+                Text = L.S.DictionaryVoiceKnown,
+                FontSize = 11.5,
+                Opacity = 0.6,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(2, 0, 4, 0),
+            };
+
+            var forget = new Button
+            {
+                Icon = new SymbolIcon { Symbol = SymbolRegular.PersonVoice24 },
+                Appearance = ControlAppearance.Transparent,
+                Padding = new Thickness(6),
+                ToolTip = L.S.DictionaryForgetVoice,
+            };
+            forget.Click += (_, _) => _voices.Forget(name);
+
+            row.Children.Add(known);
+            row.Children.Add(forget);
+        }
+
         return row;
     }
 }

@@ -45,6 +45,7 @@ namespace Tapybara.App;
 /// <param name="Delete">Удалить звонок, отменив работу над ним.</param>
 /// <param name="ToggleRecording">Начать или закончить запись звонка.</param>
 /// <param name="CanSplitVoices">Есть ли чем разделять голоса.</param>
+/// <param name="Voices">Книга голосов — для подсказок «похоже на…» и чтобы запоминать названные.</param>
 public sealed record CallsServices(
     SettingsHost Settings,
     Func<string> CallsDirectory,
@@ -56,7 +57,8 @@ public sealed record CallsServices(
     Action<string> Render,
     Action<string> Delete,
     Action ToggleRecording,
-    Func<bool> CanSplitVoices);
+    Func<bool> CanSplitVoices,
+    VoiceBook Voices);
 
 /// <summary>Строка списка звонков — то, что видит глаз.</summary>
 /// <remarks>
@@ -227,6 +229,12 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     /// <summary>Какая реплика играет как цитата — её кнопка ▶ превращается в ■.</summary>
     private CallLine? _playingQuote;
+
+    /// <summary>Подсказки книги голосов для неназванных голосов этого звонка: голос → кто похож.</summary>
+    private Dictionary<string, VoiceMatch> _suggestions = [];
+
+    /// <summary>Что делает кнопка в баннере — зависит от того, о чём баннер.</summary>
+    private Action? _bannerAction;
 
     private bool _loading;
 
@@ -656,6 +664,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         ListenButton.IsEnabled = hasAudio;
         CopyButton.IsEnabled = File.Exists(_session.TranscriptPath);
 
+        _suggestions = Suggest();
         ShowBanner(entry);
         ShowTranscript(entry);
         ShowVoices();
@@ -665,6 +674,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     {
         BannerProgress.Visibility = Visibility.Collapsed;
         BannerButton.Visibility = Visibility.Collapsed;
+        _bannerAction = null;
         Banner.Background = Resource("SystemFillColorAttentionBackgroundBrush", Colors.Transparent);
         BannerIcon.Symbol = SymbolRegular.Info24;
 
@@ -684,12 +694,23 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
             case CallState.NotTranscribed:
                 text = L.S.BannerNotTranscribed;
-                ShowBannerButton(L.S.CallsTranscribe);
+                ShowBannerButton(L.S.CallsTranscribe, Transcribe);
                 break;
 
             case CallState.Damaged:
                 text = L.S.BannerDamaged;
                 Banner.Background = Resource("SystemFillColorCriticalBackgroundBrush", Colors.Transparent);
+                break;
+
+            case CallState.NeedsNames when _session is not null && _suggestions.Count > 0:
+                // Книга голосов кого-то узнала — предлагаем принять одной
+                // кнопкой, но не принимаем сами: подсказка остаётся подсказкой.
+                text = string.Format(
+                    CultureInfo.CurrentCulture,
+                    L.S.BannerSuggested,
+                    string.Join(", ", _suggestions.Select(s => $"{L.S.TranscriptVoice} {s.Key} — {s.Value.Name}")));
+                BannerIcon.Symbol = SymbolRegular.PersonVoice24;
+                ShowBannerButton(L.S.BannerAcceptSuggestions, AcceptSuggestions);
                 break;
 
             case CallState.NeedsNames when _session is not null:
@@ -702,7 +723,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
             case CallState.Ready when !entry.HasTranscriptData:
                 text = L.S.BannerLegacy;
-                ShowBannerButton(L.S.CallsTranscribeAgain);
+                ShowBannerButton(L.S.CallsTranscribeAgain, Transcribe);
                 break;
         }
 
@@ -710,13 +731,119 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         Banner.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void ShowBannerButton(string text)
+    private void ShowBannerButton(string text, Action action)
     {
         BannerButton.Content = text;
         BannerButton.Visibility = Visibility.Visible;
+        _bannerAction = action;
     }
 
-    private void OnBannerButtonClick(object sender, RoutedEventArgs e) => Transcribe();
+    private void OnBannerButtonClick(object sender, RoutedEventArgs e) => _bannerAction?.Invoke();
+
+    // --- подсказки книги голосов ---------------------------------------------
+
+    /// <summary>
+    /// Кого книга голосов узнаёт среди неназванных голосов этого звонка.
+    /// </summary>
+    /// <remarks>
+    /// Одно имя — одному голосу: если два голоса похожи на Кирилла, имя
+    /// получает более похожий, а второму подсказки нет. Имена, уже данные
+    /// голосам этого звонка, не предлагаются вовсе.
+    /// </remarks>
+    private Dictionary<string, VoiceMatch> Suggest()
+    {
+        var result = new Dictionary<string, VoiceMatch>();
+        if (!Settings.RememberVoices || _transcript is null || _session is null)
+        {
+            return result;
+        }
+
+        List<string> taken = [.. _session.VoiceNames.Values];
+        IEnumerable<string> unnamed = _transcript.Voices.Count == 0
+            ? (_session.Participants.Count == 0 ? [CallVoices.WholeOtherSide] : [])
+            : _transcript.Voices.Where(v => CallSpeakers.NameOf(_session, v) is null);
+
+        List<(string Voice, VoiceMatch Match)> candidates = [];
+        foreach (string voice in unnamed)
+        {
+            if (_transcript.VoicePrints.TryGetValue(voice, out float[]? print)
+                && _services.Voices.Match(print, taken) is { } match)
+            {
+                candidates.Add((voice, match));
+            }
+        }
+
+        foreach ((string voice, VoiceMatch match) in candidates.OrderByDescending(c => c.Match.Score))
+        {
+            if (!result.Values.Any(m => string.Equals(m.Name, match.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                result[voice] = match;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Принять все подсказки разом — человек их видел в баннере.</summary>
+    private void AcceptSuggestions()
+    {
+        foreach ((string voice, VoiceMatch match) in _suggestions.ToList())
+        {
+            if (voice == CallVoices.WholeOtherSide)
+            {
+                SetOtherSideName(match.Name);
+            }
+            else
+            {
+                SetVoiceName(voice, match.Name);
+            }
+        }
+    }
+
+    /// <summary>Строка «похоже на Кирилла · 84% [Верно]» под заголовком голоса.</summary>
+    private Grid SuggestionRow(VoiceMatch match, Action accept)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        row.Children.Add(new TextBlock
+        {
+            Text = string.Format(
+                CultureInfo.CurrentCulture,
+                L.S.VoiceSuggestion,
+                match.Name,
+                Math.Round(match.Score * 100).ToString(CultureInfo.CurrentCulture)),
+            FontSize = 12.5,
+            Foreground = Resource("AccentTextFillColorPrimaryBrush", Colors.SteelBlue),
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        var confirm = new Wpf.Ui.Controls.Button
+        {
+            Content = L.S.VoiceAcceptSuggestion,
+            Appearance = ControlAppearance.Primary,
+            Padding = new Thickness(10, 3, 10, 3),
+            FontSize = 12.5,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        confirm.Click += (_, _) => accept();
+        Grid.SetColumn(confirm, 1);
+        row.Children.Add(confirm);
+        return row;
+    }
+
+    /// <summary>Запомнить слепок голоса под именем, если запоминание включено.</summary>
+    private void LearnVoice(string voice, string? name)
+    {
+        if (name is not null
+            && Settings.RememberVoices
+            && _transcript?.VoicePrints.TryGetValue(voice, out float[]? print) == true)
+        {
+            _services.Voices.Learn(name, print);
+        }
+    }
 
     private void ShowTranscript(CallEntry entry)
     {
@@ -977,6 +1104,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         body.Children.Add(ShareBar(voice.Share, color));
 
+        if (name is null && _suggestions.TryGetValue(voice.Id, out VoiceMatch? suggested))
+        {
+            body.Children.Add(SuggestionRow(suggested, () => SetVoiceName(voice.Id, suggested.Name)));
+        }
+
         foreach (CallLine quote in voice.Quotes)
         {
             body.Children.Add(QuoteRow(quote));
@@ -1060,6 +1192,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         });
         title.Children.Add(new TextBlock { Text = name ?? L.S.VoiceTheOtherSide, FontWeight = FontWeights.SemiBold });
         body.Children.Add(title);
+
+        if (name is null && _suggestions.TryGetValue(CallVoices.WholeOtherSide, out VoiceMatch? suggested))
+        {
+            body.Children.Add(SuggestionRow(suggested, () => SetOtherSideName(suggested.Name)));
+        }
 
         body.Children.Add(new TextBlock
         {
@@ -1172,6 +1309,15 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         if (current is not null && !names.Contains(current, StringComparer.OrdinalIgnoreCase))
         {
             names.Insert(0, current);
+        }
+
+        // Подсказанные книгой голосов — первыми: их и выберут чаще всего.
+        foreach (string hinted in _suggestions.Values.Select(m => m.Name).Reverse())
+        {
+            if (!names.Contains(hinted, StringComparer.OrdinalIgnoreCase))
+            {
+                names.Insert(0, hinted);
+            }
         }
 
         foreach (string name in names)
@@ -1362,6 +1508,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }) ?? _session;
 
         RememberName(name);
+        LearnVoice(voice, name);
         _services.Render(directory);
         RefreshAfterEdit();
     }
@@ -1377,6 +1524,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         _session = CallMeta.Update(directory, s => s with { Participants = name is null ? [] : [name] }) ?? _session;
 
         RememberName(name);
+        LearnVoice(CallVoices.WholeOtherSide, name);
         _ = _services.Reconcile(directory);
         RefreshAfterEdit();
     }

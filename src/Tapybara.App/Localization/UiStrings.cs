@@ -269,6 +269,35 @@ public sealed record UiStrings
     public required string CallStateTranscribing { get; init; }
     public required string CallStateReady { get; init; }
     public required string CallStateNeedsNames { get; init; }
+    public required string FieldRememberVoices { get; init; }
+    public required string FieldRememberVoicesHint { get; init; }
+    public required string ButtonForgetVoices { get; init; }
+    public required string ForgetVoicesTitle { get; init; }
+    public required string ForgetVoicesBody { get; init; }
+    public required string VoiceSuggestion { get; init; }
+    public required string VoiceAcceptSuggestion { get; init; }
+    public required string BannerAcceptSuggestions { get; init; }
+    public required string BannerSuggested { get; init; }
+    public required string DictionaryVoiceKnown { get; init; }
+    public required string DictionaryForgetVoice { get; init; }
+    public required string WelcomeTitle { get; init; }
+    public required string WelcomeStepModel { get; init; }
+    public required string WelcomeStepMicrophone { get; init; }
+    public required string WelcomeStepTry { get; init; }
+    public required string WelcomeModelHeading { get; init; }
+    public required string WelcomeModelBody { get; init; }
+    public required string WelcomeModelDetector { get; init; }
+    public required string WelcomeModelHave { get; init; }
+    public required string WelcomeMicHeading { get; init; }
+    public required string WelcomeMicBody { get; init; }
+    public required string WelcomeTryHeading { get; init; }
+    public required string WelcomeTryBody { get; init; }
+    public required string WelcomeTryPlaceholder { get; init; }
+    public required string WelcomeTryDone { get; init; }
+    public required string ButtonNext { get; init; }
+    public required string ButtonBack { get; init; }
+    public required string ButtonFinish { get; init; }
+    public required string ButtonSkip { get; init; }
     public required string NavDictations { get; init; }
     public required string NavCalls { get; init; }
     public required string NavDictionary { get; init; }
@@ -726,6 +755,35 @@ public sealed record UiStrings
         CallStateTranscribing = "transcribing",
         CallStateReady = "ready",
         CallStateNeedsNames = "name the voices",
+        FieldRememberVoices = "Remember voices",
+        FieldRememberVoicesHint = "When you name a voice, its voiceprint is kept on this computer, and on later calls Tapybara suggests who is speaking. A voiceprint is biometric data; it never leaves this computer.",
+        ButtonForgetVoices = "Forget all voices",
+        ForgetVoicesTitle = "Forget all voices?",
+        ForgetVoicesBody = "Every remembered voiceprint will be deleted. Names stay; Tapybara will simply stop suggesting who is speaking until you name voices again.",
+        VoiceSuggestion = "Sounds like {0} · {1}%",
+        VoiceAcceptSuggestion = "That's right",
+        BannerAcceptSuggestions = "Accept suggestions",
+        BannerSuggested = "Recognised from earlier calls: {0}. Check and accept, or pick names yourself.",
+        DictionaryVoiceKnown = "voice remembered",
+        DictionaryForgetVoice = "Forget voice",
+        WelcomeTitle = "Welcome to Tapybara",
+        WelcomeStepModel = "Model",
+        WelcomeStepMicrophone = "Microphone",
+        WelcomeStepTry = "Try it",
+        WelcomeModelHeading = "Download a recognition model",
+        WelcomeModelBody = "Everything is recognised on this computer. The model is the one thing to download.",
+        WelcomeModelDetector = "The speech detector (under 1 MB) comes with it.",
+        WelcomeModelHave = "I already have a model…",
+        WelcomeMicHeading = "Check the microphone",
+        WelcomeMicBody = "Say something. The bar should move when you speak and stay low when you are silent.",
+        WelcomeTryHeading = "Dictate your first sentence",
+        WelcomeTryBody = "Click into the field below, press {0}, say something, and press {0} again. The text will appear here — and anywhere else you type.",
+        WelcomeTryPlaceholder = "Your words will appear here",
+        WelcomeTryDone = "It works. Tapybara lives in the tray from now on; click its icon to open this window again.",
+        ButtonNext = "Next",
+        ButtonBack = "Back",
+        ButtonFinish = "Start using Tapybara",
+        ButtonSkip = "Skip",
         NavDictations = "Dictations",
         NavCalls = "Calls",
         NavDictionary = "Dictionary",
@@ -1098,6 +1156,35 @@ public sealed record UiStrings
         CallStateTranscribing = "распознаётся",
         CallStateReady = "готово",
         CallStateNeedsNames = "назовите голоса",
+        FieldRememberVoices = "Запоминать голоса",
+        FieldRememberVoicesHint = "Когда вы называете голос, его слепок сохраняется на этом компьютере, и на следующих звонках Tapybara подсказывает, кто говорит. Слепок голоса — биометрия; он не покидает этот компьютер.",
+        ButtonForgetVoices = "Забыть все голоса",
+        ForgetVoicesTitle = "Забыть все голоса?",
+        ForgetVoicesBody = "Все запомненные слепки голосов будут удалены. Имена останутся — просто Tapybara перестанет подсказывать, кто говорит, пока вы снова не назовёте голоса.",
+        VoiceSuggestion = "Похоже на: {0} · {1}%",
+        VoiceAcceptSuggestion = "Верно",
+        BannerAcceptSuggestions = "Принять подсказки",
+        BannerSuggested = "Узнаны по прошлым звонкам: {0}. Проверьте и примите — или выберите имена сами.",
+        DictionaryVoiceKnown = "голос запомнен",
+        DictionaryForgetVoice = "Забыть голос",
+        WelcomeTitle = "Добро пожаловать в Tapybara",
+        WelcomeStepModel = "Модель",
+        WelcomeStepMicrophone = "Микрофон",
+        WelcomeStepTry = "Проба",
+        WelcomeModelHeading = "Скачайте модель распознавания",
+        WelcomeModelBody = "Всё распознаётся на этом компьютере. Модель — единственное, что нужно скачать.",
+        WelcomeModelDetector = "Детектор речи (меньше 1 МБ) скачается вместе с ней.",
+        WelcomeModelHave = "У меня уже есть модель…",
+        WelcomeMicHeading = "Проверьте микрофон",
+        WelcomeMicBody = "Скажите что-нибудь. Полоска должна двигаться, когда вы говорите, и замирать, когда молчите.",
+        WelcomeTryHeading = "Надиктуйте первую фразу",
+        WelcomeTryBody = "Щёлкните в поле ниже, нажмите {0}, скажите что-нибудь и нажмите {0} ещё раз. Текст появится здесь — и в любом другом поле, где вы печатаете.",
+        WelcomeTryPlaceholder = "Здесь появятся ваши слова",
+        WelcomeTryDone = "Работает. Дальше Tapybara живёт в трее; щёлкните по значку, чтобы открыть окно.",
+        ButtonNext = "Далее",
+        ButtonBack = "Назад",
+        ButtonFinish = "Начать",
+        ButtonSkip = "Пропустить",
         NavDictations = "Диктовки",
         NavCalls = "Звонки",
         NavDictionary = "Словарь",

@@ -73,6 +73,18 @@ public sealed record CallTranscript
     /// <summary>То же — по громкости.</summary>
     public int RemovedByEnergy { get; init; }
 
+    /// <summary>
+    /// Слепки голосов собеседников: буква голоса → нормированный вектор.
+    /// </summary>
+    /// <remarks>
+    /// Когда голоса не разделялись, единственный слепок лежит под ключом
+    /// <see cref="CallVoices.WholeOtherSide"/> — весь чужой канал. Слепки
+    /// нужны книге голосов (<see cref="VoiceBook"/>): по ним на следующем
+    /// звонке подсказывается имя. Сотни чисел на голос — копейки рядом с
+    /// репликами.
+    /// </remarks>
+    public IReadOnlyDictionary<string, float[]> VoicePrints { get; init; } = new Dictionary<string, float[]>();
+
     /// <summary>Голоса собеседников в порядке первого появления.</summary>
     [JsonIgnore]
     public IReadOnlyList<string> Voices =>
@@ -168,6 +180,93 @@ public sealed record VoiceSummary(string Id, TimeSpan Speech, double Share, IRea
 /// <summary>Голоса собеседников: разметка реплик и сводка для человека.</summary>
 public static class CallVoices
 {
+    /// <summary>Ключ слепка всего чужого канала — когда голоса не разделялись.</summary>
+    public const string WholeOtherSide = "*";
+
+    /// <summary>
+    /// Сколько речи голоса брать в слепок.
+    /// </summary>
+    /// <remarks>
+    /// Модели слепков насыщаются на десятках секунд: дальше вектор почти не
+    /// меняется, а время растёт линейно. Самые длинные реплики — потому что
+    /// в коротких больше перебиваний и чужих голосов на стыках.
+    /// </remarks>
+    public static readonly TimeSpan PrintBudget = TimeSpan.FromSeconds(30);
+
+    /// <summary>Меньше этого слепок ненадёжен — лучше никакого.</summary>
+    public static readonly TimeSpan PrintMinimum = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Снять слепки голосов собеседников.
+    /// </summary>
+    /// <param name="audio">Чужой канал целиком: 16 кГц, моно.</param>
+    /// <param name="transcript">Реплики с разметкой голосов.</param>
+    /// <param name="embed">Слепок по отрезку речи.</param>
+    /// <param name="sampleRate">Частота <paramref name="audio"/>.</param>
+    /// <remarks>
+    /// Берутся реплики, а не участки разделителя: после того как человек
+    /// переназначил реплику или склеил два голоса, правда — в репликах.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, float[]> Prints(
+        float[] audio,
+        CallTranscript transcript,
+        Func<float[], float[]?> embed,
+        int sampleRate = 16_000)
+    {
+        ArgumentNullException.ThrowIfNull(audio);
+        ArgumentNullException.ThrowIfNull(transcript);
+        ArgumentNullException.ThrowIfNull(embed);
+
+        var prints = new Dictionary<string, float[]>();
+        List<CallLine> theirs = [.. transcript.Lines.Where(l => l.Channel == CallChannel.Theirs)];
+
+        IEnumerable<IGrouping<string, CallLine>> groups = transcript.Voices.Count == 0
+            ? theirs.GroupBy(_ => WholeOtherSide)
+            : theirs.Where(l => l.Voice is not null).GroupBy(l => l.Voice!);
+
+        foreach (IGrouping<string, CallLine> group in groups)
+        {
+            float[] speech = Gather(audio, group, sampleRate);
+            if (speech.Length < PrintMinimum.TotalSeconds * sampleRate)
+            {
+                continue;
+            }
+
+            if (embed(speech) is { } print)
+            {
+                prints[group.Key] = print;
+            }
+        }
+
+        return prints;
+    }
+
+    /// <summary>Склеить самые длинные реплики голоса в пределах бюджета.</summary>
+    internal static float[] Gather(float[] audio, IEnumerable<CallLine> lines, int sampleRate)
+    {
+        var speech = new List<float>();
+        int budget = (int)(PrintBudget.TotalSeconds * sampleRate);
+
+        foreach (CallLine line in lines.OrderByDescending(l => l.End - l.Start))
+        {
+            int from = Math.Clamp((int)(line.Start.TotalSeconds * sampleRate), 0, audio.Length);
+            int to = Math.Clamp((int)(line.End.TotalSeconds * sampleRate), from, audio.Length);
+            int take = Math.Min(to - from, budget - speech.Count);
+            if (take <= 0)
+            {
+                continue;
+            }
+
+            speech.AddRange(new ArraySegment<float>(audio, from, take));
+            if (speech.Count >= budget)
+            {
+                break;
+            }
+        }
+
+        return [.. speech];
+    }
+
     /// <summary>Сколько цитат показывать на голос.</summary>
     /// <remarks>
     /// Три — примерно столько нужно, чтобы узнать человека по словам, а не
