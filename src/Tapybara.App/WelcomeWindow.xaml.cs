@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -112,7 +111,7 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
             default:
                 string hotkey = _settings.Current.Hotkey.ToString();
                 HeadingText.Text = L.S.WelcomeTryHeading;
-                BodyText.Text = string.Format(CultureInfo.CurrentCulture, L.S.WelcomeTryBody, hotkey);
+                BodyText.Text = string.Format(L.S.Formatting, L.S.WelcomeTryBody, hotkey);
                 TryBox.PlaceholderText = L.S.WelcomeTryPlaceholder;
                 TryDone.Text = L.S.WelcomeTryDone;
                 NextButton.Content = L.S.ButtonFinish;
@@ -131,17 +130,20 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
         {
             if (i > 0)
             {
-                StepStrip.Children.Add(new TextBlock { Text = "·", Opacity = 0.4, Margin = new Thickness(8, 0, 8, 0) });
+                TextBlock dot = Ui.Caption("·");
+                dot.Margin = new Thickness(Tokens.Space2, 0, Tokens.Space2, 0);
+                dot.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+                StepStrip.Children.Add(dot);
             }
 
-            StepStrip.Children.Add(new TextBlock
+            TextBlock step = Ui.Caption($"{i + 1} {names[i]}");
+            if (i == _step)
             {
-                Text = $"{i + 1} {names[i]}",
-                FontSize = 12.5,
-                FontWeight = i == _step ? FontWeights.SemiBold : FontWeights.Normal,
-                Opacity = i == _step ? 1 : 0.6,
-                Foreground = i == _step ? TryFindResource("AccentTextFillColorPrimaryBrush") as System.Windows.Media.Brush : null,
-            });
+                step.FontWeight = FontWeights.SemiBold;
+                step.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextFillColorPrimaryBrush");
+            }
+
+            StepStrip.Children.Add(step);
         }
     }
 
@@ -205,32 +207,26 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
         foreach (CatalogModel model in picks.OfType<CatalogModel>())
         {
             var content = new StackPanel();
-            content.Children.Add(new TextBlock { Text = model.DisplayName, FontWeight = FontWeights.SemiBold });
-            content.Children.Add(new TextBlock
-            {
-                Text = $"{L.S.Describe(model.Tier)} · {FormatSize(model.ApproximateBytes)}",
-                FontSize = 12,
-                Opacity = 0.7,
-            });
+            content.Children.Add(Ui.BodyStrong(model.DisplayName));
+            content.Children.Add(Ui.Caption($"{L.S.Describe(model.Tier)} · {L.S.Size(model.ApproximateBytes)}"));
 
             var button = new RadioButton
             {
                 Content = content,
                 GroupName = "WelcomeModel",
                 IsChecked = model == recommended,
-                Margin = new Thickness(0, 0, 0, 8),
+                Margin = new Thickness(0, 0, 0, Tokens.Space2),
             };
 
             _choices.Add((button, model));
             ModelChoices.Children.Add(button);
         }
 
-        var haveOne = new Wpf.Ui.Controls.Button
-        {
-            Content = L.S.WelcomeModelHave,
-            Appearance = ControlAppearance.Transparent,
-            Margin = new Thickness(-8, 2, 0, 0),
-        };
+        // Ссылкой, а не кнопкой: это обходной путь, а не шаг мастера, и
+        // кнопка в рамке спорила с «Далее» за внимание.
+        var haveOne = Ui.Link(L.S.WelcomeModelHave);
+        haveOne.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+        haveOne.Margin = new Thickness(0, Tokens.Space1, 0, 0);
         haveOne.Click += (_, _) => _openModelsSettings();
         ModelChoices.Children.Add(haveOne);
     }
@@ -264,7 +260,7 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
             button.IsEnabled = false;
         }
 
-        DownloadProgress.Visibility = Visibility.Visible;
+        DownloadRow.Visibility = Visibility.Visible;
 
         try
         {
@@ -276,13 +272,13 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
                     DownloadProgress.IsIndeterminate = p.Fraction is null;
                     DownloadProgress.Value = p.Fraction ?? 0;
                     DownloadText.Text = string.Format(
-                        CultureInfo.CurrentCulture,
+                        L.S.Formatting,
                         L.S.DownloadProgress,
-                        FormatSize(p.ReceivedBytes),
-                        p.TotalBytes is { } total ? FormatSize(total) : "?",
-                        FormatSize((long)p.BytesPerSecond));
+                        L.S.Size(p.ReceivedBytes),
+                        p.TotalBytes is { } total ? L.S.Size(total) : "?",
+                        L.S.Size((long)p.BytesPerSecond));
                     DownloadPercent.Text = p.Fraction is { } f
-                        ? $"{Math.Round(f * 100).ToString(CultureInfo.CurrentCulture)}%"
+                        ? $"{Math.Round(f * 100).ToString(L.S.Formatting)}%"
                         : string.Empty;
                 });
 
@@ -303,7 +299,7 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
         catch (Exception ex) when (ex is IOException or HttpRequestException or UnauthorizedAccessException or InvalidDataException)
         {
             AppLog.Warn("Не удалось скачать модель в окне первого запуска.", ex);
-            DownloadText.Text = string.Format(CultureInfo.CurrentCulture, L.S.DownloadFailed, ex.Message);
+            DownloadText.Text = string.Format(L.S.Formatting, L.S.DownloadFailed, ex.Message);
         }
         finally
         {
@@ -318,13 +314,6 @@ public partial class WelcomeWindow : FluentWindow, IDisposable
         }
     }
 
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
-        >= 1_000_000 => $"{bytes / 1_000_000.0:F0} MB",
-        >= 1_000 => $"{bytes / 1_000.0:F0} KB",
-        _ => $"{bytes} B",
-    };
 
     // --- микрофон ------------------------------------------------------------
 

@@ -269,6 +269,12 @@ public sealed record UiStrings
     public required string CallStateTranscribing { get; init; }
     public required string CallStateReady { get; init; }
     public required string CallStateNeedsNames { get; init; }
+    public required string UnitHours { get; init; }
+    public required string UnitGigabytes { get; init; }
+    public required string UnitKilobytes { get; init; }
+    public required string CallUntitled { get; init; }
+    public required string VoiceChange { get; init; }
+    public required string VoicesResplitLink { get; init; }
     public required string FieldRememberVoices { get; init; }
     public required string FieldRememberVoicesHint { get; init; }
     public required string ButtonForgetVoices { get; init; }
@@ -496,10 +502,58 @@ public sealed record UiStrings
             return string.Format(Culture, UnitSeconds, (int)length.TotalSeconds);
         }
 
-        return length.TotalHours < 1
-            ? string.Format(Culture, UnitMinutes, (int)length.TotalMinutes)
+        if (length.TotalHours < 1)
+        {
+            return string.Format(Culture, UnitMinutes, (int)length.TotalMinutes);
+        }
+
+        // «1 ч 0 мин» — лишнее слово: ровный час так и пишется.
+        return length.Minutes == 0
+            ? string.Format(Culture, UnitHours, (int)length.TotalHours)
             : string.Format(Culture, UnitHoursMinutes, (int)length.TotalHours, length.Minutes);
     }
+
+    /// <summary>
+    /// Размер: килобайты до мегабайта, мегабайты до гигабайта, дальше
+    /// гигабайты с десятыми.
+    /// </summary>
+    /// <remarks>
+    /// <para>«1861 МБ» приходится пересчитывать в уме; «1,8 ГБ» — нет.</para>
+    /// <para>
+    /// Одна функция на всё приложение. Раньше у настроек и у окна первого
+    /// запуска были свои копии с английскими единицами и десятичной запятой
+    /// системы: английский интерфейс показывал «1,6 GB», русский — «574 MB».
+    /// Единицы десятичные, как в каталоге моделей: модель «574 МБ» должна
+    /// и здесь быть 574, а не 547.
+    /// </para>
+    /// </remarks>
+    public string Size(long bytes) => bytes switch
+    {
+        >= 1_000_000_000 => string.Format(Culture, UnitGigabytes, (bytes / 1e9).ToString("F1", Culture)),
+        >= 1_000_000 => string.Format(Culture, CallsMegabytes, Math.Round(bytes / 1e6).ToString("F0", Culture)),
+        _ => string.Format(Culture, UnitKilobytes, Math.Round(Math.Max(bytes, 0) / 1e3).ToString("F0", Culture)),
+    };
+
+    /// <summary>
+    /// Дата на языке интерфейса, а не Windows.
+    /// </summary>
+    /// <remarks>
+    /// Раньше даты брали язык системы: английский интерфейс показывал
+    /// «Yesterday» над «21 сентября». Формат — день и месяц словом, год —
+    /// только если не текущий.
+    /// </remarks>
+    public string Date(DateTimeOffset at, bool withYear = false, bool withTime = false)
+    {
+        DateTime local = at.LocalDateTime;
+        string format = withYear || local.Year != DateTime.Today.Year ? "d MMMM yyyy" : "d MMMM";
+        return local.ToString(withTime ? format + ", HH:mm" : format, Culture);
+    }
+
+    /// <summary>Время суток — 24-часовое на обоих языках.</summary>
+    public string Time(DateTimeOffset at) => at.LocalDateTime.ToString("HH:mm", Culture);
+
+    /// <summary>Культура для чисел и дат — по языку интерфейса.</summary>
+    public required System.Globalization.CultureInfo Formatting { get; init; }
 
     /// <summary>Подписи для готового транскрипта звонка.</summary>
     public CallTranscriptLabels TranscriptLabels => new(
@@ -517,10 +571,11 @@ public sealed record UiStrings
         TranscriptBleedByEnergy,
         TranscriptNothingRecognized);
 
-    private static System.Globalization.CultureInfo Culture => System.Globalization.CultureInfo.CurrentCulture;
+    private System.Globalization.CultureInfo Culture => Formatting;
 
     public static UiStrings English { get; } = new()
     {
+        Formatting = System.Globalization.CultureInfo.GetCultureInfo("en-GB"),
         TrayStart = "Start dictation",
         TrayStop = "Stop dictation",
         TrayCancel = "Cancel",
@@ -749,12 +804,18 @@ public sealed record UiStrings
         CallsOpenFolder = "Folder",
         CallsTranscribe = "Transcribe",
         CallsTranscribeAgain = "Transcribe again",
-        CallsTotals = "{0} recordings · {1} MB",
+        CallsTotals = "Recordings: {0} · {1}",
         CallsMegabytes = "{0} MB",
         CallStateRecording = "recording",
         CallStateTranscribing = "transcribing",
         CallStateReady = "ready",
         CallStateNeedsNames = "name the voices",
+        UnitHours = "{0} h",
+        UnitGigabytes = "{0} GB",
+        UnitKilobytes = "{0} KB",
+        CallUntitled = "Call",
+        VoiceChange = "Change",
+        VoicesResplitLink = "Voices split wrong?",
         FieldRememberVoices = "Remember voices",
         FieldRememberVoicesHint = "When you name a voice, its voiceprint is kept on this computer, and on later calls Tapybara suggests who is speaking. A voiceprint is biometric data; it never leaves this computer.",
         ButtonForgetVoices = "Forget all voices",
@@ -922,6 +983,7 @@ public sealed record UiStrings
 
     public static UiStrings Russian { get; } = new()
     {
+        Formatting = System.Globalization.CultureInfo.GetCultureInfo("ru-RU"),
         TrayStart = "Начать диктовку",
         TrayStop = "Закончить диктовку",
         TrayCancel = "Отменить",
@@ -1150,12 +1212,18 @@ public sealed record UiStrings
         CallsOpenFolder = "Папка",
         CallsTranscribe = "Распознать",
         CallsTranscribeAgain = "Распознать заново",
-        CallsTotals = "Записей: {0} · {1} МБ",
+        CallsTotals = "Записей: {0} · {1}",
         CallsMegabytes = "{0} МБ",
         CallStateRecording = "пишется",
         CallStateTranscribing = "распознаётся",
         CallStateReady = "готово",
         CallStateNeedsNames = "назовите голоса",
+        UnitHours = "{0} ч",
+        UnitGigabytes = "{0} ГБ",
+        UnitKilobytes = "{0} КБ",
+        CallUntitled = "Звонок",
+        VoiceChange = "Изменить",
+        VoicesResplitLink = "Голоса разделены неверно?",
         FieldRememberVoices = "Запоминать голоса",
         FieldRememberVoicesHint = "Когда вы называете голос, его слепок сохраняется на этом компьютере, и на следующих звонках Tapybara подсказывает, кто говорит. Слепок голоса — биометрия; он не покидает этот компьютер.",
         ButtonForgetVoices = "Забыть все голоса",

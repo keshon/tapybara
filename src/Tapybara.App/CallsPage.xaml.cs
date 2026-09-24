@@ -84,6 +84,17 @@ public sealed class CallRow
 
     public required Brush StateForeground { get; init; }
 
+    /// <summary>
+    /// Значок виден только у состояний, которые что-то значат.
+    /// </summary>
+    /// <remarks>
+    /// «Готово» — обычное состояние звонка. Девятнадцать зелёных «готово»
+    /// подряд были шумом, среди которого терялись «назовите голоса» и
+    /// «распознаётся» — ради которых значок и заведён.
+    /// </remarks>
+    public Visibility BadgeVisibility =>
+        Entry.State == CallState.Ready ? Visibility.Collapsed : Visibility.Visible;
+
     public string Directory => Entry.Directory;
 
     /// <summary>Всё видимое одной строкой — чтобы не пересобирать список без изменений.</summary>
@@ -109,6 +120,14 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
     /// <summary>Имя показывается только на смене говорящего, как в transcript.md.</summary>
     public required Visibility SpeakerVisibility { get; init; }
 
+    /// <summary>Цвет имени: основной текст, у неназванного голоса — вторичный.</summary>
+    public required Brush SpeakerForeground { get; init; }
+
+    /// <summary>Воздух перед сменой говорящего: реплики одного человека идут плотнее.</summary>
+    public Thickness Spacing => SpeakerVisibility == Visibility.Visible
+        ? new Thickness(0, Tokens.Space2, 0, 0)
+        : new Thickness(0);
+
     public required string PlayHint { get; init; }
 
     public string Text => Line.Text;
@@ -128,43 +147,6 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-}
-
-/// <summary>
-/// Цвета голосов.
-/// </summary>
-/// <remarks>
-/// Средние по светлоте тона: одни и те же читаются и на светлой, и на тёмной
-/// теме, и не спорят с красным, который в приложении значит «идёт запись».
-/// Цвет у голоса постоянный — по порядку появления, — чтобы «B» был
-/// фиолетовым и в списке реплик, и в панели голосов.
-/// </remarks>
-internal static class VoicePalette
-{
-    private static readonly Brush[] Voices =
-    [
-        Frozen(0x1A, 0x9E, 0x8A),
-        Frozen(0x8C, 0x5C, 0xF0),
-        Frozen(0xE0, 0x7B, 0x24),
-        Frozen(0x2F, 0x86, 0xD6),
-        Frozen(0xD0, 0x45, 0x8E),
-        Frozen(0x6E, 0x9A, 0x2A),
-    ];
-
-    /// <summary>Владелец микрофона — коричневый диск со значка приложения.</summary>
-    public static Brush Me { get; } = Frozen(0xB0, 0x7A, 0x45);
-
-    /// <summary>Собеседник, голоса которого не разделялись.</summary>
-    public static Brush Other { get; } = Frozen(0x7A, 0x7A, 0x80);
-
-    public static Brush For(int index) => Voices[Math.Max(index, 0) % Voices.Length];
-
-    private static SolidColorBrush Frozen(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
 }
 
 /// <summary>
@@ -311,8 +293,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         CopyButton.Content = L.S.CallsCopyText;
         FolderButton.ToolTip = L.S.CallsOpenFolder;
         MoreButton.ToolTip = L.S.CallsMore;
-        TranscriptTab.Header = L.S.CallsTabTranscript;
-        NoteTab.Header = L.S.CallsTabNote;
+        TranscriptTab.Content = L.S.CallsTabTranscript;
+        NoteTab.Content = L.S.CallsTabNote;
         NoteBox.PlaceholderText = L.S.CallReviewNotePlaceholder;
         UpdateListenButton();
         UpdateRecordButton();
@@ -397,10 +379,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         TotalsText.Text = _rows.Count == 0
             ? string.Empty
             : string.Format(
-                CultureInfo.CurrentCulture,
+                L.S.Formatting,
                 L.S.CallsTotals,
                 _rows.Count,
-                Megabytes(entries.Sum(e => e.AudioBytes)));
+                L.S.Size(entries.Sum(e => e.AudioBytes)));
 
         UpdateRecordButton();
 
@@ -423,37 +405,33 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private CallRow ToRow(CallEntry entry)
     {
         CallSession session = entry.Session;
-        string time = session.StartedAt.ToString("HH:mm", CultureInfo.CurrentCulture);
+        string title = TitleOf(session);
 
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(session.Title))
-        {
-            parts.Add(time);
-        }
+        // В подписи — то, чего нет в названии. Раньше дата стояла трижды:
+        // в заголовке группы, в названии строки и ещё раз в карточке.
+        var parts = new List<string> { L.S.Time(session.StartedAt), L.S.Duration(session.Duration) };
 
-        parts.Add(L.S.Duration(session.Duration));
-
-        if (!string.IsNullOrWhiteSpace(session.Trigger))
+        if (!string.IsNullOrWhiteSpace(session.Trigger) && session.Trigger != title)
         {
             parts.Add(session.Trigger);
         }
 
-        List<string> people = [.. session.Participants.Concat(session.VoiceNames.Values).Distinct(StringComparer.OrdinalIgnoreCase)];
-        if (people.Count > 0)
+        string people = PeopleOf(session);
+        if (people.Length > 0 && people != title)
         {
-            parts.Add(string.Join(", ", people));
+            parts.Add(people);
         }
 
         (string text, string background, string foreground) = Badge(entry.State);
         if (entry.State == CallState.Transcribing && _services.LivePercent(entry.Directory) is { } percent)
         {
-            text = $"{text} · {percent.ToString(CultureInfo.CurrentCulture)}%";
+            text = $"{text} · {percent.ToString(L.S.Formatting)}%";
         }
 
         return new CallRow
         {
             Entry = entry,
-            Title = string.IsNullOrWhiteSpace(session.Title) ? DefaultTitle(session) : session.Title,
+            Title = title,
             Subtitle = string.Join(" · ", parts),
             Day = Day(session.StartedAt),
             StateText = text,
@@ -462,9 +440,32 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         };
     }
 
-    /// <summary>Название звонка, пока человек не дал своё: когда он был.</summary>
-    private static string DefaultTitle(CallSession session) =>
-        session.StartedAt.ToString("d MMMM, HH:mm", CultureInfo.CurrentCulture);
+    /// <summary>Кто был на звонке — отмеченные и названные голоса.</summary>
+    private static string PeopleOf(CallSession session) =>
+        string.Join(", ", session.Participants.Concat(session.VoiceNames.Values).Distinct(StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>Как называется звонок.</summary>
+    private static string TitleOf(CallSession session) =>
+        string.IsNullOrWhiteSpace(session.Title) ? DefaultTitle(session) : session.Title;
+
+    /// <summary>
+    /// Название звонка, пока человек не дал своё.
+    /// </summary>
+    /// <remarks>
+    /// Люди, а не дата: дата уже есть в заголовке группы, а «Костя, Витя»
+    /// отличает звонок от соседних с первого взгляда. Нет людей — приложение,
+    /// из которого звонили; нет и его — просто «Звонок».
+    /// </remarks>
+    private static string DefaultTitle(CallSession session)
+    {
+        string people = PeopleOf(session);
+        if (people.Length > 0)
+        {
+            return people;
+        }
+
+        return string.IsNullOrWhiteSpace(session.Trigger) ? L.S.CallUntitled : session.Trigger;
+    }
 
     /// <summary>Группа списка: «Сегодня», «Вчера» или дата.</summary>
     private static string Day(DateTimeOffset startedAt)
@@ -477,14 +478,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return L.S.DayToday;
         }
 
-        if (day == today.AddDays(-1))
-        {
-            return L.S.DayYesterday;
-        }
-
-        return day.Year == today.Year
-            ? day.ToString("d MMMM", CultureInfo.CurrentCulture)
-            : day.ToString("d MMMM yyyy", CultureInfo.CurrentCulture);
+        return day == today.AddDays(-1) ? L.S.DayYesterday : L.S.Date(startedAt);
     }
 
     /// <summary>
@@ -509,9 +503,6 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     private Brush Resource(string key, Color fallback) =>
         TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
-
-    private static string Megabytes(long bytes) =>
-        (bytes / (1024.0 * 1024.0)).ToString("F0", CultureInfo.CurrentCulture);
 
     private void UpdateRecordButton()
     {
@@ -638,7 +629,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         // двухсекундное обновление стирало бы набранное на полуслове.
         if (!sameCall || !TitleBox.IsKeyboardFocused)
         {
-            TitleBox.Text = string.IsNullOrWhiteSpace(_session.Title) ? DefaultTitle(_session) : _session.Title;
+            TitleBox.Text = TitleOf(_session);
         }
 
         if (!sameCall || !NoteBox.IsKeyboardFocused)
@@ -648,7 +639,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         var meta = new List<string>
         {
-            _session.StartedAt.ToString("d MMMM yyyy, HH:mm", CultureInfo.CurrentCulture),
+            L.S.Date(_session.StartedAt, withYear: true, withTime: true),
             L.S.Duration(_session.Duration),
         };
 
@@ -657,7 +648,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             meta.Add(_session.Trigger);
         }
 
-        meta.Add(string.Format(CultureInfo.CurrentCulture, L.S.CallsMegabytes, Megabytes(entry.AudioBytes)));
+        meta.Add(L.S.Size(entry.AudioBytes));
         DetailMeta.Text = string.Join(" · ", meta);
 
         bool hasAudio = entry.State is not (CallState.Damaged or CallState.Recording);
@@ -675,7 +666,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         BannerProgress.Visibility = Visibility.Collapsed;
         BannerButton.Visibility = Visibility.Collapsed;
         _bannerAction = null;
-        Banner.Background = Resource("SystemFillColorAttentionBackgroundBrush", Colors.Transparent);
+        Banner.Background = Resource("SubtleFillColorSecondaryBrush", Colors.Transparent);
         BannerIcon.Symbol = SymbolRegular.Info24;
 
         string? text = null;
@@ -687,7 +678,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
             case CallState.Transcribing:
                 int percent = _services.LivePercent(entry.Directory) ?? 0;
-                text = string.Format(CultureInfo.CurrentCulture, L.S.BannerTranscribing, percent);
+                text = string.Format(L.S.Formatting, L.S.BannerTranscribing, percent);
                 BannerProgress.Value = percent;
                 BannerProgress.Visibility = Visibility.Visible;
                 break;
@@ -706,7 +697,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 // Книга голосов кого-то узнала — предлагаем принять одной
                 // кнопкой, но не принимаем сами: подсказка остаётся подсказкой.
                 text = string.Format(
-                    CultureInfo.CurrentCulture,
+                    L.S.Formatting,
                     L.S.BannerSuggested,
                     string.Join(", ", _suggestions.Select(s => $"{L.S.TranscriptVoice} {s.Key} — {s.Value.Name}")));
                 BannerIcon.Symbol = SymbolRegular.PersonVoice24;
@@ -717,7 +708,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 int unnamed = _session.Voices.Count(v => CallSpeakers.NameOf(_session, v) is null);
                 text = unnamed == 1
                     ? L.S.BannerNeedsNamesOne
-                    : string.Format(CultureInfo.CurrentCulture, L.S.BannerNeedsNamesMany, unnamed);
+                    : string.Format(L.S.Formatting, L.S.BannerNeedsNamesMany, unnamed);
                 BannerIcon.Symbol = SymbolRegular.PeopleTeam24;
                 break;
 
@@ -739,6 +730,26 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     }
 
     private void OnBannerButtonClick(object sender, RoutedEventArgs e) => _bannerAction?.Invoke();
+
+    /// <summary>Переключить вкладку «Транскрипт» / «Заметка».</summary>
+    private void OnTabChecked(object sender, RoutedEventArgs e)
+    {
+        // Первая вкладка отмечена в разметке, и Checked приходит ещё до
+        // того, как InitializeComponent связал остальные элементы.
+        if (TranscriptView is null || NoteBox is null || NoteTab is null)
+        {
+            return;
+        }
+
+        bool note = NoteTab.IsChecked == true;
+        TranscriptView.Visibility = note ? Visibility.Collapsed : Visibility.Visible;
+        NoteBox.Visibility = note ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!note)
+        {
+            SaveNote();
+        }
+    }
 
     // --- подсказки книги голосов ---------------------------------------------
 
@@ -800,36 +811,32 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
     }
 
-    /// <summary>Строка «похоже на Кирилла · 84% [Верно]» под заголовком голоса.</summary>
-    private Grid SuggestionRow(VoiceMatch match, Action accept)
+    /// <summary>
+    /// «Похоже на: Кирилл · 84%» и кнопка «Верно» под ним.
+    /// </summary>
+    /// <remarks>
+    /// Друг под другом, а не в строку: в строке с кнопкой имя и процент
+    /// переносились на две строки и выглядели зажатыми.
+    /// </remarks>
+    private static StackPanel SuggestionRow(VoiceMatch match, Action accept)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var row = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
 
-        row.Children.Add(new TextBlock
-        {
-            Text = string.Format(
-                CultureInfo.CurrentCulture,
-                L.S.VoiceSuggestion,
-                match.Name,
-                Math.Round(match.Score * 100).ToString(CultureInfo.CurrentCulture)),
-            FontSize = 12.5,
-            Foreground = Resource("AccentTextFillColorPrimaryBrush", Colors.SteelBlue),
-            TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        TextBlock text = Ui.Body(string.Format(
+            L.S.Formatting,
+            L.S.VoiceSuggestion,
+            match.Name,
+            Math.Round(match.Score * 100).ToString(L.S.Formatting)));
+        text.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextFillColorPrimaryBrush");
+        row.Children.Add(text);
 
         var confirm = new Wpf.Ui.Controls.Button
         {
             Content = L.S.VoiceAcceptSuggestion,
             Appearance = ControlAppearance.Primary,
-            Padding = new Thickness(10, 3, 10, 3),
-            FontSize = 12.5,
-            Margin = new Thickness(8, 0, 0, 0),
+            Margin = new Thickness(0, Tokens.Space2, 0, 0),
         };
         confirm.Click += (_, _) => accept();
-        Grid.SetColumn(confirm, 1);
         row.Children.Add(confirm);
         return row;
     }
@@ -880,6 +887,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         IReadOnlyList<string> voices = _transcript.Voices;
         string myName = Settings.EffectiveMyName;
+        Brush primary = Resource("TextFillColorPrimaryBrush", Colors.Black);
+        Brush secondary = Resource("TextFillColorSecondaryBrush", Colors.Gray);
         string fallback = OtherSideLabel(Settings);
         string? previous = null;
 
@@ -897,9 +906,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 Stamp = CallTranscriptRenderer.Stamp(line.Start),
                 Speaker = speaker,
                 SpeakerBrush = BrushOf(line, voices),
+                SpeakerForeground = named ? primary : secondary,
                 SpeakerFontStyle = named ? FontStyles.Normal : FontStyles.Italic,
                 SpeakerVisibility = speaker == previous ? Visibility.Collapsed : Visibility.Visible,
-                PlayHint = string.Format(CultureInfo.CurrentCulture, L.S.LinePlayFrom, CallTranscriptRenderer.Stamp(line.Start)),
+                PlayHint = string.Format(L.S.Formatting, L.S.LinePlayFrom, CallTranscriptRenderer.Stamp(line.Start)),
                 IsCurrent = current == line.Start,
             });
 
@@ -914,8 +924,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return VoicePalette.Me;
         }
 
-        int index = line.Voice is null ? -1 : IndexOf(voices, line.Voice);
-        return index < 0 ? VoicePalette.Other : VoicePalette.For(index);
+        // Реплика без голоса — это собеседник, чьи голоса не разделялись:
+        // цвет первого голоса, как у его карточки в панели голосов.
+        int index = line.Voice is null ? 0 : IndexOf(voices, line.Voice);
+        return VoicePalette.For(Math.Max(index, 0));
     }
 
     private static int IndexOf(IReadOnlyList<string> voices, string voice)
@@ -943,7 +955,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         {
             if (e.Key == Key.Escape && _session is not null)
             {
-                TitleBox.Text = string.IsNullOrWhiteSpace(_session.Title) ? DefaultTitle(_session) : _session.Title;
+                TitleBox.Text = TitleOf(_session);
             }
 
             e.Handled = true;
@@ -958,9 +970,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// Записать название звонка.
     /// </summary>
     /// <remarks>
-    /// Пока человек своего не дал, в поле стоит дата. Сохранять её как
-    /// «название» нельзя: тогда звонок навсегда назывался бы датой на языке,
-    /// который был при первом открытии, и не следовал бы за сменой языка.
+    /// Пока человек своего не дал, в поле стоят имена участников. Сохранять
+    /// их как «название» нельзя: тогда звонок не следовал бы за правкой
+    /// участников и за сменой языка («Звонок» / «Call»).
     /// </remarks>
     private void SaveTitle()
     {
@@ -993,16 +1005,23 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private void ShowVoicesPane(bool visible)
     {
         VoicesPane.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        VoicesColumn.Width = visible ? new GridLength(310) : new GridLength(0);
+        VoicesColumn.Width = visible ? new GridLength(320) : new GridLength(0);
     }
 
     /// <summary>
     /// Собрать панель голосов: у каждого — доля речи, цитаты и выбор имени.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Карточки собираются кодом, как карточки настроек: их число заранее
     /// неизвестно, а содержимое — чипы имён, цитаты с кнопками — проще
     /// сложить построителем, чем шаблоном с полудюжиной вложенных привязок.
+    /// </para>
+    /// <para>
+    /// Карточка одна на все случаи. Собеседник, голоса которого не
+    /// разделялись, раньше получал другую, беднее — без доли речи и цитат,
+    /// зато с «Кто это?» и шестью чипами, хотя имя было давно известно.
+    /// </para>
     /// </remarks>
     private void ShowVoices()
     {
@@ -1018,219 +1037,208 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         IReadOnlyList<VoiceSummary> voices = CallVoices.Summarize(_transcript);
 
-        var header = new Grid { Margin = new Thickness(2, 0, 2, 10) };
-        header.Children.Add(new TextBlock { Text = L.S.VoicesHeader, FontWeight = FontWeights.SemiBold, FontSize = 15 });
-        if (voices.Count > 0)
+        var header = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
+        header.Children.Add(Ui.BodyStrong(L.S.VoicesHeader));
+        if (voices.Count > 1)
         {
-            header.Children.Add(new TextBlock
-            {
-                Text = string.Format(CultureInfo.CurrentCulture, L.S.VoicesFound, voices.Count),
-                FontSize = 12,
-                Opacity = 0.6,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
+            TextBlock found = Ui.Caption(string.Format(L.S.Formatting, L.S.VoicesFound, voices.Count));
+            found.HorizontalAlignment = HorizontalAlignment.Right;
+            found.VerticalAlignment = VerticalAlignment.Center;
+            header.Children.Add(found);
         }
 
         VoicesHost.Children.Add(header);
 
         if (voices.Count == 0)
         {
-            VoicesHost.Children.Add(OtherSideCard());
+            // Голоса не разделялись: весь чужой канал — один человек.
+            string? name = _session.Participants.Count == 1 ? _session.Participants[0] : null;
+            VoicesHost.Children.Add(VoiceCard(WholeSide(), 0, name, single: true, SetOtherSideName));
         }
         else
         {
             for (int i = 0; i < voices.Count; i++)
             {
-                VoicesHost.Children.Add(VoiceCard(voices[i], i, voices));
+                VoiceSummary voice = voices[i];
+                VoicesHost.Children.Add(VoiceCard(
+                    voice,
+                    i,
+                    CallSpeakers.NameOf(_session, voice.Id),
+                    single: voices.Count == 1,
+                    picked => SetVoiceName(voice.Id, picked)));
             }
         }
 
         VoicesHost.Children.Add(MeRow());
 
-        if (_services.CanSplitVoices())
+        // Переразделять есть что, только если голоса разделялись. На звонке
+        // с одним отмеченным участником этот блок был загадкой без контекста.
+        if (_services.CanSplitVoices() && _transcript.VoicesSplit)
         {
             VoicesHost.Children.Add(ResplitRow());
         }
     }
 
-    /// <summary>Карточка одного голоса.</summary>
-    private Border VoiceCard(VoiceSummary voice, int index, IReadOnlyList<VoiceSummary> all)
+    /// <summary>Сводка по чужому каналу целиком — когда голоса не разделялись.</summary>
+    private VoiceSummary WholeSide()
     {
-        string? name = CallSpeakers.NameOf(_session!, voice.Id);
-        Brush color = VoicePalette.For(index);
-        string label = $"{L.S.TranscriptVoice} {voice.Id}";
+        var whole = new CallTranscript
+        {
+            Lines = [.. _transcript!.Lines.Where(l => l.Channel == CallChannel.Theirs).Select(l => l with { Voice = CallVoices.WholeOtherSide })],
+        };
 
+        IReadOnlyList<VoiceSummary> summary = CallVoices.Summarize(whole);
+        return summary.Count > 0 ? summary[0] : new VoiceSummary(CallVoices.WholeOtherSide, TimeSpan.Zero, 1, []);
+    }
+
+    /// <summary>Какие карточки голосов открыты для смены имени.</summary>
+    private readonly HashSet<string> _renaming = [];
+
+    /// <summary>Раскрыт ли выбор числа голосов для переразделения.</summary>
+    private bool _resplitOpen;
+
+    /// <summary>Карточка одного голоса.</summary>
+    /// <param name="voice">Сводка: доля речи и цитаты.</param>
+    /// <param name="index">Порядок появления — от него цвет.</param>
+    /// <param name="name">Имя, если известно.</param>
+    /// <param name="single">Голос на той стороне один: доля речи и «тот же человек» не нужны.</param>
+    /// <param name="pick">Что сделать с выбранным именем.</param>
+    private Border VoiceCard(VoiceSummary voice, int index, string? name, bool single, Action<string?> pick)
+    {
         var body = new StackPanel();
 
-        // Заголовок: цвет, имя, доля речи.
-        var title = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        // Заголовок: цвет, имя, сколько говорил.
+        var title = new Grid();
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        title.Children.Add(new System.Windows.Shapes.Ellipse
-        {
-            Width = 11,
-            Height = 11,
-            Fill = color,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        title.Children.Add(Dot(VoicePalette.For(index), 10));
 
-        var nameText = new TextBlock
-        {
-            Text = name ?? string.Format(CultureInfo.CurrentCulture, L.S.VoiceUnnamed, label),
-            FontWeight = FontWeights.SemiBold,
-            FontStyle = name is null ? FontStyles.Italic : FontStyles.Normal,
-            Opacity = name is null ? 0.75 : 1,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+        TextBlock nameText = name is null
+            ? Ui.BodySecondary(single
+                ? L.S.VoiceTheOtherSide
+                : string.Format(L.S.Formatting, L.S.VoiceUnnamed, $"{L.S.TranscriptVoice} {voice.Id}"))
+            : Ui.BodyStrong(name);
+        nameText.TextWrapping = TextWrapping.NoWrap;
+        nameText.TextTrimming = TextTrimming.CharacterEllipsis;
+        nameText.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(nameText, 1);
         title.Children.Add(nameText);
 
-        var stats = new TextBlock
-        {
-            Text = $"{L.S.Duration(voice.Speech)} · {Math.Round(voice.Share * 100).ToString(CultureInfo.CurrentCulture)}%",
-            FontSize = 11.5,
-            Opacity = 0.6,
-            Margin = new Thickness(8, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+        TextBlock stats = Ui.Caption(single
+            ? L.S.Duration(voice.Speech)
+            : $"{L.S.Duration(voice.Speech)} · {Math.Round(voice.Share * 100).ToString(L.S.Formatting)}%");
+        stats.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
+        stats.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(stats, 2);
         title.Children.Add(stats);
         body.Children.Add(title);
 
-        body.Children.Add(ShareBar(voice.Share, color));
+        if (!single)
+        {
+            body.Children.Add(ShareBar(voice.Share, VoicePalette.For(index)));
+        }
 
         if (name is null && _suggestions.TryGetValue(voice.Id, out VoiceMatch? suggested))
         {
-            body.Children.Add(SuggestionRow(suggested, () => SetVoiceName(voice.Id, suggested.Name)));
+            body.Children.Add(SuggestionRow(suggested, () => pick(suggested.Name)));
         }
 
-        foreach (CallLine quote in voice.Quotes)
+        if (voice.Quotes.Count > 0)
         {
-            body.Children.Add(QuoteRow(quote));
-        }
-
-        body.Children.Add(new TextBlock
-        {
-            Text = L.S.VoiceWho,
-            FontSize = 12,
-            Opacity = 0.7,
-            Margin = new Thickness(0, 8, 0, 6),
-        });
-
-        body.Children.Add(NameChips(name, picked => SetVoiceName(voice.Id, picked)));
-
-        if (all.Count > 1)
-        {
-            var merge = new Button
+            var quotes = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
+            foreach (CallLine quote in voice.Quotes)
             {
-                Content = L.S.VoiceSameAs,
-                Style = (Style)FindResource("FlatLinkButton"),
-                Foreground = Resource("AccentTextFillColorPrimaryBrush", Colors.SteelBlue),
-                FontSize = 12,
-                Margin = new Thickness(-2, 4, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
+                quotes.Children.Add(QuoteRow(quote));
+            }
 
-            merge.Click += (_, _) =>
-            {
-                var menu = new ContextMenu { PlacementTarget = merge };
-                foreach (VoiceSummary other in all.Where(v => v.Id != voice.Id))
-                {
-                    string otherName = CallSpeakers.NameOf(_session!, other.Id) ?? $"{L.S.TranscriptVoice} {other.Id}";
-                    var item = new MenuItem { Header = otherName };
-                    item.Click += (_, _) => MergeVoices(voice.Id, other.Id);
-                    menu.Items.Add(item);
-                }
-
-                menu.IsOpen = true;
-            };
-
-            body.Children.Add(merge);
+            body.Children.Add(quotes);
         }
 
-        bool needsName = name is null && all.Count > 1;
-        return new Border
+        // Имя уже есть — выбор свёрнут в «Изменить»: шесть чипов под
+        // названным человеком — это шум, а не помощь.
+        if (name is not null && !_renaming.Contains(voice.Id))
         {
-            Child = body,
-            Padding = new Thickness(12, 10, 12, 12),
-            Margin = new Thickness(0, 0, 0, 8),
-            CornerRadius = new CornerRadius(8),
-            Background = Resource("CardBackgroundFillColorDefaultBrush", Colors.White),
-            BorderBrush = needsName
-                ? Resource("AccentFillColorDefaultBrush", Colors.SteelBlue)
-                : Resource("CardStrokeColorDefaultBrush", Colors.LightGray),
-            BorderThickness = new Thickness(needsName ? 1.5 : 1),
-        };
+            Button change = Ui.Link(L.S.VoiceChange);
+            change.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+            change.HorizontalAlignment = HorizontalAlignment.Left;
+            change.Click += (_, _) =>
+            {
+                _renaming.Add(voice.Id);
+                ShowVoices();
+            };
+            body.Children.Add(change);
+        }
+        else
+        {
+            TextBlock who = Ui.Caption(L.S.VoiceWho);
+            who.Margin = new Thickness(0, Tokens.Space2, 0, Tokens.Space2);
+            body.Children.Add(who);
+            body.Children.Add(NameChips(name, picked =>
+            {
+                _renaming.Remove(voice.Id);
+                pick(picked);
+            }));
+
+            if (!single)
+            {
+                body.Children.Add(MergeLink(voice.Id));
+            }
+        }
+
+        Border card = Ui.Card(body);
+        card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+
+        // Голос ждёт имени — рамка акцентом: это то, ради чего сюда пришли.
+        if (name is null && !single)
+        {
+            card.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+        }
+
+        return card;
     }
 
-    /// <summary>
-    /// Карточка собеседника, когда голоса не разделялись.
-    /// </summary>
-    /// <remarks>
-    /// Имя здесь становится единственным участником звонка — и подписывает
-    /// весь чужой канал. Это то же правило, что и у окна после звонка:
-    /// один собеседник — сопоставлять нечего.
-    /// </remarks>
-    private Border OtherSideCard()
+    /// <summary>«Это тот же человек, что…» — склеить голоса.</summary>
+    private Button MergeLink(string voice)
     {
-        string? name = _session!.Participants.Count == 1 ? _session.Participants[0] : null;
-
-        var body = new StackPanel();
-        var title = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        title.Children.Add(new System.Windows.Shapes.Ellipse
+        Button merge = Ui.Link(L.S.VoiceSameAs);
+        merge.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+        merge.HorizontalAlignment = HorizontalAlignment.Left;
+        merge.Click += (_, _) =>
         {
-            Width = 11,
-            Height = 11,
-            Fill = VoicePalette.Other,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        title.Children.Add(new TextBlock { Text = name ?? L.S.VoiceTheOtherSide, FontWeight = FontWeights.SemiBold });
-        body.Children.Add(title);
+            var menu = new ContextMenu { PlacementTarget = merge };
+            foreach (string other in _transcript!.Voices.Where(v => v != voice))
+            {
+                string otherName = CallSpeakers.NameOf(_session!, other) ?? $"{L.S.TranscriptVoice} {other}";
+                var item = new MenuItem { Header = otherName };
+                item.Click += (_, _) => MergeVoices(voice, other);
+                menu.Items.Add(item);
+            }
 
-        if (name is null && _suggestions.TryGetValue(CallVoices.WholeOtherSide, out VoiceMatch? suggested))
-        {
-            body.Children.Add(SuggestionRow(suggested, () => SetOtherSideName(suggested.Name)));
-        }
-
-        body.Children.Add(new TextBlock
-        {
-            Text = L.S.VoiceWho,
-            FontSize = 12,
-            Opacity = 0.7,
-            Margin = new Thickness(0, 0, 0, 6),
-        });
-
-        body.Children.Add(NameChips(name, SetOtherSideName));
-
-        return new Border
-        {
-            Child = body,
-            Padding = new Thickness(12, 10, 12, 12),
-            Margin = new Thickness(0, 0, 0, 8),
-            CornerRadius = new CornerRadius(8),
-            Background = Resource("CardBackgroundFillColorDefaultBrush", Colors.White),
-            BorderBrush = Resource("CardStrokeColorDefaultBrush", Colors.LightGray),
-            BorderThickness = new Thickness(1),
+            menu.IsOpen = true;
         };
+
+        return merge;
     }
+
+    private static System.Windows.Shapes.Ellipse Dot(Brush color, double size) => new()
+    {
+        Width = size,
+        Height = size,
+        Fill = color,
+        Margin = new Thickness(0, 0, Tokens.Space2, 0),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
 
     private static Grid ShareBar(double share, Brush color)
     {
-        var bar = new Grid { Height = 4, Margin = new Thickness(0, 0, 0, 8) };
+        var bar = new Grid { Height = 4, Margin = new Thickness(0, Tokens.Space2, 0, 0) };
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(share, 0.001), GridUnitType.Star) });
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(1 - share, 0.001), GridUnitType.Star) });
 
-        var track = new Border
-        {
-            CornerRadius = new CornerRadius(2),
-            Background = new SolidColorBrush(Color.FromArgb(0x22, 0x80, 0x80, 0x80)),
-        };
+        var track = new Border { CornerRadius = new CornerRadius(2) };
+        track.SetResourceReference(Border.BackgroundProperty, "SubtleFillColorTertiaryBrush");
         Grid.SetColumnSpan(track, 2);
         bar.Children.Add(track);
         bar.Children.Add(new Border { CornerRadius = new CornerRadius(2), Background = color });
@@ -1240,8 +1248,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Цитата с кнопкой прослушивания.</summary>
     private Grid QuoteRow(CallLine quote)
     {
-        var row = new Grid { Margin = new Thickness(0, 2, 0, 4) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+        var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         bool playing = _playingQuote == quote && _player.IsPlaying;
@@ -1253,7 +1261,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             Padding = new Thickness(0),
             MinWidth = 0,
             MinHeight = 0,
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = Tokens.PillRadius,
             VerticalAlignment = VerticalAlignment.Top,
             ToolTip = L.S.VoicePlayQuote,
         };
@@ -1261,19 +1269,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         row.Children.Add(play);
 
         var text = new StackPanel();
-        text.Children.Add(new TextBlock
-        {
-            Text = $"«{quote.Text}»",
-            FontSize = 12.5,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = CallTranscriptRenderer.Stamp(quote.Start),
-            FontSize = 11,
-            Opacity = 0.55,
-            FontFamily = new FontFamily("Cascadia Mono, Consolas"),
-        });
+        text.Children.Add(Ui.Body($"«{quote.Text}»"));
+        TextBlock stamp = Ui.Caption(CallTranscriptRenderer.Stamp(quote.Start));
+        stamp.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+        stamp.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+        text.Children.Add(stamp);
         Grid.SetColumn(text, 1);
         row.Children.Add(text);
         return row;
@@ -1328,8 +1328,6 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 Content = name,
                 IsChecked = selected,
                 Style = style,
-                Padding = new Thickness(10, 3, 10, 3),
-                FontSize = 12.5,
             };
             // Checked/Unchecked, а не Click: щелчок — лишь один из способов
             // переключить чип. Экранный диктор и UI Automation переключают
@@ -1343,10 +1341,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         {
             Content = L.S.VoiceOtherName,
             Style = style,
-            Padding = new Thickness(10, 3, 10, 3),
-            FontSize = 12.5,
-            Opacity = 0.8,
         };
+        other.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");
 
         other.Checked += (_, _) =>
         {
@@ -1356,7 +1352,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             var entry = new Wpf.Ui.Controls.TextBox
             {
                 PlaceholderText = L.S.VoiceNamePlaceholder,
-                Width = 140,
+                Width = 150,
                 Margin = new Thickness(0, 0, 6, 6),
             };
 
@@ -1392,22 +1388,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             .Where(l => l.Channel == CallChannel.Mine)
             .Sum(l => Math.Max(0, (l.End - l.Start).TotalSeconds)));
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 4, 0, 0) };
-        row.Children.Add(new System.Windows.Shapes.Ellipse
-        {
-            Width = 9,
-            Height = 9,
-            Fill = VoicePalette.Me,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        row.Children.Add(new TextBlock
-        {
-            Text = string.Format(CultureInfo.CurrentCulture, L.S.VoiceMe, Settings.EffectiveMyName, L.S.Duration(mine)),
-            FontSize = 12.5,
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(Tokens.Space4, Tokens.Space2, 0, 0) };
+        row.Children.Add(Dot(VoicePalette.Me, 10));
+        row.Children.Add(Ui.Caption(string.Format(L.S.Formatting, L.S.VoiceMe, Settings.EffectiveMyName, L.S.Duration(mine))));
 
         return new Border { Child = row };
     }
@@ -1423,15 +1406,26 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// </remarks>
     private StackPanel ResplitRow()
     {
-        var panel = new StackPanel { Margin = new Thickness(2, 16, 0, 0) };
-        panel.Children.Add(new TextBlock
+        var panel = new StackPanel { Margin = new Thickness(0, Tokens.Space5, 0, 0) };
+
+        // Свёрнуто в ссылку: нужно редко, а в развёрнутом виде ряд цифр без
+        // объяснения читался загадкой.
+        if (!_resplitOpen)
         {
-            Text = L.S.VoicesResplit,
-            FontSize = 12,
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 6),
-        });
+            Button open = Ui.Link(L.S.VoicesResplitLink);
+            open.HorizontalAlignment = HorizontalAlignment.Left;
+            open.Click += (_, _) =>
+            {
+                _resplitOpen = true;
+                ShowVoices();
+            };
+            panel.Children.Add(open);
+            return panel;
+        }
+
+        TextBlock hint = Ui.Caption(L.S.VoicesResplit);
+        hint.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        panel.Children.Add(hint);
 
         var chips = new WrapPanel();
         Style style = (Style)FindResource("ParticipantChipStyle");
@@ -1442,11 +1436,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             int wanted = count;
             var chip = new ToggleButton
             {
-                Content = wanted.ToString(CultureInfo.CurrentCulture),
+                Content = wanted.ToString(L.S.Formatting),
                 IsChecked = wanted == found,
                 Style = style,
-                Padding = new Thickness(12, 3, 12, 3),
-                FontSize = 12.5,
+                MinWidth = 36,
             };
 
             chip.Click += (_, _) =>
@@ -1454,6 +1447,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 chip.IsChecked = wanted == found;
                 if (wanted != found && _session is not null)
                 {
+                    _resplitOpen = false;
                     _ = _services.Resplit(_session.Directory, wanted);
                     Reload(keepSelection: true);
                 }
@@ -1736,7 +1730,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private static StackPanel Labeled(string label, UIElement field)
     {
         var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = label, FontSize = 12, Opacity = 0.65, Margin = new Thickness(0, 0, 0, 4) });
+        TextBlock caption = Ui.Caption(label);
+        caption.Margin = new Thickness(0, 0, 0, Tokens.Space1);
+        panel.Children.Add(caption);
         panel.Children.Add(field);
         return panel;
     }

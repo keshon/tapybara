@@ -2,6 +2,7 @@
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:app="clr-namespace:Tapybara.App"
                  Title="Tapybara"
                  Width="1280" Height="800"
                  MinWidth="1060" MinHeight="540"
@@ -34,7 +35,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
-                            <Border x:Name="Fill" Background="Transparent" CornerRadius="6" />
+                            <Border x:Name="Fill" Background="Transparent" CornerRadius="{x:Static app:Tokens.ControlRadius}" />
                             <Rectangle x:Name="Bar"
                                        Width="3" Height="18"
                                        RadiusX="1.5" RadiusY="1.5"
@@ -85,8 +86,8 @@
                              Style="{StaticResource RailButtonStyle}"
                              Checked="OnNavChecked">
                     <StackPanel>
-                        <ui:SymbolIcon Symbol="Mic24" FontSize="21" HorizontalAlignment="Center" />
-                        <TextBlock x:Name="DictationsNavText" FontSize="11" Margin="0,3,0,0" HorizontalAlignment="Center" />
+                        <ui:SymbolIcon Symbol="Mic24" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="DictationsNavText" FontSize="{x:Static app:Tokens.Caption}" Margin="0,4,0,0" HorizontalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
 
@@ -97,7 +98,7 @@
                              Checked="OnNavChecked">
                     <StackPanel>
                         <Grid HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Call24" FontSize="21" />
+                            <ui:SymbolIcon Symbol="Call24" FontSize="20" />
                             <!-- Звонок ждёт имён — точка, как у непрочитанного. -->
                             <Ellipse x:Name="CallsAttention"
                                      Width="8" Height="8"
@@ -107,7 +108,7 @@
                                      Visibility="Collapsed"
                                      Fill="{DynamicResource AccentFillColorDefaultBrush}" />
                         </Grid>
-                        <TextBlock x:Name="CallsNavText" FontSize="11" Margin="0,3,0,0" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="CallsNavText" FontSize="{x:Static app:Tokens.Caption}" Margin="0,4,0,0" HorizontalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
 
@@ -117,8 +118,8 @@
                              Style="{StaticResource RailButtonStyle}"
                              Checked="OnNavChecked">
                     <StackPanel>
-                        <ui:SymbolIcon Symbol="Book24" FontSize="21" HorizontalAlignment="Center" />
-                        <TextBlock x:Name="DictionaryNavText" FontSize="11" Margin="0,3,0,0" HorizontalAlignment="Center" />
+                        <ui:SymbolIcon Symbol="Book24" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="DictionaryNavText" FontSize="{x:Static app:Tokens.Caption}" Margin="0,4,0,0" HorizontalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
 
@@ -133,8 +134,8 @@
                              Style="{StaticResource RailButtonStyle}"
                              Checked="OnSettingsChecked">
                     <StackPanel>
-                        <ui:SymbolIcon Symbol="Settings24" FontSize="21" HorizontalAlignment="Center" />
-                        <TextBlock x:Name="SettingsNavText" FontSize="11" Margin="0,3,0,0" HorizontalAlignment="Center" />
+                        <ui:SymbolIcon Symbol="Settings24" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="SettingsNavText" FontSize="{x:Static app:Tokens.Caption}" Margin="0,4,0,0" HorizontalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
             </DockPanel>

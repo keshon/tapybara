@@ -156,7 +156,7 @@ public sealed class ParticipantsPicker : UserControl
     private void Rebuild()
     {
         _chips.Children.Clear();
-        _chips.Children.Add(BuildMeLabel());
+        _chips.Children.Add(BuildMeLabel(_myName));
 
         foreach (string name in ChipNames())
         {
@@ -179,14 +179,14 @@ public sealed class ParticipantsPicker : UserControl
     /// не выбор, а факт: вы на звонке всегда, это ваша дорожка, — и факт
     /// показываем текстом.
     /// </remarks>
-    private TextBlock BuildMeLabel() => new()
+    private static TextBlock BuildMeLabel(string myName)
     {
-        Text = _myName,
-        Opacity = 0.7,
-        Margin = new Thickness(2, 0, 12, 6),
-        VerticalAlignment = System.Windows.VerticalAlignment.Center,
-        ToolTip = L.S.ParticipantsMeHint,
-    };
+        TextBlock label = Ui.BodySecondary(myName);
+        label.Margin = new Thickness(2, 0, Tokens.Space3, 6);
+        label.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+        label.ToolTip = L.S.ParticipantsMeHint;
+        return label;
+    }
 
     private ToggleButton BuildChip(string name, bool selected)
     {

@@ -1,9 +1,152 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:app="clr-namespace:Tapybara.App">
+    <!--
+        Общие стили окон Tapybara.
+
+        Размеры — только из Tokens.cs (x:Static), цвета — только из темы
+        WPF-UI (DynamicResource). Своих цветов здесь нет, кроме голосов
+        собеседников (VoicePalette): приложение монохромное, а цвет несёт
+        смысл — акцент выделяет выбранное, красный значит запись, оттенки
+        голосов различают людей.
+    -->
+
+    <!-- === текст ========================================================= -->
+
+    <!--
+        Вторичный текст — кистью темы, а не прозрачностью. Прежде здесь
+        было шесть разных Opacity (0.6…0.85), и серые подписи в соседних
+        карточках были разными серыми.
+    -->
+    <Style x:Key="TextCaption" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Caption}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="TextBody" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="TextBodySecondary" TargetType="TextBlock" BasedOn="{StaticResource TextBody}">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="TextBodyStrong" TargetType="TextBlock" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="TextSubtitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource AppDisplayFontFamily}" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Subtitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="TextTitle" TargetType="TextBlock" BasedOn="{StaticResource TextSubtitle}">
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Title}" />
+    </Style>
+
+    <!-- === поверхности =================================================== -->
+
+    <!-- Карточка: одна для всех окон — фон, обводка, радиус, отступ. -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{x:Static app:Tokens.CardRadius}" />
+        <Setter Property="Padding" Value="{x:Static app:Tokens.CardPadding}" />
+    </Style>
+
+    <!-- Панель: то же, но без внутреннего отступа — внутри свой макет. -->
+    <Style x:Key="Panel" TargetType="Border" BasedOn="{StaticResource Card}">
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <!-- Значок состояния в списке звонков. Цвета приходят из строки списка. -->
+    <Style x:Key="Badge" TargetType="Border">
+        <Setter Property="CornerRadius" Value="{x:Static app:Tokens.PillRadius}" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+
+    <!-- === кнопки и переключатели ======================================== -->
+
+    <!--
+        Кнопка-ссылка: метка времени, имя говорящего, «изменить». Без рамки:
+        у прозрачной кнопки WPF-UI рамка остаётся, и «ссылка» выглядела
+        кнопкой второго сорта.
+    -->
+    <Style x:Key="FlatLinkButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Fill"
+                            Background="Transparent"
+                            CornerRadius="{x:Static app:Tokens.ControlRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fill" Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Вкладка: текст и полоса акцента снизу, как у Pivot в Windows 11.
+        Штатный TabControl WPF-UI рисует вкладку коробкой с рамкой, и она
+        оказывалась самым тяжёлым элементом спокойной карточки, да ещё и
+        не совпадала с содержимым по левому краю.
+    -->
+    <Style x:Key="TabHeader" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,20,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Background="Transparent">
+                        <ContentPresenter Margin="0,6,0,9" />
+                        <Rectangle x:Name="Bar"
+                                   Height="3"
+                                   RadiusX="1.5" RadiusY="1.5"
+                                   VerticalAlignment="Bottom"
+                                   Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                   Opacity="0" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bar" Property="Opacity" Value="1" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!--
         Чип участника звонка: имя, которое включается и выключается
-        щелчком. Живёт здесь, а не в окне, потому что чипы нужны в
-        двух местах — в окне после звонка и в списке записей.
+        щелчком. Нужен в карточке после звонка и в панели голосов.
 
         Форма — капсула. Это не украшение: капсула читается как
         «элемент списка, который можно снять», а прямоугольник со
@@ -11,8 +154,8 @@
     -->
     <Style x:Key="ParticipantChipStyle" TargetType="ToggleButton">
         <Setter Property="Margin" Value="0,0,6,6" />
-        <Setter Property="Padding" Value="12,5" />
-        <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
@@ -22,7 +165,7 @@
                             Background="{DynamicResource SubtleFillColorSecondaryBrush}"
                             BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
-                            CornerRadius="14"
+                            CornerRadius="{x:Static app:Tokens.PillRadius}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter VerticalAlignment="Center" />
                     </Border>
@@ -49,6 +192,8 @@
         </Setter>
     </Style>
 
+    <!-- === поля ========================================================== -->
+
     <!--
         Текст реплики в транскрипте: выглядит как обычный текст, но его можно
         выделить и скопировать. TextBlock выделять не умеет, а стандартный
@@ -64,7 +209,7 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-        <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
@@ -81,17 +226,22 @@
         Заголовок, который правится на месте: название звонка. Рамка поля
         появляется только под мышью и в фокусе — в покое это заголовок, а не
         форма, и переименование не требует отдельной кнопки «изменить».
+
+        Отступ поля вынесен наружу отрицательным полем: текст заголовка
+        обязан стоять на одной вертикали с подписью под ним, а рамке при
+        наведении всё равно нужен воздух вокруг букв.
     -->
     <Style x:Key="InlineTitleStyle" TargetType="TextBox">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="3,1" />
+        <Setter Property="Padding" Value="5,1" />
+        <Setter Property="Margin" Value="-8,0,0,0" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
         <Setter Property="FontFamily" Value="{DynamicResource AppDisplayFontFamily}" />
-        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Subtitle}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Template">
             <Setter.Value>
@@ -100,7 +250,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="{x:Static app:Tokens.ControlRadius}"
                             Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
                     </Border>
@@ -121,21 +271,24 @@
         </Setter>
     </Style>
 
+    <!-- === списки ======================================================== -->
+
     <!--
         Строка в списке: скруглённая подсветка под мышью и у выбранной, как
-        в боковом меню настроек. Нужна и списку звонков, и списку диктовок.
+        в боковом меню настроек. Справа — место под полосу прокрутки: без
+        него значки состояния стояли к ней вплотную.
     -->
     <Style x:Key="ListRowStyle" TargetType="ListBoxItem">
         <Setter Property="Padding" Value="0" />
-        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="Margin" Value="0,0,8,2" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
                     <Border x:Name="Fill"
                             Background="Transparent"
-                            CornerRadius="6"
-                            Padding="12,9">
+                            CornerRadius="{x:Static app:Tokens.ControlRadius}"
+                            Padding="12,8">
                         <ContentPresenter />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -152,4 +305,25 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- Строка, которую не выбирают: реплика транскрипта, диктовка. -->
+    <Style x:Key="PlainItemStyle" TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <ContentPresenter />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Заголовок группы в списке: «Сегодня», «Вчера», дата. -->
+    <DataTemplate x:Key="GroupHeader">
+        <TextBlock Text="{Binding Name}"
+                   Style="{StaticResource TextCaption}"
+                   Margin="12,12,0,4" />
+    </DataTemplate>
 </ResourceDictionary>

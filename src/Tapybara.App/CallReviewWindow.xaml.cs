@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -88,7 +87,7 @@ public partial class CallReviewWindow : FluentWindow
     {
         Title = L.S.CallReviewTitle;
         WindowTitleBar.Title = "Tapybara";
-        HeadingText.Text = string.Format(CultureInfo.CurrentCulture, L.S.CardHeading, L.S.Duration(_session.Duration));
+        HeadingText.Text = string.Format(L.S.Formatting, L.S.CardHeading, L.S.Duration(_session.Duration));
         SubheadingText.Text = Describe(_session);
         TitleLabel.Text = L.S.CardTitleField;
         TitleBox.PlaceholderText = L.S.CardTitlePlaceholder;
@@ -115,7 +114,7 @@ public partial class CallReviewWindow : FluentWindow
         Progress.IsIndeterminate = false;
         Progress.Value = progress.Percent;
         ProgressText.Text = L.S.Describe(progress.Stage);
-        PercentText.Text = $"{progress.Percent.ToString(CultureInfo.CurrentCulture)}%";
+        PercentText.Text = $"{progress.Percent.ToString(L.S.Formatting)}%";
     }
 
     /// <summary>Распознавание закончилось.</summary>
@@ -135,7 +134,7 @@ public partial class CallReviewWindow : FluentWindow
     /// <summary>Подпись звонка: когда и откуда.</summary>
     private static string Describe(CallSession session)
     {
-        string when = session.StartedAt.ToString("d MMMM, HH:mm", CultureInfo.CurrentCulture);
+        string when = L.S.Date(session.StartedAt, withTime: true);
         return string.IsNullOrWhiteSpace(session.Trigger) ? when : $"{when} · {session.Trigger}";
     }
 
@@ -167,7 +166,7 @@ public partial class CallReviewWindow : FluentWindow
         {
             0 => L.S.CardHintNone,
             1 => L.S.CallReviewHintOne,
-            _ => string.Format(CultureInfo.CurrentCulture, L.S.CardHintMany, Participants.Selected.Count),
+            _ => string.Format(L.S.Formatting, L.S.CardHintMany, Participants.Selected.Count),
         };
 
     private void OnTitleKeyDown(object sender, KeyEventArgs e)

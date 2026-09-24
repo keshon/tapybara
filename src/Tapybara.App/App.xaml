@@ -49,10 +49,15 @@
             <FontFamily x:Key="AppDisplayFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
             <FontFamily x:Key="AppSmallFontFamily">Segoe UI Variable Small, Segoe UI</FontFamily>
 
-            <!-- Кегли «Параметров»: тело 14, подпись 12, заголовок страницы 28. -->
-            <system:Double x:Key="AppFontSize" xmlns:system="clr-namespace:System;assembly=System.Runtime">14</system:Double>
-            <system:Double x:Key="AppCaptionFontSize" xmlns:system="clr-namespace:System;assembly=System.Runtime">12</system:Double>
-            <system:Double x:Key="AppTitleFontSize" xmlns:system="clr-namespace:System;assembly=System.Runtime">28</system:Double>
+            <!--
+                Кегли «Параметров»: тело 14, подпись 12, подзаголовок 20,
+                заголовок страницы 28. Сами числа — в Tokens.cs: один источник
+                и для разметки, и для кода, который строит карточки сам.
+            -->
+            <x:Static x:Key="AppFontSize" Member="app:Tokens.Body" xmlns:app="clr-namespace:Tapybara.App" />
+            <x:Static x:Key="AppCaptionFontSize" Member="app:Tokens.Caption" xmlns:app="clr-namespace:Tapybara.App" />
+            <x:Static x:Key="AppSubtitleFontSize" Member="app:Tokens.Subtitle" xmlns:app="clr-namespace:Tapybara.App" />
+            <x:Static x:Key="AppTitleFontSize" Member="app:Tokens.Title" xmlns:app="clr-namespace:Tapybara.App" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
