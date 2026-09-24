@@ -37,14 +37,12 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="4,0,8,12">
-                <TextBlock x:Name="ListTitle" Style="{StaticResource TextTitle}" VerticalAlignment="Center" />
-                <ui:Button x:Name="RecordButton"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"
-                           Icon="{ui:SymbolIcon Record24}"
-                           Click="OnRecordClick" />
-            </Grid>
+            <!-- Кнопка записи — во всю ширину колонки, под заголовком: это главное
+                 действие страницы, а не иконка рядом с ним. -->
+            <StackPanel Grid.Row="0" Margin="4,0,8,12">
+                <TextBlock x:Name="ListTitle" Style="{StaticResource TextTitle}" />
+                <ContentControl x:Name="RecordHost" Margin="-4,12,0,0" />
+            </StackPanel>
 
             <ui:TextBox x:Name="SearchBox"
                         Grid.Row="1"

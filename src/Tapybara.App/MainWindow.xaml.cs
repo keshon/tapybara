@@ -27,12 +27,12 @@ public partial class MainWindow : FluentWindow, IDisposable
     private readonly CallsPage _calls;
     private readonly DictionaryPage _dictionary;
 
-    public MainWindow(CallsServices calls, DictationJournal journal, Action openSettings)
+    public MainWindow(CallsServices calls, DictationJournal journal, Action openSettings, Action dictate)
     {
         InitializeComponent();
 
         _calls = new CallsPage(calls);
-        _dictations = new DictationsPage(journal, calls.Settings, openSettings);
+        _dictations = new DictationsPage(journal, calls.Settings, openSettings, calls.Live, dictate);
         _dictionary = new DictionaryPage(calls.Settings, calls.Voices);
 
         _calls.AttentionChanged += ShowCallsAttention;

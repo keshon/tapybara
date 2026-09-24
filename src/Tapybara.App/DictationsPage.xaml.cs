@@ -44,16 +44,26 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
     private readonly DictationJournal _journal;
     private readonly SettingsHost _settings;
     private readonly Action _openSettings;
+    private readonly LiveActivity _live;
+    private readonly RecordPill _dictate = new(call: false);
     private readonly ObservableCollection<DictationRow> _rows = [];
     private readonly ICollectionView _view;
 
-    public DictationsPage(DictationJournal journal, SettingsHost settings, Action openSettings)
+    public DictationsPage(DictationJournal journal, SettingsHost settings, Action openSettings, LiveActivity live, Action dictate)
     {
         InitializeComponent();
 
         _journal = journal;
         _settings = settings;
         _openSettings = openSettings;
+        _live = live;
+
+        // Кнопка — для тех, кто пришёл сюда, а не в другое приложение:
+        // продиктовать и забрать текст из списка или буфера. Вставлять в
+        // само окно Tapybara приложение не станет — см. App.WouldPasteIntoOurselves.
+        _dictate.Click += (_, _) => dictate();
+        DictateHost.Content = _dictate;
+        _live.Changed += UpdateDictateButton;
 
         _view = CollectionViewSource.GetDefaultView(_rows);
         _view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(DictationRow.Day)));
@@ -70,6 +80,7 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
     {
         _journal.Changed -= OnJournalChanged;
         _settings.Changed -= OnSettingsChanged;
+        _live.Changed -= UpdateDictateButton;
         GC.SuppressFinalize(this);
     }
 
@@ -124,6 +135,25 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
         HistoryOffBanner.Visibility = _settings.Current.KeepDictationHistory ? Visibility.Collapsed : Visibility.Visible;
         EmptyHint.Text = string.Format(L.S.Formatting, L.S.DictationsEmpty, _settings.Current.Hotkey);
         EmptyHint.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateDictateButton();
+    }
+
+    private void UpdateDictateButton()
+    {
+        switch (_live.Dictation)
+        {
+            case DictationState.Recording:
+                _dictate.ShowRecording(L.S.RecordStop, _live.DictationElapsed);
+                break;
+            case DictationState.Transcribing:
+                _dictate.ShowBusy(L.S.RecordTranscribing);
+                break;
+            default:
+                _dictate.ShowIdle(L.S.RecordDictate, _settings.Current.Hotkey.ToString());
+                break;
+        }
+
+        _dictate.ToolTip = L.S.DictateHint;
     }
 
     private static string Day(DateTimeOffset at)

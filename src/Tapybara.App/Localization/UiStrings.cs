@@ -388,6 +388,11 @@ public sealed record UiStrings
     public required string VoiceSameAs { get; init; }
     public required string VoicePlayQuote { get; init; }
     public required string VoiceMe { get; init; }
+    public required string RecordCall { get; init; }
+    public required string RecordDictate { get; init; }
+    public required string RecordStop { get; init; }
+    public required string RecordTranscribing { get; init; }
+    public required string DictateHint { get; init; }
     public required string VoicesResplit { get; init; }
     public required string VoiceTheOtherSide { get; init; }
     public required string VoiceNamePlaceholder { get; init; }
@@ -944,7 +949,12 @@ public sealed record UiStrings
         VoiceOtherName = "other…",
         VoiceSameAs = "Same person as…",
         VoicePlayQuote = "Listen to this quote",
-        VoiceMe = "{0} — your microphone, {1}",
+        RecordCall = "Record a call",
+        RecordDictate = "Dictate",
+        RecordStop = "Stop",
+        RecordTranscribing = "Transcribing…",
+        DictateHint = "Dictate here: the text lands in this list and in the clipboard. To type straight into another app, put the caret there and press the hotkey.",
+        VoiceMe = "This is you: your own microphone, so there is nothing to name. The name is set in Settings › Calls.",
         VoicesResplit = "Split wrong? Look for this many voices:",
         VoiceTheOtherSide = "The other side",
         VoiceNamePlaceholder = "Name",
@@ -1368,7 +1378,12 @@ public sealed record UiStrings
         VoiceOtherName = "другое…",
         VoiceSameAs = "Это тот же человек, что…",
         VoicePlayQuote = "Послушать цитату",
-        VoiceMe = "{0} — ваш микрофон, {1}",
+        RecordCall = "Записать звонок",
+        RecordDictate = "Диктовать",
+        RecordStop = "Стоп",
+        RecordTranscribing = "Распознаю…",
+        DictateHint = "Диктовка сюда: текст появится в этом списке и в буфере обмена. Чтобы печатать сразу в другое приложение, поставьте туда курсор и нажмите горячую клавишу.",
+        VoiceMe = "Это вы: ваш собственный микрофон, называть здесь некого. Имя задаётся в «Настройки › Звонки».",
         VoicesResplit = "Разделено неверно? Искать голосов:",
         VoiceTheOtherSide = "Собеседник",
         VoiceNamePlaceholder = "Имя",
