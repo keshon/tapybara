@@ -167,6 +167,25 @@ lines, a minute of CPU. Renaming a voice is a re-render. Transcription starts
 the moment a recording stops and reads the participant list from `meta.json`
 only when it reaches the split, by which time the answer is usually there.
 
+### Remembering voices
+
+After the split, each voice's longest lines — up to 30 seconds — go through
+the same CAM++ embedding model on its own (`VoiceprintExtractor`; the
+diariser does not hand its embeddings out), and the normalised vectors are
+stored in `transcript.json` as `VoicePrints`. When the far side was not split,
+one print covers the whole channel under the key `*`.
+
+`VoiceBook` (`voices.json` next to the settings) keeps up to eight prints per
+name — different headsets, phones, a cold — and matches a voice by its best
+cosine similarity against each person. A suggestion needs to clear
+`MatchThreshold` and beat the runner-up by `MatchMargin`; otherwise the panel
+stays silent, because a suggestion that always names someone is guessing with
+a confident face. It is never applied without the person accepting it.
+
+Prints are learned only when the name is certain: the person named the voice,
+or the call had a single ticked participant. Renaming a person moves their
+voice; removing them forgets it.
+
 ## Windows-specific notes
 
 Things that cost us time and may cost you some too.

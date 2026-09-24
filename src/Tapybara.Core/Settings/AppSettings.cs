@@ -268,6 +268,26 @@ public sealed record AppSettings
     /// </remarks>
     public bool KeepDictationHistory { get; init; } = true;
 
+    /// <summary>
+    /// Первый запуск пройден — или пропущен.
+    /// </summary>
+    /// <remarks>
+    /// Окно первого запуска показывается один раз. У тех, кто обновился и
+    /// модель уже скачал, флаг ставится сам при старте: учить их тому, чем они
+    /// пользуются каждый день, незачем.
+    /// </remarks>
+    public bool OnboardingDone { get; init; }
+
+    /// <summary>
+    /// Запоминать голоса собеседников и подсказывать имена на следующих звонках.
+    /// </summary>
+    /// <remarks>
+    /// Включено по умолчанию — это то, ради чего вообще стоит называть
+    /// голоса. Слепки — биометрия, поэтому выключается одной галочкой, а
+    /// запомненное стирается кнопкой. См. <see cref="Calls.VoiceBook"/>.
+    /// </remarks>
+    public bool RememberVoices { get; init; } = true;
+
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;
 

@@ -89,7 +89,8 @@ public sealed class CallTranscriber(
     SpeechTranscriber transcriber,
     Func<AppSettings> settings,
     Func<CallTranscriptLabels>? labels = null,
-    Func<SpeakerDiarizer?>? diarizer = null)
+    Func<SpeakerDiarizer?>? diarizer = null,
+    Func<VoiceprintExtractor?>? voiceprints = null)
 {
     /// <summary>
     /// Где кончается каждый этап — в процентах всей работы.
@@ -181,6 +182,8 @@ public sealed class CallTranscriber(
                 .ConfigureAwait(false);
         }
 
+        transcript = await WithPrintsAsync(session, transcript, current, cancellationToken).ConfigureAwait(false);
+
         string path = Store(session.Directory, transcript, current);
 
         AppLog.Info($"Транскрипт готов: {path}, отсеяно {filtered.RemovedTotal} реплик, голосов {transcript.Voices.Count}.");
@@ -223,6 +226,8 @@ public sealed class CallTranscriber(
             current,
             progress,
             cancellationToken).ConfigureAwait(false);
+
+        split = await WithPrintsAsync(session, split, current, cancellationToken).ConfigureAwait(false);
 
         string path = Store(callDirectory, split, current);
         progress?.Report(new(CallTranscriptionStage.Done, 100));
@@ -336,6 +341,45 @@ public sealed class CallTranscriber(
             VoicesSplit = true,
             ExpectedVoices = Math.Max(expected, 0),
         };
+    }
+
+    /// <summary>
+    /// Снять слепки голосов, если есть чем.
+    /// </summary>
+    /// <remarks>
+    /// Слепки — для книги голосов: по ним на следующем звонке подсказывается
+    /// имя. Нет модели слепков — нет и слепков, транскрипт от этого не хуже.
+    /// Сбой здесь тоже не должен стоить транскрипта: он уже собран.
+    /// </remarks>
+    private async Task<CallTranscript> WithPrintsAsync(
+        CallSession session,
+        CallTranscript transcript,
+        AppSettings current,
+        CancellationToken cancellationToken)
+    {
+        if (!current.RememberVoices || voiceprints?.Invoke() is not { } extractor)
+        {
+            return transcript;
+        }
+
+        try
+        {
+            IReadOnlyDictionary<string, float[]> prints = await Task.Run(
+                () =>
+                {
+                    float[] samples = AudioFile.ReadMono16k(session.SystemPath);
+                    float[] audio = current.NormalizeAudio ? AudioNormalizer.Normalize(samples) : samples;
+                    return CallVoices.Prints(audio, transcript, extractor.Embed);
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            return transcript with { VoicePrints = prints };
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or ArgumentException)
+        {
+            AppLog.Warn("Не удалось снять слепки голосов — звонок останется без подсказок имён.", ex);
+            return transcript;
+        }
     }
 
     /// <summary>

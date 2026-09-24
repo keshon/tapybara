@@ -50,15 +50,19 @@ somebody's server.
   recording stops. With more than one other person their voices are told
   apart on your own machine, and you name each voice from its quotes and by
   listening to it; the transcript follows at once, without transcribing again.
+- Named voices are remembered, so on the next call Tapybara suggests who is
+  speaking — a suggestion you accept, never a label it applies on its own. The
+  voiceprints stay on this computer and are forgotten with one button.
 
 ## Getting started
 
 Unzip a [release](https://github.com/keshon/tapybara/releases/latest) and run
 `Tapybara.exe`. No installer, and no .NET needed — the build is self-contained.
 
-Then open **Settings › Models** from the tray and download one.
-`Large v3 Turbo (q5_0)` is a reasonable first pick at about 550 MB. Nothing
-works until this is done.
+On first launch a short window walks you through it: download a model
+(`Large v3 Turbo (q5_0)` is a reasonable first pick at about 550 MB), check the
+microphone, dictate a first sentence. Nothing works until a model is there;
+**Settings › Models** has the full list later.
 
 Put the caret in any text field and press `Ctrl`+`Alt`+`D`. Speak. Press it
 again. `Ctrl`+`Alt`+`C` starts and stops recording a call.

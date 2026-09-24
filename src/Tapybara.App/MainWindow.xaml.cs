@@ -33,7 +33,7 @@ public partial class MainWindow : FluentWindow, IDisposable
 
         _calls = new CallsPage(calls);
         _dictations = new DictationsPage(journal, calls.Settings, openSettings);
-        _dictionary = new DictionaryPage(calls.Settings);
+        _dictionary = new DictionaryPage(calls.Settings, calls.Voices);
 
         _calls.AttentionChanged += ShowCallsAttention;
 

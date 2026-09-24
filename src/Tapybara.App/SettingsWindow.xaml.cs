@@ -115,6 +115,9 @@ public partial class SettingsWindow : FluentWindow
     /// <summary>История диктовок — чтобы её можно было очистить отсюда.</summary>
     private readonly Tapybara.Core.Dictation.DictationJournal _journal;
 
+    /// <summary>Книга голосов — чтобы её можно было стереть отсюда.</summary>
+    private readonly Tapybara.Core.Calls.VoiceBook _voices;
+
     /// <summary>Действия, возвращающие контролам значения из настроек.</summary>
     /// <remarks>
     /// Нужны, потому что настройки меняются не только отсюда: модель
@@ -157,12 +160,14 @@ public partial class SettingsWindow : FluentWindow
         SettingsHost host,
         Func<IReadOnlyList<string>> availableModels,
         Func<InstalledModel, Task<string?>> deleteModel,
-        Tapybara.Core.Dictation.DictationJournal journal)
+        Tapybara.Core.Dictation.DictationJournal journal,
+        Tapybara.Core.Calls.VoiceBook voices)
     {
         _host = host;
         _availableModels = availableModels;
         _deleteModel = deleteModel;
         _journal = journal;
+        _voices = voices;
 
         InitializeComponent();
         BuildEverything();
@@ -1117,6 +1122,32 @@ public partial class SettingsWindow : FluentWindow
                 value => Apply(s => s with { MyName = value.Trim().Length == 0 ? null : value.Trim() })));
 
         BuildSplitVoicesCard();
+
+        AddToggleCard(
+            SymbolRegular.PersonVoice24,
+            L.S.FieldRememberVoices,
+            L.S.FieldRememberVoicesHint,
+            () => Settings.RememberVoices,
+            value => Apply(s => s with { RememberVoices = value }));
+
+        var forget = new Button { Content = L.S.ButtonForgetVoices, MinWidth = 150 };
+        forget.Click += (_, _) =>
+        {
+            ConfirmChoice choice = ConfirmWindow.Ask(this, new ConfirmWindow(
+                L.S.ForgetVoicesTitle,
+                L.S.ForgetVoicesBody,
+                primaryButton: L.S.ButtonForgetVoices,
+                cancelButton: L.S.ButtonCancel,
+                icon: SymbolRegular.Delete24,
+                danger: true));
+
+            if (choice == ConfirmChoice.Primary)
+            {
+                _voices.Clear();
+            }
+        };
+
+        AddCard(SymbolRegular.Delete24, L.S.ButtonForgetVoices, description: null, forget);
 
         AddCard(
             SymbolRegular.LocalLanguage24,
