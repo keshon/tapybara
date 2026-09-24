@@ -196,28 +196,41 @@
                                 Padding="12,10"
                                 CornerRadius="{x:Static app:Tokens.ControlRadius}"
                                 Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                            <!--
+                                Значок и текст — одна группа, выровненная по
+                                центру баннера. Значок стоял сверху баннера,
+                                а текст — по центру рядом с кнопкой, и значок
+                                «улетал» вверх от строки, к которой относится.
+                                Внутри группы значок держится первой строки:
+                                текст бывает в две.
+                            -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon x:Name="BannerIcon"
-                                               Symbol="Info24"
-                                               FontSize="16"
-                                               Margin="0,1,12,0"
-                                               VerticalAlignment="Top"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock x:Name="BannerText" Style="{StaticResource TextBody}" />
-                                    <ProgressBar x:Name="BannerProgress"
-                                                 Visibility="Collapsed"
-                                                 Margin="0,8,0,2"
-                                                 Height="4"
-                                                 Maximum="100" />
-                                </StackPanel>
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon x:Name="BannerIcon"
+                                                   Symbol="Info24"
+                                                   FontSize="16"
+                                                   Margin="0,2,12,0"
+                                                   VerticalAlignment="Top"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock x:Name="BannerText" Style="{StaticResource TextBody}" />
+                                        <ProgressBar x:Name="BannerProgress"
+                                                     Visibility="Collapsed"
+                                                     Margin="0,8,0,2"
+                                                     Height="4"
+                                                     Maximum="100" />
+                                    </StackPanel>
+                                </Grid>
                                 <ui:Button x:Name="BannerButton"
-                                           Grid.Column="2"
+                                           Grid.Column="1"
                                            Margin="12,0,0,0"
                                            Visibility="Collapsed"
                                            VerticalAlignment="Center"

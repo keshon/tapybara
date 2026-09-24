@@ -39,7 +39,8 @@ somebody's server.
   removes the phrases Whisper invents on silence.
 - Names it keeps mangling get fixed by a dictionary of replacements — including
   ones carrying punctuation, like `C#` and `.NET` — added right from a
-  transcript when you spot the mistake.
+  transcript when you spot the mistake, and carried to a new computer as one
+  file.
 - Every dictation is kept, so one that went into the wrong window is never
   lost. Switch it off if you dictate passwords.
 - It stays out of the way: a tray icon, a floating indicator you can drag

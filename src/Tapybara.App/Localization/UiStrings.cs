@@ -323,6 +323,22 @@ public sealed record UiStrings
     public required string DictionaryPeopleEmpty { get; init; }
     public required string DictionaryHeardPlaceholder { get; init; }
     public required string DictionaryCorrectPlaceholder { get; init; }
+    public required string DictionaryExport { get; init; }
+    public required string DictionaryImport { get; init; }
+    public required string DictionaryFileFilter { get; init; }
+    public required string DictionaryFileName { get; init; }
+    public required string DictionaryExported { get; init; }
+    public required string DictionaryImported { get; init; }
+    public required string DictionaryImportedVoices { get; init; }
+    public required string DictionaryImportedPrompt { get; init; }
+    public required string DictionaryImportedNothing { get; init; }
+    public required string DictionaryVoicesOtherModel { get; init; }
+    public required string DictionaryVoicesOff { get; init; }
+    public required string DictionaryFileFailed { get; init; }
+    public required string DictionaryNotADictionary { get; init; }
+    public required string DictionarySearch { get; init; }
+    public required string DictionaryAnotherVariant { get; init; }
+    public required string DictionaryNoMatches { get; init; }
     public required string CardHeading { get; init; }
     public required string CardTitleField { get; init; }
     public required string CardTitlePlaceholder { get; init; }
@@ -858,12 +874,28 @@ public sealed record UiStrings
         DictationDelete = "Delete",
         DictationWords = "{0} words",
         DictionaryIntro = "What to do with the words the model keeps mishearing. Changes apply to new dictations and transcripts.",
-        DictionaryReplacementsHint = "What was heard on the left, what it should be on the right. Works for names with punctuation too, like C# or .NET.",
+        DictionaryReplacementsHint = "On the left, how the model hears it — one word can have several variants, press Enter after each. On the right, how it should be. Punctuation works too, like C# or .NET.",
         DictionaryPeople = "People",
         DictionaryPeopleHint = "Offered as chips after a call and when naming voices, most recent first. Renaming here does not change past transcripts.",
         DictionaryPeopleEmpty = "Names appear here after your first call.",
-        DictionaryHeardPlaceholder = "heard",
+        DictionaryHeardPlaceholder = "heard as…",
         DictionaryCorrectPlaceholder = "correct",
+        DictionaryExport = "Export…",
+        DictionaryImport = "Import…",
+        DictionaryFileFilter = "Tapybara dictionary|*.json",
+        DictionaryFileName = "Tapybara dictionary",
+        DictionaryExported = "Saved to {0}. Import this file on another computer to bring the dictionary across.",
+        DictionaryImported = "Loaded. Replacements: {0} new, {1} changed. People: {2} new.",
+        DictionaryImportedVoices = "Voices added for {0}.",
+        DictionaryImportedPrompt = "The prompt was taken from the file.",
+        DictionaryImportedNothing = "Nothing new in this file — everything in it is already here.",
+        DictionaryVoicesOtherModel = "Voices were not loaded: they were made by a different voice model.",
+        DictionaryVoicesOff = "Voices were not loaded: remembering voices is off in settings.",
+        DictionaryFileFailed = "Could not use the file: {0}",
+        DictionaryNotADictionary = "This is not a Tapybara dictionary file.",
+        DictionarySearch = "Search replacements",
+        DictionaryAnotherVariant = "another…",
+        DictionaryNoMatches = "Nothing found.",
         CardHeading = "Call recorded · {0}",
         CardTitleField = "Name this call",
         CardTitlePlaceholder = "For example: release with Kirill",
@@ -1266,12 +1298,28 @@ public sealed record UiStrings
         DictationDelete = "Удалить",
         DictationWords = "слов: {0}",
         DictionaryIntro = "Что делать со словами, которые модель слышит не так. Правки действуют на новые диктовки и распознавания.",
-        DictionaryReplacementsHint = "Слева — как услышано, справа — как должно быть. Работает и для названий со знаками — C# или .NET.",
+        DictionaryReplacementsHint = "Слева — как модель слышит; у одного слова может быть несколько вариантов, Enter после каждого. Справа — как должно быть. Работает и для названий со знаками — C# или .NET.",
         DictionaryPeople = "Люди",
         DictionaryPeopleHint = "Предлагаются чипами после звонка и при именовании голосов, свежие — первыми. Переименование здесь не меняет прошлые транскрипты.",
         DictionaryPeopleEmpty = "Имена появятся здесь после первого звонка.",
-        DictionaryHeardPlaceholder = "услышано",
+        DictionaryHeardPlaceholder = "как услышано…",
         DictionaryCorrectPlaceholder = "правильно",
+        DictionaryExport = "Выгрузить…",
+        DictionaryImport = "Загрузить…",
+        DictionaryFileFilter = "Словарь Tapybara|*.json",
+        DictionaryFileName = "Словарь Tapybara",
+        DictionaryExported = "Сохранено в {0}. Загрузите этот файл на другом компьютере — словарь переедет целиком.",
+        DictionaryImported = "Загружено. Замены: новых {0}, изменено {1}. Люди: новых {2}.",
+        DictionaryImportedVoices = "Голоса добавлены: {0}.",
+        DictionaryImportedPrompt = "Подсказка взята из файла.",
+        DictionaryImportedNothing = "В файле нет ничего нового — всё уже есть.",
+        DictionaryVoicesOtherModel = "Голоса не загружены: их сняла другая модель голосов.",
+        DictionaryVoicesOff = "Голоса не загружены: запоминание голосов выключено в настройках.",
+        DictionaryFileFailed = "Не удалось работать с файлом: {0}",
+        DictionaryNotADictionary = "Это не файл словаря Tapybara.",
+        DictionarySearch = "Поиск по заменам",
+        DictionaryAnotherVariant = "ещё…",
+        DictionaryNoMatches = "Ничего не найдено.",
         CardHeading = "Звонок записан · {0}",
         CardTitleField = "Как назвать",
         CardTitlePlaceholder = "Например: релиз с Кириллом",

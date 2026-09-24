@@ -1071,7 +1071,7 @@ public partial class SettingsWindow : FluentWindow
         {
             Symbol = SymbolRegular.Info24,
             FontSize = 16,
-            Margin = new Thickness(0, 1, Tokens.Space3, 0),
+            Margin = new Thickness(0, 2, Tokens.Space3, 0),
             VerticalAlignment = VerticalAlignment.Top,
         };
         noteIcon.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");

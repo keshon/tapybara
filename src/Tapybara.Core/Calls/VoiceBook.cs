@@ -37,7 +37,8 @@ public sealed record PersonVoice
 /// них, храним несколько последних.
 /// </para>
 /// <para>
-/// Это биометрия. Файл лежит рядом с настройками и никуда не уходит;
+/// Это биометрия. Файл лежит рядом с настройками и уходит с машины, только
+/// если человек сам выгрузит словарь (и то при включённом запоминании);
 /// запоминание выключается в настройках, человек забывается по кнопке, вся
 /// книга — одной кнопкой.
 /// </para>
@@ -184,6 +185,78 @@ public sealed class VoiceBook
         }
 
         Changed?.Invoke();
+    }
+
+    /// <summary>Копия книги — для выгрузки словаря в файл.</summary>
+    public IReadOnlyDictionary<string, PersonVoice> Snapshot()
+    {
+        lock (_gate)
+        {
+            return new Dictionary<string, PersonVoice>(_people, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
+    /// Принять голоса из файла словаря.
+    /// </summary>
+    /// <remarks>
+    /// Слепки добавляются к своим, как при <see cref="Learn"/>: голос,
+    /// выученный уже на этой машине, не затирается старым с прошлой.
+    /// </remarks>
+    /// <returns>Скольким людям что-то добавилось.</returns>
+    public int Import(IReadOnlyDictionary<string, PersonVoice> people)
+    {
+        ArgumentNullException.ThrowIfNull(people);
+
+        int touched = 0;
+        lock (_gate)
+        {
+            foreach ((string name, PersonVoice voice) in people)
+            {
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                PersonVoice? known = _people.GetValueOrDefault(name);
+                List<float[]> prints = known is null ? [] : [.. known.Prints];
+                int before = prints.Count;
+
+                foreach (float[] print in voice.Prints)
+                {
+                    if (print.Length > 0 && !prints.Any(p => Similarity(p, print) > 0.999))
+                    {
+                        prints.Add(print);
+                    }
+                }
+
+                if (prints.Count == before)
+                {
+                    continue;
+                }
+
+                if (prints.Count > PrintsPerPerson)
+                {
+                    prints.RemoveRange(0, prints.Count - PrintsPerPerson);
+                }
+
+                DateTimeOffset updated = known is null || voice.Updated > known.Updated ? voice.Updated : known.Updated;
+                _people[name] = new PersonVoice { Prints = prints, Updated = updated };
+                touched++;
+            }
+
+            if (touched > 0)
+            {
+                Write();
+            }
+        }
+
+        if (touched > 0)
+        {
+            Changed?.Invoke();
+        }
+
+        return touched;
     }
 
     /// <summary>Забыть все голоса.</summary>
