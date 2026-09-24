@@ -42,8 +42,30 @@
                        VerticalAlignment="Center" />
         </Grid>
 
+        <StackPanel Grid.Row="2">
+        <!-- Диктовку попросили, а модели нет или она не загрузилась. -->
+        <Border x:Name="BlockedBanner"
+                Visibility="Collapsed"
+                Margin="0,0,0,12"
+                Padding="12,10"
+                CornerRadius="{x:Static app:Tokens.ControlRadius}"
+                Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="BlockedText" Style="{StaticResource TextBody}" VerticalAlignment="Center" />
+                <ui:Button x:Name="BlockedButton"
+                           Grid.Column="1"
+                           Margin="12,0,0,0"
+                           Appearance="Primary"
+                           VerticalAlignment="Center"
+                           Click="OnOpenModelsClick" />
+            </Grid>
+        </Border>
+
         <Border x:Name="HistoryOffBanner"
-                Grid.Row="2"
                 Visibility="Collapsed"
                 Margin="0,0,0,12"
                 Padding="12,10"
@@ -62,6 +84,7 @@
                            Click="OnOpenSettingsClick" />
             </Grid>
         </Border>
+        </StackPanel>
 
         <Border Grid.Row="3" Style="{StaticResource Panel}">
             <Grid>

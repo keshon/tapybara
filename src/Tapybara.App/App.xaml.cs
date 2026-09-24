@@ -673,6 +673,7 @@ public partial class App : Application, IDisposable
             var timer = Stopwatch.StartNew();
             await _engine.LoadAsync().ConfigureAwait(true);
             _engineFailure = null;
+            _live.ReportBlock(DictationBlock.None);
             _tray.SetStatus($"{L.S.StatusReady} · {WhisperEngine.LoadedRuntime} · {timer.Elapsed.TotalSeconds:F1} {L.S.Seconds}");
             AppLog.Info($"Модель загружена за {timer.Elapsed.TotalSeconds:F1} с, бэкенд {WhisperEngine.LoadedRuntime}");
         }
@@ -680,6 +681,12 @@ public partial class App : Application, IDisposable
         {
             AppLog.Error("Модель не загрузилась.", ex);
             _engineFailure = ex.Message;
+
+            // Окно уже говорит «модель грузится» — пусть скажет, чем кончилось.
+            if (_live.Block != DictationBlock.None)
+            {
+                _live.ReportBlock(DictationBlock.Failed, ex.Message);
+            }
 
             // Разбираем собранное обратно. Оставить контроллер живым при
             // непригодной модели значит принимать диктовку, которую нечем
@@ -783,11 +790,19 @@ public partial class App : Application, IDisposable
         {
             // Различаем «ещё грузится» и «загрузить не удалось»: это разные
             // ситуации, и ждать во второй бессмысленно.
-            _tray!.SetStatus(_engineFailure is { } failure
-                ? string.Format(CultureInfo.CurrentCulture, L.S.StatusModelLoadFailed, failure)
-                : AvailableModels().Count == 0
-                    ? L.S.StatusModelMissing
-                    : L.S.StatusModelStillLoading);
+            DictationBlock block = _engineFailure is not null
+                ? DictationBlock.Failed
+                : AvailableModels().Count == 0 ? DictationBlock.NoModel : DictationBlock.Loading;
+
+            _tray!.SetStatus(block switch
+            {
+                DictationBlock.Failed => string.Format(CultureInfo.CurrentCulture, L.S.StatusModelLoadFailed, _engineFailure),
+                DictationBlock.NoModel => L.S.StatusModelMissing,
+                _ => L.S.StatusModelStillLoading,
+            });
+
+            // И в окно: там могли нажать «Диктовать» и ждать ответа.
+            _live.ReportBlock(block, _engineFailure);
             return;
         }
 
@@ -1689,7 +1704,8 @@ public partial class App : Application, IDisposable
             _live),
             _journal,
             () => OpenSettings(SettingsSection.General),
-            () => _ = ToggleAsync());
+            () => _ = ToggleAsync(),
+            () => OpenSettings(SettingsSection.Models));
 
         window.Closed += (_, _) => _mainWindow = null;
         _mainWindow = window;
