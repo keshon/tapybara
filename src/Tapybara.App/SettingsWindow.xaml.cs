@@ -95,7 +95,13 @@ public partial class SettingsWindow : FluentWindow
     private const string SiteUrl = "https://tapybara.keshon.ru";
 
     /// <summary>Исходники.</summary>
-    private const string RepositoryUrl = "https://github.com/keshon/tapybara";
+    private const string RepositoryUrl = AppUpdater.RepositoryUrl;
+
+    private readonly AppUpdater _updater;
+    private readonly Func<bool> _restartToUpdate;
+    private TextBlock? _updateText;
+    private TextBlock? _updateNote;
+    private Button? _updateButton;
 
     private readonly SettingsHost _host;
     private readonly Func<IReadOnlyList<string>> _availableModels;
@@ -160,9 +166,13 @@ public partial class SettingsWindow : FluentWindow
         Func<IReadOnlyList<string>> availableModels,
         Func<InstalledModel, Task<string?>> deleteModel,
         Tapybara.Core.Dictation.DictationJournal journal,
-        Tapybara.Core.Calls.VoiceBook voices)
+        Tapybara.Core.Calls.VoiceBook voices,
+        AppUpdater updater,
+        Func<bool> restartToUpdate)
     {
         _host = host;
+        _updater = updater;
+        _restartToUpdate = restartToUpdate;
         _availableModels = availableModels;
         _deleteModel = deleteModel;
         _journal = journal;
@@ -172,7 +182,12 @@ public partial class SettingsWindow : FluentWindow
         BuildEverything();
 
         _host.Changed += OnHostChanged;
-        Closed += (_, _) => _host.Changed -= OnHostChanged;
+        _updater.Changed += ShowUpdate;
+        Closed += (_, _) =>
+        {
+            _host.Changed -= OnHostChanged;
+            _updater.Changed -= ShowUpdate;
+        };
     }
 
     /// <summary>Идёт захват сочетания клавиш — глобальный хоткей надо снять.</summary>
@@ -484,6 +499,19 @@ public partial class SettingsWindow : FluentWindow
         // Читаем ЖИВОЕ состояние маркера, а не то, с которым стартовал
         // процесс: иначе переключатель показывал бы прежнее положение сразу
         // после нажатия и выглядел бы неработающим.
+        // В установленной версии портативный режим — ловушка: обновление
+        // заменяет папку программы целиком, и настройки с моделями, лежащие
+        // рядом с exe, ушли бы вместе со старой версией.
+        if (_updater.IsInstalled)
+        {
+            AddCard(
+                SymbolRegular.UsbStick24,
+                L.S.FieldPortable,
+                L.S.FieldPortableInstalled,
+                new ToggleSwitch { IsChecked = false, IsEnabled = false });
+            return;
+        }
+
         AddToggleCard(
             SymbolRegular.UsbStick24,
             L.S.FieldPortable,
@@ -1377,11 +1405,100 @@ public partial class SettingsWindow : FluentWindow
 
     // --- раздел: о программе ------------------------------------------------
 
+    /// <summary>
+    /// Обновления: состояние, «Проверить» или «Перезапустить», и автопроверка.
+    /// </summary>
+    /// <remarks>
+    /// Копия из zip обновляться сама не умеет — ей честно говорим об этом и
+    /// даём ссылку на релизы, а не прячем раздел: иначе человек искал бы
+    /// кнопку, которой нет.
+    /// </remarks>
+    private void BuildUpdateCards()
+    {
+        if (!_updater.IsInstalled)
+        {
+            _updateText = null;
+            AddCard(
+                SymbolRegular.ArrowSync24,
+                L.S.UpdatesTitle,
+                L.S.UpdatesManual,
+                new Wpf.Ui.Controls.HyperlinkButton
+                {
+                    Content = L.S.UpdatesReleases,
+                    NavigateUri = RepositoryUrl + "/releases/latest",
+                });
+            return;
+        }
+
+        _updateText = Ui.Body(string.Empty);
+        _updateNote = Ui.Caption(L.S.UpdatesBusy);
+        _updateNote.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+        _updateNote.Visibility = Visibility.Collapsed;
+
+        _updateButton = new Button { MinWidth = 140, Margin = new Thickness(0, Tokens.Space3, 0, 0) };
+        _updateButton.Click += (_, _) => OnUpdateClick();
+
+        AddStackedCard(
+            SymbolRegular.ArrowSync24,
+            L.S.UpdatesTitle,
+            description: null,
+            new StackPanel { Children = { _updateText, _updateNote } },
+            _updateButton);
+
+        AddToggleCard(
+            SymbolRegular.ArrowDownload24,
+            L.S.FieldAutoUpdate,
+            L.S.FieldAutoUpdateHint,
+            () => Settings.CheckForUpdates,
+            value => Apply(s => s with { CheckForUpdates = value }));
+
+        ShowUpdate();
+    }
+
+    private void ShowUpdate()
+    {
+        if (_updateText is null || _updateButton is null)
+        {
+            return;
+        }
+
+        _updateText.Text = _updater.Status switch
+        {
+            UpdateStatus.Checking => L.S.UpdatesChecking,
+            UpdateStatus.UpToDate => string.Format(CultureInfo.CurrentCulture, L.S.UpdatesUpToDate, AppVersion),
+            UpdateStatus.Downloading => string.Format(CultureInfo.CurrentCulture, L.S.UpdatesDownloading, _updater.NewVersion, _updater.Percent),
+            UpdateStatus.Ready => string.Format(CultureInfo.CurrentCulture, L.S.UpdatesReady, _updater.NewVersion),
+            UpdateStatus.Failed => string.Format(CultureInfo.CurrentCulture, L.S.UpdatesFailed, _updater.Error),
+            _ => L.S.UpdatesIdle,
+        };
+
+        _updateButton.Content = _updater.Status == UpdateStatus.Ready ? L.S.UpdatesRestart : L.S.UpdatesCheckNow;
+        _updateButton.IsEnabled = _updater.Status is not (UpdateStatus.Checking or UpdateStatus.Downloading);
+    }
+
+    private void OnUpdateClick()
+    {
+        if (_updater.Status == UpdateStatus.Ready)
+        {
+            // Приложение откажется, если что-то пишется или распознаётся, —
+            // тогда объясняем, а обновление встанет при следующем запуске.
+            if (!_restartToUpdate() && _updateNote is not null)
+            {
+                _updateNote.Visibility = Visibility.Visible;
+            }
+
+            return;
+        }
+
+        _ = _updater.CheckAsync(userAsked: true);
+    }
+
     private void BuildAboutSection()
     {
         _page.Children.Add(Intro(L.S.AboutTagline));
 
         AddCard(SymbolRegular.Tag24, L.S.AboutVersion, description: null, ValueText(AppVersion));
+        BuildUpdateCards();
         AddCard(SymbolRegular.People24, L.S.AboutAuthors, description: null, ValueText(L.S.AboutAuthorsValue));
 
         // Бэкенд показываем именно здесь: библиотека молча откатывается с GPU
@@ -1391,7 +1508,7 @@ public partial class SettingsWindow : FluentWindow
             SymbolRegular.DeveloperBoard24,
             L.S.AboutRuntime,
             L.S.AboutRuntimeHint,
-            ValueText(WhisperEngine.LoadedRuntime));
+            ValueText(WhisperEngine.LoadedRuntime ?? L.S.AboutRuntimeNotLoaded));
 
         AddCard(SymbolRegular.Document24, L.S.AboutLicense, description: null, ValueText("MIT"));
 
@@ -1492,7 +1609,7 @@ public partial class SettingsWindow : FluentWindow
         builder.Append("Tapybara ").AppendLine(AppVersion);
         builder.Append("OS: ").AppendLine(Environment.OSVersion.VersionString);
         builder.Append("Runtime: ").AppendLine(Environment.Version.ToString());
-        builder.Append("Backend: ").AppendLine(WhisperEngine.LoadedRuntime);
+        builder.Append("Backend: ").AppendLine(WhisperEngine.LoadedRuntime ?? "not loaded");
         builder.Append("Model: ").AppendLine(Settings.ModelFileName);
         builder.Append("Detector: ").AppendLine(
             Settings.UseVoiceActivityDetection ? Settings.VadModelFileName : "off");

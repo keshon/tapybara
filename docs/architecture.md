@@ -18,6 +18,8 @@ src/Tapybara.Core/         engine, audio, settings, Win32 plumbing — no UI
   Diagnostics/             the log
 
 src/Tapybara.App/          WPF: tray, overlay, main and settings windows — no logic
+  Program.cs               entry point: Velopack first, then WPF
+  AppUpdater.cs            update checks and downloads (Velopack, GitHub releases)
 tests/Tapybara.Core.Tests/ unit tests for the pure logic in Core
 tools/Tapybara.Bench/      console harness for benchmarking and diagnostics
 ```

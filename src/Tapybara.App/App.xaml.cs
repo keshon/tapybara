@@ -98,6 +98,7 @@ public partial class App : Application, IDisposable
     /// <summary>История диктовок на диске.</summary>
     private DictationJournal _journal = null!;
     private readonly LiveActivity _live = new();
+    private AppUpdater? _updater;
 
     /// <summary>Книга голосов: как звучат люди, с которыми разговаривали.</summary>
     private VoiceBook _voiceBook = null!;
@@ -227,6 +228,12 @@ public partial class App : Application, IDisposable
         _tray.ToggleRequested += () => _ = ToggleAsync();
         _tray.CancelRequested += () => _ = CancelAsync();
         _tray.ExitRequested += Shutdown;
+        _tray.UpdateRequested += () => RestartToUpdate();
+
+        _updater = new AppUpdater(() => _settings.Current, Dispatcher);
+        _updater.Changed += OnUpdaterChanged;
+        OnUpdaterChanged();
+        _updater.Start();
         _tray.RetryHotkeyRequested += () =>
         {
             StartHotkey();
@@ -1603,6 +1610,41 @@ public partial class App : Application, IDisposable
         PublishLive();
     }
 
+    private void OnUpdaterChanged() =>
+        _tray?.SetUpdateReady(_updater is { Status: UpdateStatus.Ready } ? _updater.NewVersion : null);
+
+    /// <summary>
+    /// Поставить скачанное обновление сейчас: выйти и дать установщику
+    /// обновить и перезапустить программу.
+    /// </summary>
+    /// <remarks>
+    /// Только когда ничего не происходит. Выход посреди записи звонка
+    /// дописал бы файлы, но оборвал бы сам разговор на записи, а посреди
+    /// распознавания — выбросил бы минуты работы. Отказ не страшен:
+    /// скачанная версия и так встанет при следующем запуске.
+    /// </remarks>
+    /// <returns><c>false</c>, если сейчас нельзя или ставить нечего.</returns>
+    private bool RestartToUpdate()
+    {
+        bool busy = _callRecorder.IsRecording
+                    || _controller is { State: not DictationState.Idle }
+                    || _transcribingCallDirectory is not null;
+        if (busy)
+        {
+            _tray?.SetStatus(L.S.UpdatesBusy);
+            return false;
+        }
+
+        if (_updater is null || !_updater.PrepareRestart())
+        {
+            return false;
+        }
+
+        AppLog.Info($"Перезапуск для обновления до {_updater.NewVersion}.");
+        Shutdown();
+        return true;
+    }
+
     /// <summary>Сообщить окну, что сейчас пишется, — для кнопок записи.</summary>
     private void PublishLive()
     {
@@ -1798,7 +1840,7 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync, _journal, _voiceBook);
+        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync, _journal, _voiceBook, _updater!, RestartToUpdate);
         window.HotkeyCaptureChanged += OnHotkeyCaptureChanged;
         window.ModelsChanged += OnModelsChanged;
         window.Closed += (_, _) => _settingsWindow = null;
@@ -2033,6 +2075,8 @@ public partial class App : Application, IDisposable
 
         _elapsedTimer?.Stop();
         _elapsedTimer = null;
+
+        _updater?.Stop();
 
         StopModelsWatcher();
 

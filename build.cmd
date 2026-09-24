@@ -7,6 +7,9 @@ rem    build run        build Release and start the app
 rem    build debug      build Debug and start the app
 rem    build test       run the unit tests
 rem    build publish    self-contained build into dist\ (no .NET needed to run)
+rem    build installer  publish, then pack Setup.exe and update packages into
+rem                     Releases\ with Velopack (build installer 1.2.3 sets
+rem                     the version; without it, the one in Directory.Build.props)
 rem    build stop       stop a running instance
 rem
 rem  Add cuda to publish (build publish cuda) to include the CUDA backend.
@@ -44,13 +47,14 @@ if errorlevel 1 (
 
 if /i "%MODE%"=="stop" goto :stop_command
 if /i "%MODE%"=="publish" goto :publish
+if /i "%MODE%"=="installer" goto :installer
 if /i "%MODE%"=="debug" goto :debug
 if /i "%MODE%"=="test" goto :test
 if /i "%MODE%"=="run" goto :run
 if /i "%MODE%"=="build" goto :build
 
 echo ERROR: unknown mode "%MODE%".
-echo Use: build ^| run ^| debug ^| test ^| publish ^| stop
+echo Use: build ^| run ^| debug ^| test ^| publish ^| installer ^| stop
 exit /b 1
 
 rem ---------------------------------------------------------------------------
@@ -129,6 +133,56 @@ exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------
 :publish
+set CUDA=
+if /i "%~2"=="cuda" set CUDA=-p:WithCuda=true
+set VERSION_ARG=
+call :publish_dist
+if errorlevel 1 exit /b 1
+echo.
+echo Done: dist\Tapybara.exe
+echo Models are not included - the app downloads them from Settings, Models.
+echo For portable mode, create an empty file named portable.txt next to
+echo the exe and it will use a Data folder beside itself.
+exit /b 0
+
+rem ---------------------------------------------------------------------------
+rem  Installer and update packages.
+rem
+rem  CI runs exactly this, so a release is packed the same way on every
+rem  machine. vpk is a local dotnet tool pinned in dotnet-tools.json to the
+rem  same version as the Velopack package the app references: the two agree
+rem  on the release format, and Velopack asks not to mix versions.
+rem
+rem  --noPortable: vpk would also make a portable zip, but ours is the dist\
+rem  zip with portable.txt semantics; a second, different "portable" would
+rem  only confuse. Shortcuts go to the Start menu only - a tray app has no
+rem  business on the desktop.
+rem ---------------------------------------------------------------------------
+:installer
+set CUDA=
+set VERSION=%~2
+if "%VERSION%"=="" (
+    for /f "usebackq delims=" %%v in (`dotnet msbuild "%APP%" -getProperty:Version -nologo`) do set VERSION=%%v
+)
+set VERSION_ARG=-p:Version=%VERSION%
+call :publish_dist
+if errorlevel 1 exit /b 1
+
+dotnet tool restore >nul
+if errorlevel 1 (
+    echo ERROR: could not restore the vpk tool.
+    exit /b 1
+)
+
+echo Packing version %VERSION% into Releases\ ...
+dotnet vpk pack --runtime win-x64 --packId Tapybara --packVersion %VERSION% --packDir dist --mainExe Tapybara.exe --packTitle Tapybara --packAuthors keshon --icon src\Tapybara.App\Assets\Tapybara.ico --shortcuts StartMenuRoot --noPortable --outputDir Releases
+if errorlevel 1 exit /b 1
+echo.
+echo Done: Releases\Tapybara-win-Setup.exe
+exit /b 0
+
+rem ---------------------------------------------------------------------------
+:publish_dist
 call :stop
 
 rem Clean first. Publishing over an existing folder leaves files from previous
@@ -138,18 +192,9 @@ if exist dist (
     rmdir /s /q dist
 )
 
-set CUDA=
-if /i "%~2"=="cuda" set CUDA=-p:WithCuda=true
-
 echo Publishing self-contained build into dist\ ...
 rem Not PublishSingleFile: the native whisper libraries live in runtimes\
 rem subfolders and are loaded by path at run time, so a folder is the shape
 rem that actually works. Self-contained means the machine needs no .NET.
-dotnet publish "%APP%" -c Release -r win-x64 --self-contained true %CUDA% -o dist %QUIET%
-if errorlevel 1 exit /b 1
-echo.
-echo Done: dist\Tapybara.exe
-echo Models are not included - the app downloads them from Settings, Models.
-echo For portable mode, create an empty file named portable.txt next to
-echo the exe and it will use a Data folder beside itself.
-exit /b 0
+dotnet publish "%APP%" -c Release -r win-x64 --self-contained true %CUDA% %VERSION_ARG% -o dist %QUIET%
+exit /b %errorlevel%

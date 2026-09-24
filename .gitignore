@@ -24,3 +24,6 @@ obj/
 !tests/**/*.wav
 *.log
 /dist/
+
+# Выход vpk pack: установщик и пакеты обновлений собираются в CI.
+/Releases/

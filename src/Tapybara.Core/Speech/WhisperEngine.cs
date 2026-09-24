@@ -39,9 +39,13 @@ public sealed class WhisperEngine(WhisperEngineOptions options) : IAsyncDisposab
     /// <see cref="WhisperFactory.GetRuntimeInfo"/>: та печатает флаги набора
     /// инструкций процессора и про GPU-бэкенд не говорит ничего — из-за чего
     /// легко поверить, что работает GPU, когда на самом деле считает CPU.
+    /// <para>
+    /// <c>null</c>, пока модель не загружалась. Не строка «ещё не загружен»:
+    /// Core не пишет текстов для человека, и английский интерфейс показывал
+    /// эту строку по-русски.
+    /// </para>
     /// </remarks>
-    public static string LoadedRuntime =>
-        RuntimeOptions.LoadedLibrary?.ToString() ?? "ещё не загружен";
+    public static string? LoadedRuntime => RuntimeOptions.LoadedLibrary?.ToString();
 
     /// <summary>
     /// Прогреть движок заранее. Вызывается параллельно с записью: пока

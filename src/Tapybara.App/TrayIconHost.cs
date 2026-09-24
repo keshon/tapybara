@@ -42,6 +42,7 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly ToolStripMenuItem _settingsItem;
     private readonly ToolStripMenuItem _recordCallItem;
     private readonly ToolStripMenuItem _exitItem;
+    private readonly ToolStripMenuItem _updateItem;
 
     private Icon _idleIcon;
     private Icon _activeIcon;
@@ -97,6 +98,11 @@ public sealed partial class TrayIconHost : IDisposable
         _exitItem = new ToolStripMenuItem();
         _exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
+        // Скачанное обновление встанет само при следующем запуске, но
+        // Tapybara живёт в трее неделями — пусть его можно поставить сразу.
+        _updateItem = new ToolStripMenuItem { Visible = false };
+        _updateItem.Click += (_, _) => UpdateRequested?.Invoke();
+
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(
         [
@@ -110,6 +116,7 @@ public sealed partial class TrayIconHost : IDisposable
             _settingsItem,
             _retryHotkeyItem,
             new ToolStripSeparator(),
+            _updateItem,
             _exitItem,
         ]);
 
@@ -148,6 +155,9 @@ public sealed partial class TrayIconHost : IDisposable
     public event Action? ToggleRequested;
     public event Action? CancelRequested;
     public event Action? ExitRequested;
+
+    /// <summary>Выбран пункт «Перезапустить и обновить».</summary>
+    public event Action? UpdateRequested;
     public event Action? RecordCallRequested;
     public event Action? SettingsRequested;
     public event Action? RetryHotkeyRequested;
@@ -307,6 +317,13 @@ public sealed partial class TrayIconHost : IDisposable
     }
 
     public void SetHotkeyFailed(bool failed) => _retryHotkeyItem.Visible = failed;
+
+    /// <summary>Показать пункт обновления для скачанной версии или спрятать его.</summary>
+    public void SetUpdateReady(string? version)
+    {
+        _updateItem.Visible = version is not null;
+        _updateItem.Text = version is null ? string.Empty : string.Format(L.S.Formatting, L.S.TrayUpdateReady, version);
+    }
 
     /// <summary>Всплывающее уведомление.</summary>
     /// <param name="title">Заголовок.</param>

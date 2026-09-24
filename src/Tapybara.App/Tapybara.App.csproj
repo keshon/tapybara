@@ -40,6 +40,10 @@
          ради одного NotifyIcon. Для WPF правильное место — именно манифест. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <SelfContained>false</SelfContained>
+
+    <!-- Свой Main вместо сгенерированного из App.xaml: Velopack должен
+         получить управление раньше WPF. См. Program. -->
+    <StartupObject>Tapybara.App.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -48,6 +52,7 @@
 
   <ItemGroup>
     <PackageReference Include="WPF-UI" />
+    <PackageReference Include="Velopack" />
 
     <!-- Нативные библиотеки whisper.cpp подключает исполняемый проект.
          Порядок перебора внутри Whisper.net: CUDA → Vulkan → CPU.
