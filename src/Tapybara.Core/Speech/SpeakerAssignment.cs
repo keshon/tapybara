@@ -16,9 +16,17 @@ public static class SpeakerAssignment
     /// или <c>null</c>, если ни один не перекрывается.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Именно «дольше всех», а не «тот, что был в начале». Реплика часто
     /// начинается на хвосте чужой фразы — люди перебивают друг друга, — и
     /// выбор по первому касанию отдавал бы такие реплики не тому человеку.
+    /// </para>
+    /// <para>
+    /// «Дольше всех» — в сумме по всем отрезкам голоса, а не по одному самому
+    /// длинному. Разделитель режет речь одного человека на куски; раньше
+    /// реплика, где человек говорил тремя кусками по две секунды, доставалась
+    /// тому, кто вставил одну фразу на четыре.
+    /// </para>
     /// </remarks>
     public static int? For(TimeSpan start, TimeSpan end, IReadOnlyList<SpeakerSpan> spans)
     {
@@ -29,22 +37,17 @@ public static class SpeakerAssignment
             return null;
         }
 
-        int best = -1;
-        TimeSpan bestOverlap = TimeSpan.Zero;
-
+        var totals = new Dictionary<int, TimeSpan>();
         foreach (SpeakerSpan span in spans)
         {
             TimeSpan overlap = Overlap(start, end, span.Start, span.End);
-            if (overlap <= bestOverlap)
+            if (overlap > TimeSpan.Zero)
             {
-                continue;
+                totals[span.Speaker] = totals.GetValueOrDefault(span.Speaker) + overlap;
             }
-
-            bestOverlap = overlap;
-            best = span.Speaker;
         }
 
-        return best < 0 ? null : best;
+        return totals.Count == 0 ? null : totals.MaxBy(t => t.Value).Key;
     }
 
     private static TimeSpan Overlap(TimeSpan aStart, TimeSpan aEnd, TimeSpan bStart, TimeSpan bEnd)

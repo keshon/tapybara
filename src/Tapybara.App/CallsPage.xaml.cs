@@ -41,6 +41,8 @@ namespace Tapybara.App;
 /// <param name="Transcribe">Распознать звонок.</param>
 /// <param name="Reconcile">Привести транскрипт к участникам — перерисовка или разделение заново.</param>
 /// <param name="Resplit">Разделить голоса заново на указанное число.</param>
+/// <param name="Verify">Сверить реплики с голосами у звонка, который ещё не сверяли.</param>
+/// <param name="RefreshPrints">Снять слепки голосов заново после ручной правки.</param>
 /// <param name="Render">Перерисовать transcript.md. Мгновенно.</param>
 /// <param name="Delete">Удалить звонок, отменив работу над ним.</param>
 /// <param name="ToggleRecording">Начать или закончить запись звонка.</param>
@@ -55,6 +57,8 @@ public sealed record CallsServices(
     Func<CallSession, Task> Transcribe,
     Func<string, Task> Reconcile,
     Func<string, int, Task> Resplit,
+    Func<string, Task> Verify,
+    Func<string, Task> RefreshPrints,
     Action<string> Render,
     Action<string> Delete,
     Action ToggleRecording,
@@ -131,6 +135,11 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
         : new Thickness(0);
 
     public required string PlayHint { get; init; }
+
+    /// <summary>Голос реплики под сомнением (см. <see cref="CallLine.IsDoubtful"/>).</summary>
+    public Visibility DoubtVisibility => Line.IsDoubtful ? Visibility.Visible : Visibility.Collapsed;
+
+    public string DoubtHint { get; } = L.S.LineDoubtful;
 
     public string Text => Line.Text;
 
@@ -643,6 +652,21 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         _session = CallMeta.Load(entry.Directory) ?? entry.Session;
         _transcript = entry.HasTranscriptData ? CallTranscriptStore.Load(entry.Directory) : null;
 
+        if (!sameCall)
+        {
+            _rejected.Clear();
+        }
+
+        // Звонок распознан до сверки реплик с голосами — сверяем один раз, в
+        // фоне. Без этого старые звонки так и показывали бы чужие цитаты.
+        if (_transcript is { VoicesChecked: false }
+            && entry.State is CallState.Ready or CallState.NeedsNames
+            && _transcript.Lines.Any(l => l.Channel == CallChannel.Theirs)
+            && _verifyAsked.Add(entry.Directory))
+        {
+            _ = _services.Verify(entry.Directory);
+        }
+
         // Название и заметку не трогаем, пока человек их правит: иначе
         // двухсекундное обновление стирало бы набранное на полуслове.
         if (!sameCall || !TitleBox.IsKeyboardFocused)
@@ -1067,6 +1091,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         VoicesHost.Children.Add(header);
 
+        if (VoiceCheck.MoreVoicesLikely(_transcript, out TimeSpan doubtful))
+        {
+            VoicesHost.Children.Add(MoreVoicesCard(doubtful, Math.Max(voices.Count, 1)));
+        }
+
         if (voices.Count == 0)
         {
             // Голоса не разделялись: весь чужой канал — один человек.
@@ -1097,6 +1126,43 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
     }
 
+    /// <summary>
+    /// «Похоже, на звонке был ещё кто-то» — и разделить заново на голос больше.
+    /// </summary>
+    /// <remarks>
+    /// Самая частая причина чужих цитат — не ошибка на отдельной реплике, а
+    /// неверное число голосов: отметили одного, а говорили трое. Тогда чужие
+    /// реплики не похожи ни на один найденный голос, и проверка это видит.
+    /// Лечится не правкой по одной реплике, а разделением заново.
+    /// </remarks>
+    private Border MoreVoicesCard(TimeSpan doubtful, int found)
+    {
+        var body = new StackPanel();
+        body.Children.Add(Ui.BodyStrong(L.S.VoicesMoreTitle));
+
+        TextBlock hint = Ui.Caption(string.Format(L.S.Formatting, L.S.VoicesMoreHint, L.S.Duration(doubtful)));
+        hint.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+        body.Children.Add(hint);
+
+        if (_services.CanSplitVoices() && _session is not null)
+        {
+            string directory = _session.Directory;
+            var split = new Wpf.Ui.Controls.Button
+            {
+                Content = string.Format(L.S.Formatting, L.S.VoicesSplitInto, found + 1),
+                Appearance = ControlAppearance.Primary,
+                Margin = new Thickness(0, Tokens.Space3, 0, 0),
+            };
+            split.Click += (_, _) => _ = _services.Resplit(directory, found + 1);
+            body.Children.Add(split);
+        }
+
+        Border card = Ui.Card(body);
+        card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        card.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+        return card;
+    }
+
     /// <summary>Сводка по чужому каналу целиком — когда голоса не разделялись.</summary>
     private VoiceSummary WholeSide()
     {
@@ -1111,6 +1177,18 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     /// <summary>Какие карточки голосов открыты для смены имени.</summary>
     private readonly HashSet<string> _renaming = [];
+
+    /// <summary>Звонки, сверку которых уже попросили, — чтобы не просить на каждом обновлении.</summary>
+    private readonly HashSet<string> _verifyAsked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Сколько цитат каждого голоса человек отклонил на этом звонке.
+    /// </summary>
+    /// <remarks>
+    /// Одна чужая цитата — ошибка разделителя на одной реплике. Две из одного
+    /// голоса — уже признак, что в голосе два человека.
+    /// </remarks>
+    private readonly Dictionary<string, int> _rejected = [];
 
     /// <summary>Раскрыт ли выбор числа голосов для переразделения.</summary>
     private bool _resplitOpen;
@@ -1158,6 +1236,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             body.Children.Add(ShareBar(voice.Share, VoicePalette.For(index)));
         }
 
+        if (_rejected.GetValueOrDefault(voice.Id) >= 2 && !single)
+        {
+            body.Children.Add(RejectedHint());
+        }
+
         if (name is null && _suggestions.TryGetValue(voice.Id, out VoiceMatch? suggested))
         {
             body.Children.Add(SuggestionRow(suggested, () => pick(suggested.Name)));
@@ -1168,7 +1251,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             var quotes = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
             foreach (CallLine quote in voice.Quotes)
             {
-                quotes.Children.Add(QuoteRow(quote));
+                quotes.Children.Add(QuoteRow(quote, voice.Id));
             }
 
             body.Children.Add(quotes);
@@ -1264,7 +1347,99 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     }
 
     /// <summary>Цитата с кнопкой прослушивания.</summary>
-    private Grid QuoteRow(CallLine quote)
+    /// <summary>«Две цитаты отсюда оказались чужими» — и разделить на голос больше.</summary>
+    private StackPanel RejectedHint()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
+        panel.Children.Add(Ui.Caption(L.S.VoiceRejectedHint));
+
+        if (_services.CanSplitVoices() && _session is not null && _transcript is not null)
+        {
+            string directory = _session.Directory;
+            int wanted = _transcript.Voices.Count + 1;
+            Button split = Ui.Link(string.Format(L.S.Formatting, L.S.VoicesSplitInto, wanted));
+            split.HorizontalAlignment = HorizontalAlignment.Left;
+            split.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+            split.Click += (_, _) => _ = _services.Resplit(directory, wanted);
+            panel.Children.Add(split);
+        }
+
+        return panel;
+    }
+
+    /// <summary>
+    /// «Не этот человек» под цитатой: куда её отдать.
+    /// </summary>
+    /// <remarks>
+    /// Раньше чужая цитата в карточке была тупиком: её было видно, а
+    /// исправить можно было только в транскрипте, найдя там ту же реплику.
+    /// Если голоса не разделялись, переселять цитату некуда — остаётся
+    /// разделить голоса.
+    /// </remarks>
+    private void ShowNotThisMenu(FrameworkElement anchor, CallLine quote, string voice)
+    {
+        if (_transcript is null || _session is null)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
+        IReadOnlyList<string> voices = _transcript.Voices;
+
+        if (voices.Count == 0)
+        {
+            var split = new MenuItem { Header = L.S.VoiceSomeoneElseSplit, IsEnabled = _services.CanSplitVoices() };
+            string directory = _session.Directory;
+            split.Click += (_, _) => _ = _services.Resplit(directory, 2);
+            menu.Items.Add(split);
+        }
+        else
+        {
+            foreach (string other in voices.Where(v => v != voice))
+            {
+                string target = other;
+                var item = new MenuItem
+                {
+                    Header = CallSpeakers.NameOf(_session, other) ?? $"{L.S.TranscriptVoice} {other}",
+                    Icon = new System.Windows.Shapes.Ellipse
+                    {
+                        Width = 9,
+                        Height = 9,
+                        Fill = VoicePalette.For(IndexOf(voices, other)),
+                    },
+                };
+                item.Click += (_, _) => RejectQuote(quote, voice, target);
+                menu.Items.Add(item);
+            }
+
+            if (menu.Items.Count > 0)
+            {
+                menu.Items.Add(new Separator());
+            }
+
+            // Новый голос — следующая свободная буква: реплика станет
+            // отдельной карточкой, которую можно назвать.
+            string fresh = CallVoices.Letter(voices.Count);
+            for (int i = voices.Count; voices.Contains(fresh); i++)
+            {
+                fresh = CallVoices.Letter(i + 1);
+            }
+
+            var someone = new MenuItem { Header = L.S.VoiceSomeoneElse };
+            someone.Click += (_, _) => RejectQuote(quote, voice, fresh);
+            menu.Items.Add(someone);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void RejectQuote(CallLine quote, string voice, string target)
+    {
+        _rejected[voice] = _rejected.GetValueOrDefault(voice) + 1;
+        ReassignLine(quote, target);
+    }
+
+    private Grid QuoteRow(CallLine quote, string voice)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
@@ -1290,8 +1465,21 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         text.Children.Add(Ui.Body($"«{quote.Text}»"));
         TextBlock stamp = Ui.Caption(CallTranscriptRenderer.Stamp(quote.Start));
         stamp.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+        stamp.VerticalAlignment = VerticalAlignment.Center;
         stamp.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
-        text.Children.Add(stamp);
+
+        Button notThis = Ui.Link(L.S.VoiceNotThis);
+        notThis.FontSize = Tokens.Caption;
+        notThis.Padding = new Thickness(4, 0, 4, 0);
+        notThis.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
+        notThis.VerticalAlignment = VerticalAlignment.Center;
+        notThis.Click += (_, _) => ShowNotThisMenu(notThis, quote, voice);
+
+        text.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { stamp, notThis },
+        });
         Grid.SetColumn(text, 1);
         row.Children.Add(text);
         return row;
@@ -1612,6 +1800,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         _services.Render(directory);
         RefreshAfterEdit();
+        _ = _services.RefreshPrints(directory);
     }
 
     /// <summary>Отдать реплику другому голосу.</summary>
@@ -1632,6 +1821,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         _session = CallMeta.Update(directory, s => s with { Voices = changed.Voices }) ?? _session;
         _services.Render(directory);
         RefreshAfterEdit();
+
+        // Слепок голоса снят и с этой реплики — снять заново без неё, иначе
+        // чужой голос остался бы в подсказках и лёг бы в книгу голосов.
+        _ = _services.RefreshPrints(directory);
     }
 
     /// <summary>Перечитать звонок после правки — список, транскрипт и голоса.</summary>
@@ -1710,6 +1903,25 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 menu.Items.Add(item);
             }
 
+            string fresh = CallVoices.Letter(transcript.Voices.Count);
+            for (int i = transcript.Voices.Count; transcript.Voices.Contains(fresh); i++)
+            {
+                fresh = CallVoices.Letter(i + 1);
+            }
+
+            var someone = new MenuItem { Header = L.S.VoiceSomeoneElse };
+            someone.Click += (_, _) => ReassignLine(row.Line, fresh);
+            menu.Items.Add(someone);
+            menu.Items.Add(new Separator());
+        }
+        else if (row.Line.Channel == CallChannel.Theirs && _transcript is { Voices.Count: 0 } && _session is not null)
+        {
+            // Голоса не разделялись — отдать реплику некому, кроме как
+            // разделив голоса: «кто-то другой» здесь и значит «их было больше».
+            string directory = _session.Directory;
+            var split = new MenuItem { Header = L.S.VoiceSomeoneElseSplit, IsEnabled = _services.CanSplitVoices() };
+            split.Click += (_, _) => _ = _services.Resplit(directory, 2);
+            menu.Items.Add(split);
             menu.Items.Add(new Separator());
         }
         else if (row.Line.Channel == CallChannel.Mine)

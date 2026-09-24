@@ -408,6 +408,14 @@ public sealed record UiStrings
     public required string TrayUpdateReady { get; init; }
     public required string FieldPortableInstalled { get; init; }
     public required string AboutRuntimeNotLoaded { get; init; }
+    public required string VoiceNotThis { get; init; }
+    public required string VoiceSomeoneElse { get; init; }
+    public required string VoiceSomeoneElseSplit { get; init; }
+    public required string VoicesMoreTitle { get; init; }
+    public required string VoicesMoreHint { get; init; }
+    public required string VoicesSplitInto { get; init; }
+    public required string VoiceRejectedHint { get; init; }
+    public required string LineDoubtful { get; init; }
     public required string RecordCall { get; init; }
     public required string RecordDictate { get; init; }
     public required string RecordStop { get; init; }
@@ -989,6 +997,14 @@ public sealed record UiStrings
         TrayUpdateReady = "Restart to update to {0}",
         FieldPortableInstalled = "Not available in the installed version: an update replaces the program folder, and anything kept beside the program would go with it. For a portable copy, use the zip from the releases page.",
         AboutRuntimeNotLoaded = "not loaded yet",
+        VoiceNotThis = "Not this person",
+        VoiceSomeoneElse = "Someone else",
+        VoiceSomeoneElseSplit = "Someone else — split the voices",
+        VoicesMoreTitle = "Someone else was probably on the call",
+        VoicesMoreHint = "About {0} on the other side doesn't sound like any voice found here. Splitting again, with one more voice, usually sorts it out.",
+        VoicesSplitInto = "Split into {0} voices",
+        VoiceRejectedHint = "Two quotes from here turned out to be someone else. This may be two people in one voice.",
+        LineDoubtful = "Not sure this is the right person: the voice doesn't match well. Click to choose who said it.",
         RecordCall = "Record a call",
         RecordDictate = "Dictate",
         RecordStop = "Stop",
@@ -1438,6 +1454,14 @@ public sealed record UiStrings
         TrayUpdateReady = "Перезапустить и обновить до {0}",
         FieldPortableInstalled = "Недоступно в установленной версии: обновление заменяет папку программы, и всё, что лежит рядом с ней, пропало бы. Для портативной копии возьмите zip со страницы релизов.",
         AboutRuntimeNotLoaded = "ещё не загружен",
+        VoiceNotThis = "Не этот человек",
+        VoiceSomeoneElse = "Кто-то другой",
+        VoiceSomeoneElseSplit = "Кто-то другой — разделить голоса",
+        VoicesMoreTitle = "Похоже, на звонке был ещё кто-то",
+        VoicesMoreHint = "Около {0} речи на той стороне не похожи ни на один найденный голос. Обычно помогает разделить заново, на один голос больше.",
+        VoicesSplitInto = "Разделить заново — голосов: {0}",
+        VoiceRejectedHint = "Две цитаты отсюда оказались чужими. Возможно, в этом голосе два человека.",
+        LineDoubtful = "Не уверен, что это тот человек: голос не очень похож. Нажмите, чтобы выбрать, кто это сказал.",
         RecordCall = "Записать звонок",
         RecordDictate = "Диктовать",
         RecordStop = "Стоп",

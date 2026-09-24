@@ -25,7 +25,24 @@ public enum CallChannel
 /// <c>null</c>: реплика своя, голоса не разделялись или реплика не попала ни
 /// в один найденный участок.
 /// </param>
-public sealed record CallLine(CallChannel Channel, TimeSpan Start, TimeSpan End, string Text, string? Voice = null);
+/// <param name="Fit">
+/// Насколько голос реплики похож на голос, которому она отдана, 0–1 (см.
+/// <see cref="VoiceCheck"/>). <c>null</c> — не мерили: реплика короткая, свой
+/// канал, или её голос назначил человек.
+/// </param>
+public sealed record CallLine(
+    CallChannel Channel,
+    TimeSpan Start,
+    TimeSpan End,
+    string Text,
+    string? Voice = null,
+    double? Fit = null)
+{
+    /// <summary>
+    /// Голос реплики под сомнением: слепок не похож на голос, которому она отдана.
+    /// </summary>
+    public bool IsDoubtful => Fit < VoiceCheck.Sure;
+}
 
 /// <summary>
 /// Всё, из чего собирается транскрипт звонка, — в том виде, в каком это
@@ -56,6 +73,15 @@ public sealed record CallTranscript
 
     /// <summary>Разделялись ли голоса собеседников.</summary>
     public bool VoicesSplit { get; init; }
+
+    /// <summary>
+    /// Реплики собеседников проверены по слепкам голоса (<see cref="VoiceCheck"/>).
+    /// </summary>
+    /// <remarks>
+    /// Транскрипты прежних версий этого не знают — их проверяют при первом
+    /// открытии, один раз.
+    /// </remarks>
+    public bool VoicesChecked { get; init; }
 
     /// <summary>
     /// Сколько голосов было велено искать. Ноль — искали без подсказки.
@@ -247,7 +273,13 @@ public static class CallVoices
         var speech = new List<float>();
         int budget = (int)(PrintBudget.TotalSeconds * sampleRate);
 
-        foreach (CallLine line in lines.OrderByDescending(l => l.End - l.Start))
+        // Сперва реплики, в которых голос точно тот: слепок из реплики, по
+        // ошибке отданной голосу, записал бы в книгу голосов чужого человека.
+        // Сомнительные идут последними и берутся, только если других мало.
+        foreach (CallLine line in lines
+                     .OrderBy(l => l.IsDoubtful)
+                     .ThenByDescending(l => l.Fit ?? 0)
+                     .ThenByDescending(l => l.End - l.Start))
         {
             int from = Math.Clamp((int)(line.Start.TotalSeconds * sampleRate), 0, audio.Length);
             int to = Math.Clamp((int)(line.End.TotalSeconds * sampleRate), from, audio.Length);
@@ -346,9 +378,8 @@ public static class CallVoices
     /// Сводка по голосам: доля речи и цитаты для узнавания.
     /// </summary>
     /// <remarks>
-    /// Цитаты — самые длинные реплики голоса, но показываются в порядке
-    /// времени: так их легче сопоставить с ходом разговора. Короткие
-    /// реплики берутся, только если длинных нет вовсе.
+    /// Цитаты показываются в порядке времени — так их легче сопоставить с
+    /// ходом разговора. Какие именно — решает <see cref="PickQuotes"/>.
     /// </remarks>
     public static IReadOnlyList<VoiceSummary> Summarize(CallTranscript transcript)
     {
@@ -372,10 +403,84 @@ public static class CallVoices
                     id,
                     TimeSpan.FromSeconds(seconds),
                     total > 0 ? seconds / total : 0,
-                    [.. pool.OrderByDescending(l => l.Text.Length).Take(QuotesPerVoice).OrderBy(l => l.Start)]);
+                    PickQuotes([.. pool]));
             }),
         ];
     }
+
+    /// <summary>
+    /// Цитаты голоса: самые надёжные реплики из разных частей разговора.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Раньше брались самые длинные. Но длинная реплика — ровно та, где чаще
+    /// всего ошибается разделитель: в ней успевает смениться говорящий, и
+    /// Whisper не делит её, если не было паузы. Человек слушал три цитаты,
+    /// одна была чужой — и называл голос по ошибке разделителя.
+    /// </para>
+    /// <para>
+    /// Теперь: сомнительные (<see cref="CallLine.IsDoubtful"/>) — только если
+    /// других нет; не длиннее <see cref="MaxQuote"/>; по одной лучшей из
+    /// каждой трети разговора — голос в начале, середине и конце звонка
+    /// узнаётся надёжнее, чем три фразы подряд из одного места.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<CallLine> PickQuotes(IReadOnlyList<CallLine> own)
+    {
+        List<CallLine> pool = [.. own.Where(l => !l.IsDoubtful)];
+        if (pool.Count == 0)
+        {
+            pool = [.. own];
+        }
+
+        if (pool.Any(l => l.End - l.Start <= MaxQuote))
+        {
+            pool = [.. pool.Where(l => l.End - l.Start <= MaxQuote)];
+        }
+
+        pool.Sort((a, b) => a.Start.CompareTo(b.Start));
+        if (pool.Count <= QuotesPerVoice)
+        {
+            return pool;
+        }
+
+        // Трети — по времени разговора, а не по числу реплик: человек мог
+        // говорить весь звонок, а мог — только в его начале, и тогда три
+        // цитаты законно окажутся рядом. Пустая треть добирается лучшими из
+        // оставшихся. «Лучшая» — самый похожий голос, при равенстве (или без
+        // замера) — более длинная фраза.
+        List<CallLine> ranked = [.. pool
+            .OrderByDescending(l => l.Fit ?? VoiceCheck.Sure)
+            .ThenByDescending(l => l.Text.Length)];
+
+        TimeSpan first = pool[0].Start;
+        TimeSpan span = pool[^1].Start - first;
+        var picked = new List<CallLine>();
+        for (int part = 0; part < QuotesPerVoice; part++)
+        {
+            TimeSpan from = first + (span * part / QuotesPerVoice);
+            TimeSpan to = first + (span * (part + 1) / QuotesPerVoice);
+            bool last = part == QuotesPerVoice - 1;
+            CallLine? best = ranked.FirstOrDefault(l =>
+                !picked.Contains(l) && l.Start >= from && (l.Start < to || (last && l.Start <= to)));
+            if (best is not null)
+            {
+                picked.Add(best);
+            }
+        }
+
+        picked.AddRange(ranked.Where(l => !picked.Contains(l)).Take(QuotesPerVoice - picked.Count));
+        return [.. picked.OrderBy(l => l.Start)];
+    }
+
+    /// <summary>
+    /// Длиннее этого реплика в цитаты не идёт, если есть покороче.
+    /// </summary>
+    /// <remarks>
+    /// Двадцать пять секунд — это монолог, который долго слушать, и чем он
+    /// длиннее, тем вероятнее в нём чужой голос.
+    /// </remarks>
+    private static readonly TimeSpan MaxQuote = TimeSpan.FromSeconds(25);
 
     /// <summary>
     /// Слить голос <paramref name="from"/> в голос <paramref name="into"/>.
@@ -391,7 +496,8 @@ public static class CallVoices
 
         return transcript with
         {
-            Lines = [.. transcript.Lines.Select(l => l.Voice == from ? l with { Voice = into } : l)],
+            // Сходство мерили с прежним голосом — к слитому оно не относится.
+            Lines = [.. transcript.Lines.Select(l => l.Voice == from ? l with { Voice = into, Fit = null } : l)],
         };
     }
 
@@ -405,7 +511,9 @@ public static class CallVoices
 
         return transcript with
         {
-            Lines = [.. transcript.Lines.Select(l => l == line ? l with { Voice = voice } : l)],
+            // Голос назначил человек — это вернее любого замера, и сомнение
+            // с реплики снимается.
+            Lines = [.. transcript.Lines.Select(l => l == line ? l with { Voice = voice, Fit = null } : l)],
         };
     }
 

@@ -163,6 +163,20 @@ switch (command)
         SplitVoices(positional[1], speakerCount ?? 0, clusterThreshold);
         break;
 
+    case "linecheck":
+        if (positional.Length < 2)
+        {
+            Console.Error.WriteLine("Укажи папку звонка: bench linecheck <папка> [модель слепков] [модель сегментации] [голосов]");
+            return 1;
+        }
+
+        CheckLines(
+            positional[1],
+            positional.Length > 2 ? positional[2] : null,
+            positional.Length > 3 ? positional[3] : null,
+            positional.Length > 4 ? int.Parse(positional[4], CultureInfo.InvariantCulture) : 0);
+        break;
+
     case "voiceprint":
         if (positional.Length < 2)
         {
@@ -376,6 +390,54 @@ void CompareVoices(string first, string? second)
     Console.WriteLine($"Модель:    {Path.GetFileName(embedding)}, размерность {printA.Length}");
     Console.WriteLine($"Отрезки:   {a.Length / 16000.0:F1} с и {b.Length / 16000.0:F1} с, {timer.Elapsed.TotalSeconds:F2} с на оба");
     Console.WriteLine($"Сходство:  {similarity:F3} (порог подсказки {VoiceBook.MatchThreshold:F2})");
+}
+
+/// <summary>
+/// Слепок каждой реплики собеседника против «центра» её голоса.
+/// </summary>
+/// <remarks>
+/// Для подбора порогов проверки реплик: печатает только время и числа, не
+/// текст. Центр — среднее слепков голоса без худшей трети, как в
+/// <see cref="VoiceCheck"/>.
+/// </remarks>
+void CheckLines(string callDirectory, string? modelPath, string? segmentationPath, int voices)
+{
+    string? embedding = modelPath ?? ModelLocator.Resolve(new AppSettings().VoiceEmbeddingModelFileName);
+    CallTranscript? transcript = CallTranscriptStore.Load(callDirectory);
+    if (embedding is null || transcript is null)
+    {
+        Console.Error.WriteLine("Нет модели слепков или транскрипта.");
+        return;
+    }
+
+    float[] audio = AudioNormalizer.Normalize(AudioFile.ReadMono16k(Path.Combine(callDirectory, CallSession.SystemFileName)));
+    using var extractor = new VoiceprintExtractor(embedding);
+
+    // С моделью сегментации — разделить заново на указанное число голосов,
+    // как это сделало бы приложение, и мерить уже разделённое.
+    if (segmentationPath is not null && voices > 1)
+    {
+        using var diarizer = new SpeakerDiarizer(new SpeakerDiarizerOptions
+        {
+            SegmentationModelPath = segmentationPath,
+            EmbeddingModelPath = embedding,
+            ClusterThreshold = (float)new AppSettings().VoiceSplitThreshold,
+        });
+        IReadOnlyList<SpeakerSpan> spans = diarizer.Split(audio, voices);
+        transcript = transcript with { Lines = CallVoices.Assign(transcript.Lines, spans), VoicesSplit = true };
+    }
+
+    var timer = Stopwatch.StartNew();
+    VoiceCheck.Report report = VoiceCheck.Measure(transcript.Lines, line => extractor.Embed(VoiceCheck.Slice(audio, line)));
+    timer.Stop();
+
+    Console.WriteLine($"Реплик измерено: {report.Lines.Count} за {timer.Elapsed.TotalSeconds:F1} с");
+    foreach (VoiceCheck.LineScore score in report.Lines.OrderBy(s => s.Line.Start))
+    {
+        string others = string.Join(" ", score.Others.Select(o => $"{o.Key}:{o.Value:F2}"));
+        Console.WriteLine(
+            $"{score.Line.Start:hh\\:mm\\:ss} {(score.Line.End - score.Line.Start).TotalSeconds,5:F1}s  {score.Line.Voice ?? "*",-2} own {score.Own:F2}  {others}");
+    }
 }
 
 void SplitVoices(string wavPath, int expected, float? threshold)

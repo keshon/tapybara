@@ -294,20 +294,35 @@
                                                 </StackPanel>
                                             </Button>
 
-                                            <Button Grid.Row="1"
-                                                    Grid.Column="0"
-                                                    Style="{StaticResource FlatLinkButton}"
-                                                    VerticalAlignment="Top"
-                                                    HorizontalAlignment="Left"
-                                                    Margin="0,2,0,0"
-                                                    Tag="{Binding}"
-                                                    ToolTip="{Binding PlayHint}"
-                                                    Click="OnStampClick">
-                                                <TextBlock Text="{Binding Stamp}"
-                                                           FontFamily="Cascadia Mono, Consolas"
-                                                           FontSize="{x:Static app:Tokens.Caption}"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                            </Button>
+                                            <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
+                                                <Button Style="{StaticResource FlatLinkButton}"
+                                                        VerticalAlignment="Top"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="0,2,0,0"
+                                                        Tag="{Binding}"
+                                                        ToolTip="{Binding PlayHint}"
+                                                        Click="OnStampClick">
+                                                    <TextBlock Text="{Binding Stamp}"
+                                                               FontFamily="Cascadia Mono, Consolas"
+                                                               FontSize="{x:Static app:Tokens.Caption}"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                </Button>
+                                                <!-- Голос реплики под сомнением: «?» открывает то же
+                                                     меню «Сказал…», что и имя говорящего. -->
+                                                <Button Style="{StaticResource FlatLinkButton}"
+                                                        VerticalAlignment="Top"
+                                                        Margin="4,2,0,0"
+                                                        Padding="2,0"
+                                                        Visibility="{Binding DoubtVisibility}"
+                                                        Tag="{Binding}"
+                                                        ToolTip="{Binding DoubtHint}"
+                                                        Click="OnSpeakerClick">
+                                                    <TextBlock Text="?"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="{x:Static app:Tokens.Caption}"
+                                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                                </Button>
+                                            </StackPanel>
 
                                             <TextBox Grid.Row="1"
                                                      Grid.Column="1"
