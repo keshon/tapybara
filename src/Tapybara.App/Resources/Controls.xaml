@@ -107,6 +107,47 @@
     </Style>
 
     <!--
+        Кнопка записи — пилюля индикатора (см. RecordPill). Цвета заданы
+        прямо, а не темой: пилюля на экране тёмная в любой теме, и кнопка,
+        которая её цитирует, тоже.
+    -->
+    <Style x:Key="RecordPillButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="14,0,16,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Pill"
+                            CornerRadius="18"
+                            Background="#221C17"
+                            BorderBrush="#33FFFFFF"
+                            BorderThickness="1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Pill" Property="Background" Value="#2E2620" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Pill" Property="Background" Value="#17120E" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Pill" Property="Opacity" Value="0.7" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
         Вкладка: текст и полоса акцента снизу, как у Pivot в Windows 11.
         Штатный TabControl WPF-UI рисует вкладку коробкой с рамкой, и она
         оказывалась самым тяжёлым элементом спокойной карточки, да ещё и

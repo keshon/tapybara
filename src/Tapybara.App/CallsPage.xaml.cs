@@ -46,6 +46,7 @@ namespace Tapybara.App;
 /// <param name="ToggleRecording">Начать или закончить запись звонка.</param>
 /// <param name="CanSplitVoices">Есть ли чем разделять голоса.</param>
 /// <param name="Voices">Книга голосов — для подсказок «похоже на…» и чтобы запоминать названные.</param>
+/// <param name="Live">Что сейчас пишется — для кнопки записи.</param>
 public sealed record CallsServices(
     SettingsHost Settings,
     Func<string> CallsDirectory,
@@ -58,7 +59,8 @@ public sealed record CallsServices(
     Action<string> Delete,
     Action ToggleRecording,
     Func<bool> CanSplitVoices,
-    VoiceBook Voices);
+    VoiceBook Voices,
+    LiveActivity Live);
 
 /// <summary>Строка списка звонков — то, что видит глаз.</summary>
 /// <remarks>
@@ -192,6 +194,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private static readonly TimeSpan QuotePadding = TimeSpan.FromMilliseconds(300);
 
     private readonly CallsServices _services;
+    private readonly RecordPill _record = new(call: true)
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        HorizontalContentAlignment = HorizontalAlignment.Stretch,
+    };
     private readonly ObservableCollection<CallRow> _rows = [];
     private readonly ICollectionView _view;
     private readonly ObservableCollection<TranscriptLineRow> _lines = [];
@@ -228,6 +235,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         InitializeComponent();
 
         _services = services;
+
+        _record.Click += (_, _) => _services.ToggleRecording();
+        RecordHost.Content = _record;
+        _services.Live.Changed += UpdateRecordButton;
 
         _view = CollectionViewSource.GetDefaultView(_rows);
         _view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CallRow.Day)));
@@ -275,6 +286,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Дописать правки и отпустить устройство вывода. Зовётся при закрытии окна.</summary>
     public void Dispose()
     {
+        _services.Live.Changed -= UpdateRecordButton;
         _refresh.Stop();
         _playbackTimer.Stop();
         SaveNote();
@@ -506,12 +518,18 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     private void UpdateRecordButton()
     {
-        bool recording = _rows.Any(r => r.Entry.State == CallState.Recording);
-        RecordButton.ToolTip = recording ? L.S.TrayStopRecording : L.S.TrayStartRecording;
-        RecordButton.Icon = new SymbolIcon { Symbol = recording ? SymbolRegular.Stop24 : SymbolRegular.Record24 };
+        LiveActivity live = _services.Live;
+        if (live.CallRecording)
+        {
+            _record.ShowRecording(L.S.RecordStop, live.CallElapsed);
+            _record.ToolTip = L.S.TrayStopRecording;
+        }
+        else
+        {
+            _record.ShowIdle(L.S.RecordCall, Settings.CallHotkey.ToString());
+            _record.ToolTip = null;
+        }
     }
-
-    private void OnRecordClick(object sender, RoutedEventArgs e) => _services.ToggleRecording();
 
     // --- поиск ---------------------------------------------------------------
 
@@ -1069,7 +1087,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             }
         }
 
-        VoicesHost.Children.Add(MeRow());
+        VoicesHost.Children.Add(MeCard());
 
         // Переразделять есть что, только если голоса разделялись. На звонке
         // с одним отмеченным участником этот блок был загадкой без контекста.
@@ -1382,17 +1400,48 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         return chips;
     }
 
-    private Border MeRow()
+    /// <summary>
+    /// Карточка своей дорожки — такая же, как у голосов собеседников.
+    /// </summary>
+    /// <remarks>
+    /// Здесь была подпись мелким шрифтом под карточками: «keshon — your
+    /// microphone, 3 min». Голоса стоят карточками, а себя человек находил
+    /// строчкой без рамки и не понимал, что она значит. Теперь это такая же
+    /// карточка с тем же заголовком — цвет, имя, сколько говорил, — и прямым
+    /// текстом: это вы, называть некого.
+    /// </remarks>
+    private Border MeCard()
     {
         TimeSpan mine = TimeSpan.FromSeconds(_transcript!.Lines
             .Where(l => l.Channel == CallChannel.Mine)
             .Sum(l => Math.Max(0, (l.End - l.Start).TotalSeconds)));
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(Tokens.Space4, Tokens.Space2, 0, 0) };
-        row.Children.Add(Dot(VoicePalette.Me, 10));
-        row.Children.Add(Ui.Caption(string.Format(L.S.Formatting, L.S.VoiceMe, Settings.EffectiveMyName, L.S.Duration(mine))));
+        var title = new Grid();
+        title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        return new Border { Child = row };
+        title.Children.Add(Dot(VoicePalette.Me, 10));
+
+        TextBlock name = Ui.BodyStrong(Settings.EffectiveMyName);
+        name.TextWrapping = TextWrapping.NoWrap;
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        name.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(name, 1);
+        title.Children.Add(name);
+
+        TextBlock stats = Ui.Caption(L.S.Duration(mine));
+        stats.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
+        stats.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(stats, 2);
+        title.Children.Add(stats);
+
+        TextBlock hint = Ui.Caption(L.S.VoiceMe);
+        hint.Margin = new Thickness(0, Tokens.Space2, 0, 0);
+
+        Border card = Ui.Card(new StackPanel { Children = { title, hint } });
+        card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        return card;
     }
 
     /// <summary>

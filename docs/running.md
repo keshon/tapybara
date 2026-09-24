@@ -36,6 +36,11 @@ searchable, so text that went into the wrong window can be copied again. The
 history lives next to the settings as `dictations.jsonl`; Settings › General
 switches it off or clears it.
 
+The **Dictate** button on that page, and **Record a call** on the Calls page,
+do the same as their hotkeys. Tapybara never pastes into its own window unless
+the caret is in a text field there, such as a call note: dictate from the
+button and the text lands in the list and in the clipboard.
+
 ## Models
 
 Two models are involved and they do different jobs.

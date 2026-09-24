@@ -97,6 +97,7 @@ public partial class App : Application, IDisposable
 
     /// <summary>История диктовок на диске.</summary>
     private DictationJournal _journal = null!;
+    private readonly LiveActivity _live = new();
 
     /// <summary>Книга голосов: как звучат люди, с которыми разговаривали.</summary>
     private VoiceBook _voiceBook = null!;
@@ -867,7 +868,7 @@ public partial class App : Application, IDisposable
 
         try
         {
-            if (settings.AutoPaste)
+            if (settings.AutoPaste && !WouldPasteIntoOurselves())
             {
                 TextInserter.PasteViaClipboard(text, settings.ExcludeFromClipboardHistory);
                 _overlay!.FlashAndHide(L.S.PillInserted);
@@ -888,6 +889,22 @@ public partial class App : Application, IDisposable
             _overlay!.FlashAndHide(L.S.PillInsertedViaClipboard);
             _tray!.SetStatus(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Вставка пришлась бы в само окно Tapybara, и не в поле ввода.
+    /// </summary>
+    /// <remarks>
+    /// Текст вставляется туда, где фокус, — а после кнопки «Диктовать» фокус
+    /// в нашем же окне, на этой кнопке. Синтетический Ctrl+V туда не делает
+    /// ничего полезного, а если фокус в поле поиска — засоряет поиск. Поэтому
+    /// в себя вставляем только в настоящее поле ввода (заметку к звонку), а
+    /// иначе текст остаётся в истории и буфере обмена.
+    /// </remarks>
+    private bool WouldPasteIntoOurselves()
+    {
+        bool ours = Windows.OfType<Window>().Any(w => w.IsActive && w != _overlay);
+        return ours && System.Windows.Input.Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase { IsReadOnly: false };
     }
 
     /// <summary>
@@ -1529,6 +1546,8 @@ public partial class App : Application, IDisposable
 
     private void OnElapsedTick()
     {
+        PublishLive();
+
         if (_controller is { State: DictationState.Recording } controller)
         {
             _overlay!.UpdateElapsed(controller.Elapsed);
@@ -1565,6 +1584,19 @@ public partial class App : Application, IDisposable
         {
             _elapsedTimer!.Stop();
         }
+
+        PublishLive();
+    }
+
+    /// <summary>Сообщить окну, что сейчас пишется, — для кнопок записи.</summary>
+    private void PublishLive()
+    {
+        DictationState dictation = _controller?.State ?? DictationState.Idle;
+        _live.Publish(
+            dictation,
+            dictation == DictationState.Recording ? _controller!.Elapsed : TimeSpan.Zero,
+            _callRecorder.IsRecording,
+            _callRecorder.IsRecording ? _callRecorder.Elapsed : TimeSpan.Zero);
     }
 
     private void ApplyOverlayPosition()
@@ -1653,9 +1685,11 @@ public partial class App : Application, IDisposable
             DeleteCall,
             () => _ = ToggleCallRecordingAsync(),
             CanSplitVoices,
-            _voiceBook),
+            _voiceBook,
+            _live),
             _journal,
-            () => OpenSettings(SettingsSection.General));
+            () => OpenSettings(SettingsSection.General),
+            () => _ = ToggleAsync());
 
         window.Closed += (_, _) => _mainWindow = null;
         _mainWindow = window;
