@@ -79,21 +79,17 @@ public partial class ConfirmWindow : FluentWindow
     {
         DetailCard.Visibility = Visibility.Visible;
 
-        var row = new StackPanel { Margin = new Thickness(0, DetailRows.Children.Count == 0 ? 0 : 12, 0, 0) };
+        var row = new StackPanel { Margin = new Thickness(0, DetailRows.Children.Count == 0 ? 0 : Tokens.Space3, 0, 0) };
 
-        row.Children.Add(new TextBlock
-        {
-            Text = label,
-            FontSize = 12,
-            Opacity = 0.65,
-            Margin = new Thickness(0, 0, 0, 2),
-        });
+        TextBlock caption = Ui.Caption(label);
+        caption.Margin = new Thickness(0, 0, 0, 2);
+        row.Children.Add(caption);
 
         row.Children.Add(new TextBlock
         {
             Text = value,
             FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
-            FontSize = 12.5,
+            FontSize = Tokens.Caption,
             TextWrapping = TextWrapping.Wrap,
         });
 

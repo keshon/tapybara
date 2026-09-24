@@ -255,8 +255,26 @@ and `Flow`. Everything else — mono downmix, resampling, level metering,
 failure reporting — is already there.
 
 **A settings section:** `AddSection` in `BuildEverything`, with its own icon.
-Icons are not shared between sections; the colour coding only works if the
-glyph is distinctive too.
+Icons are not shared between sections: they are all the same colour, so the
+glyph is the only thing that tells them apart.
+
+**Anything visual:** sizes, spacing and radii come from `Tokens`
+(`src/Tapybara.App/Tokens.cs`); text styles, cards and links from
+`Resources/Controls.xaml`, or from `Ui` when the element is built in code.
+A bare `FontSize = 12.5`, `Opacity = 0.65` or `Margin = new Thickness(14, …)`
+is how the windows drifted apart in the first place — every page had its own
+idea of a caption. Secondary text uses `TextFillColorSecondaryBrush`, not
+opacity, so it follows the theme.
+
+Colour carries meaning, and only a few things have one: accent marks what is
+selected or clickable, red means recording, the voice palette tells speakers
+apart. Everything else is the theme's neutral text and fill brushes. No
+per-section tints, no yellow warning bars for things that are not a problem.
+
+Dates, times, sizes and durations go through `UiStrings` (`Date`, `Time`,
+`Size`, `Duration`), which format in the interface language rather than the
+system's: an English interface on a Russian Windows otherwise shows
+"23 сентября" and "1,6 GB".
 
 ## Testing & verification
 

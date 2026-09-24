@@ -43,7 +43,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 {
     private readonly SettingsHost _settings;
     private readonly VoiceBook _voices;
-    private readonly StackPanel _root = new() { Margin = new Thickness(6, 0, 28, 24), MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly StackPanel _root = new() { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _replacements = new();
     private readonly StackPanel _people = new();
     private readonly TextBox _prompt;
@@ -70,6 +70,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         Content = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Padding = Tokens.PagePadding,
             Content = _root,
         };
 
@@ -126,22 +127,13 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         Detach(_prompt);
         Detach(_people);
 
-        _root.Children.Add(new TextBlock
-        {
-            Text = L.S.NavDictionary,
-            FontFamily = (FontFamily)FindResource("AppDisplayFontFamily"),
-            FontSize = 20,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 6),
-        });
+        TextBlock title = Ui.Title(L.S.NavDictionary);
+        title.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        _root.Children.Add(title);
 
-        _root.Children.Add(new TextBlock
-        {
-            Text = L.S.DictionaryIntro,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.75,
-            Margin = new Thickness(0, 0, 0, 18),
-        });
+        TextBlock intro = Ui.BodySecondary(L.S.DictionaryIntro);
+        intro.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        _root.Children.Add(intro);
 
         // --- замены
         _root.Children.Add(Group(L.S.GroupReplacements, L.S.DictionaryReplacementsHint));
@@ -150,7 +142,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         {
             Content = L.S.ReplacementTitle,
             Icon = new SymbolIcon { Symbol = SymbolRegular.Add24 },
-            Margin = new Thickness(0, 4, 0, 0),
+            Margin = new Thickness(0, _replacements.Children.Count > 0 ? Tokens.Space1 : 0, 0, 0),
         };
         add.Click += (_, _) =>
         {
@@ -170,7 +162,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         var reset = new Button
         {
             Content = L.S.ButtonDefault,
-            Margin = new Thickness(0, 8, 0, 0),
+            Margin = new Thickness(0, Tokens.Space2, 0, 0),
         };
         reset.Click += (_, _) =>
         {
@@ -199,30 +191,18 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         }
     }
 
+    /// <summary>Заголовок группы — как в окне настроек: название и одна строка пояснения.</summary>
     private static StackPanel Group(string title, string hint)
     {
-        var group = new StackPanel { Margin = new Thickness(0, 14, 0, 8) };
-        group.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
-        group.Children.Add(new TextBlock
-        {
-            Text = hint,
-            FontSize = 12,
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 0, 0),
-        });
+        var group = new StackPanel { Margin = new Thickness(0, Tokens.Space5, 0, Tokens.Space2) };
+        group.Children.Add(Ui.BodyStrong(title));
+        TextBlock caption = Ui.Caption(hint);
+        caption.Margin = new Thickness(0, 2, 0, 0);
+        group.Children.Add(caption);
         return group;
     }
 
-    private Border Card(UIElement child) => new()
-    {
-        Child = child,
-        Padding = new Thickness(16, 14, 16, 14),
-        CornerRadius = new CornerRadius(8),
-        Background = TryFindResource("CardBackgroundFillColorDefaultBrush") as Brush,
-        BorderBrush = TryFindResource("CardStrokeColorDefaultBrush") as Brush,
-        BorderThickness = new Thickness(1),
-    };
+    private static Border Card(UIElement child) => Ui.Card(child);
 
     // --- замены --------------------------------------------------------------
 
@@ -239,7 +219,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     /// <returns>Поле «услышано» — чтобы поставить в него курсор.</returns>
     private TextBox AddReplacementRow(string heard, string correct)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -252,16 +232,16 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             Symbol = SymbolRegular.ArrowRight16,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0.5,
         };
         var remove = new Button
         {
             Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
             Appearance = ControlAppearance.Transparent,
-            Margin = new Thickness(6, 0, 0, 0),
+            Margin = new Thickness(Tokens.Space2, 0, 0, 0),
             ToolTip = L.S.ButtonDelete,
         };
 
+        arrow.SetResourceReference(ForegroundProperty, "TextFillColorTertiaryBrush");
         Grid.SetColumn(arrow, 1);
         Grid.SetColumn(to, 2);
         Grid.SetColumn(remove, 3);
@@ -326,7 +306,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
         if (Settings.KnownParticipants.Count == 0)
         {
-            _people.Children.Add(new TextBlock { Text = L.S.DictionaryPeopleEmpty, Opacity = 0.65 });
+            _people.Children.Add(Ui.BodySecondary(L.S.DictionaryPeopleEmpty));
             return;
         }
 
@@ -341,7 +321,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private StackPanel PersonRow(string name)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 16, 6) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, Tokens.Space4, Tokens.Space2) };
         var box = new TextBox { Text = name, Width = 170 };
         var remove = new Button
         {
@@ -387,14 +367,9 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
         if (_voices.PrintsOf(name) > 0)
         {
-            var known = new TextBlock
-            {
-                Text = L.S.DictionaryVoiceKnown,
-                FontSize = 11.5,
-                Opacity = 0.6,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(2, 0, 4, 0),
-            };
+            TextBlock known = Ui.Caption(L.S.DictionaryVoiceKnown);
+            known.VerticalAlignment = VerticalAlignment.Center;
+            known.Margin = new Thickness(Tokens.Space1, 0, Tokens.Space1, 0);
 
             var forget = new Button
             {

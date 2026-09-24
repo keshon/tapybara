@@ -38,46 +38,28 @@
 
         <ui:TitleBar Grid.Row="0" x:Name="WindowTitleBar" ShowMaximize="False" ShowMinimize="False" />
 
-        <StackPanel Grid.Row="1" Margin="24,0,24,18">
-            <TextBlock x:Name="HeadingText"
-                       FontFamily="{StaticResource AppDisplayFontFamily}"
-                       FontSize="20"
-                       FontWeight="SemiBold"
-                       TextWrapping="Wrap" />
-
-            <TextBlock x:Name="SubheadingText"
-                       FontSize="{StaticResource AppCaptionFontSize}"
-                       Opacity="0.7"
-                       TextWrapping="Wrap"
-                       Margin="0,2,0,14" />
+        <StackPanel Grid.Row="1" Margin="24,0,24,16">
+            <TextBlock x:Name="HeadingText" Style="{StaticResource TextSubtitle}" />
+            <TextBlock x:Name="SubheadingText" Style="{StaticResource TextCaption}" Margin="0,2,0,12" />
 
             <Grid Margin="0,0,0,4">
-                <TextBlock x:Name="ProgressText"
-                           FontSize="{StaticResource AppCaptionFontSize}"
-                           Opacity="0.8" />
-                <TextBlock x:Name="PercentText"
-                           HorizontalAlignment="Right"
-                           FontSize="{StaticResource AppCaptionFontSize}"
-                           Opacity="0.8" />
+                <TextBlock x:Name="ProgressText" Style="{StaticResource TextCaption}" />
+                <TextBlock x:Name="PercentText" Style="{StaticResource TextCaption}" HorizontalAlignment="Right" />
             </Grid>
             <ProgressBar x:Name="Progress" Height="4" Maximum="100" Margin="0,0,0,16" />
 
-            <TextBlock x:Name="TitleLabel" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <TextBlock x:Name="TitleLabel" Style="{StaticResource TextBodyStrong}" Margin="0,0,0,8" />
             <ui:TextBox x:Name="TitleBox" Margin="0,0,0,16" KeyDown="OnTitleKeyDown" />
 
-            <TextBlock x:Name="ParticipantsLabel" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <app:ParticipantsPicker x:Name="Participants" Margin="0,0,0,2" />
-            <TextBlock x:Name="ParticipantsHint"
-                       FontSize="{StaticResource AppCaptionFontSize}"
-                       Opacity="0.7"
-                       TextWrapping="Wrap"
-                       Margin="0,2,0,0" />
+            <TextBlock x:Name="ParticipantsLabel" Style="{StaticResource TextBodyStrong}" Margin="0,0,0,8" />
+            <app:ParticipantsPicker x:Name="Participants" />
+            <TextBlock x:Name="ParticipantsHint" Style="{StaticResource TextCaption}" Margin="0,4,0,0" />
         </StackPanel>
 
         <Border Grid.Row="2"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0"
-                Padding="18,12">
+                Padding="24,12">
             <Grid>
                 <ui:Button x:Name="MoreButton"
                            HorizontalAlignment="Left"

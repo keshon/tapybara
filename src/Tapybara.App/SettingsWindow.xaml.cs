@@ -25,7 +25,6 @@ using Wpf.Ui.Controls;
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
 using Color = System.Windows.Media.Color;
-using ColorConverter = System.Windows.Media.ColorConverter;
 using ComboBox = System.Windows.Controls.ComboBox;
 using MessageBox = System.Windows.MessageBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -278,12 +277,12 @@ public partial class SettingsWindow : FluentWindow
         // сравнивает их между собой. Дальше то, что их обслуживает:
         // распознавание, модели, обработка текста. «О программе» — последним,
         // как везде.
-        AddSection(SettingsSection.General, L.S.SectionGeneral, SymbolRegular.Settings24, "#81C784", BuildGeneralSection);
-        AddSection(SettingsSection.Dictation, L.S.SectionDictation, SymbolRegular.Mic24, "#4FC3F7", BuildDictationSection);
-        AddSection(SettingsSection.Calls, L.S.SectionCalls, SymbolRegular.Call24, "#F06292", BuildCallsSection);
-        AddSection(SettingsSection.Models, L.S.SectionModels, SymbolRegular.ArrowDownload24, "#4DD0C4", BuildModelsSection);
-        AddSection(SettingsSection.Advanced, L.S.SectionAdvanced, SymbolRegular.Beaker24, "#B388FF", BuildAdvancedSection);
-        AddSection(SettingsSection.About, L.S.SectionAbout, SymbolRegular.Info24, "#90A4AE", BuildAboutSection);
+        AddSection(SettingsSection.General, L.S.SectionGeneral, SymbolRegular.Settings24, BuildGeneralSection);
+        AddSection(SettingsSection.Dictation, L.S.SectionDictation, SymbolRegular.Mic24, BuildDictationSection);
+        AddSection(SettingsSection.Calls, L.S.SectionCalls, SymbolRegular.Call24, BuildCallsSection);
+        AddSection(SettingsSection.Models, L.S.SectionModels, SymbolRegular.ArrowDownload24, BuildModelsSection);
+        AddSection(SettingsSection.Advanced, L.S.SectionAdvanced, SymbolRegular.Beaker24, BuildAdvancedSection);
+        AddSection(SettingsSection.About, L.S.SectionAbout, SymbolRegular.Info24, BuildAboutSection);
 
         SectionList.SelectedIndex = 0;
     }
@@ -291,32 +290,36 @@ public partial class SettingsWindow : FluentWindow
     /// <summary>Одна страница настроек и пункт бокового меню для неё.</summary>
     /// <param name="section">Что это за раздел — для перехода к нему извне.</param>
     /// <param name="title">Заголовок: и в меню, и над содержимым страницы.</param>
-    /// <param name="icon">Значок пункта. У каждого раздела свой, без повторов.</param>
-    /// <param name="accent">
-    /// Цвет значка. В «Параметрах» Windows каждый раздел окрашен по-своему —
-    /// это не украшение, а способ узнавать нужный пункт периферийным зрением,
-    /// не вчитываясь в подписи.
+    /// <param name="icon">
+    /// Значок пункта. У каждого раздела свой, без повторов: узнавать пункт
+    /// периферийным зрением помогает форма значка.
     /// </param>
     /// <param name="build">Построитель карточек страницы.</param>
+    /// <remarks>
+    /// Значки одного цвета — цвета текста. Здесь была радуга из шести
+    /// оттенков, и окно настроек выглядело пёстрым рядом со спокойным
+    /// главным окном. Цвет в приложении несёт смысл — акцент отмечает
+    /// выбранное, красный значит запись, — и радуга этот смысл размывала.
+    /// </remarks>
     private void AddSection(
         SettingsSection section,
         string title,
         SymbolRegular icon,
-        string accent,
         Action build)
     {
         _page = new StackPanel();
         build();
 
         var label = new StackPanel { Orientation = Orientation.Horizontal };
-        label.Children.Add(new SymbolIcon
+        var symbol = new SymbolIcon
         {
             Symbol = icon,
             FontSize = 18,
-            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(accent)),
-            Margin = new Thickness(0, 0, 12, 0),
+            Margin = new Thickness(0, 0, Tokens.Space3, 0),
             VerticalAlignment = VerticalAlignment.Center,
-        });
+        };
+        symbol.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");
+        label.Children.Add(symbol);
 
         label.Children.Add(new TextBlock
         {
@@ -428,13 +431,7 @@ public partial class SettingsWindow : FluentWindow
     /// </remarks>
     private void BuildAdvancedSection()
     {
-        _page.Children.Add(new TextBlock
-        {
-            Text = L.S.AdvancedIntro,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.8,
-            Margin = new Thickness(2, 0, 24, 14),
-        });
+        _page.Children.Add(Intro(L.S.AdvancedIntro));
 
         AddGroup(L.S.GroupRecognition);
 
@@ -661,13 +658,7 @@ public partial class SettingsWindow : FluentWindow
     /// </remarks>
     private void BuildModelsSection()
     {
-        _page.Children.Add(new TextBlock
-        {
-            Text = L.S.ModelsIntro,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.85,
-            Margin = new Thickness(2, 0, 24, 16),
-        });
+        _page.Children.Add(Intro(L.S.ModelsIntro));
 
         // Какой моделью распознавать — первым: это единственное, что здесь
         // выбирают чаще одного раза. Раньше выбор жил в «Распознавании» и в
@@ -728,11 +719,7 @@ public partial class SettingsWindow : FluentWindow
 
             if (installed.Count == 0)
             {
-                list.Children.Add(new TextBlock
-                {
-                    Text = L.S.ModelsNothingInstalled,
-                    Opacity = 0.7,
-                });
+                list.Children.Add(Ui.BodySecondary(L.S.ModelsNothingInstalled));
 
                 return;
             }
@@ -747,10 +734,9 @@ public partial class SettingsWindow : FluentWindow
                 Text = string.Format(
                     CultureInfo.CurrentCulture,
                     L.S.ModelsTotalSize,
-                    FormatSize(installed.Sum(m => m.Bytes))),
-                Opacity = 0.6,
-                FontSize = 12,
-                Margin = new Thickness(0, 8, 0, 0),
+                    L.S.Size(installed.Sum(m => m.Bytes))),
+                Style = Ui.StyleOf("TextCaption"),
+                Margin = new Thickness(0, Tokens.Space2, 0, 0),
             });
         }
 
@@ -778,15 +764,15 @@ public partial class SettingsWindow : FluentWindow
                 ModelKind.VoiceSegmentation or ModelKind.VoiceEmbedding => SymbolRegular.PeopleTeam24,
                 _ => SymbolRegular.BrainCircuit24,
             },
-            FontSize = 15,
-            Margin = new Thickness(0, 0, 10, 0),
-            Foreground = ThemeBrush("SystemFillColorSuccessBrush", Colors.SeaGreen),
+            FontSize = 16,
+            Margin = new Thickness(0, 0, Tokens.Space3, 0),
+            Foreground = ThemeBrush("TextFillColorSecondaryBrush", Colors.Gray),
             VerticalAlignment = VerticalAlignment.Center,
         };
 
         var label = new TextBlock
         {
-            Text = $"{PrettyModelName(model.FileName)}  ·  {FormatSize(model.Bytes)}",
+            Text = $"{PrettyModelName(model.FileName)}  ·  {L.S.Size(model.Bytes)}",
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         };
@@ -823,7 +809,7 @@ public partial class SettingsWindow : FluentWindow
             CultureInfo.CurrentCulture,
             L.S.ModelsDeleteQuestion,
             PrettyModelName(model.FileName),
-            FormatSize(model.Bytes));
+            L.S.Size(model.Bytes));
 
         if (inUse)
         {
@@ -932,10 +918,8 @@ public partial class SettingsWindow : FluentWindow
 
         var detail = new TextBlock
         {
-            Text = $"{L.S.Describe(model.Tier)} · {FormatSize(model.ApproximateBytes)}",
-            FontSize = 12,
-            Opacity = 0.65,
-            TextWrapping = TextWrapping.Wrap,
+            Text = $"{L.S.Describe(model.Tier)} · {L.S.Size(model.ApproximateBytes)}",
+            Style = Ui.StyleOf("TextCaption"),
             Margin = new Thickness(0, 2, 0, 0),
         };
 
@@ -973,7 +957,7 @@ public partial class SettingsWindow : FluentWindow
         TextBlock detail,
         ProgressBar progress)
     {
-        string baseDetail = $"{L.S.Describe(model.Tier)} · {FormatSize(model.ApproximateBytes)}";
+        string baseDetail = $"{L.S.Describe(model.Tier)} · {L.S.Size(model.ApproximateBytes)}";
 
         void ShowIdle()
         {
@@ -1022,9 +1006,9 @@ public partial class SettingsWindow : FluentWindow
                 detail.Text = string.Format(
                     CultureInfo.CurrentCulture,
                     L.S.DownloadProgress,
-                    FormatSize(p.ReceivedBytes),
-                    p.TotalBytes is { } total ? FormatSize(total) : "?",
-                    FormatSize((long)p.BytesPerSecond));
+                    L.S.Size(p.ReceivedBytes),
+                    p.TotalBytes is { } total ? L.S.Size(total) : "?",
+                    L.S.Size((long)p.BytesPerSecond));
             });
 
             try
@@ -1075,28 +1059,36 @@ public partial class SettingsWindow : FluentWindow
         };
     }
 
-    /// <summary>Размер файла в понятных человеку единицах.</summary>
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
-        >= 1_000_000 => $"{bytes / 1_000_000.0:F0} MB",
-        >= 1_000 => $"{bytes / 1_000.0:F0} KB",
-        _ => $"{bytes} B",
-    };
-
     // --- раздел: звонки ----------------------------------------------------
 
     private void BuildCallsSection()
     {
-        _page.Children.Add(new InfoBar
+        // Напоминание о согласии — спокойной плашкой, как баннеры главного
+        // окна. Жёлтая InfoBar кричала «ошибка» на странице, где всё в
+        // порядке, и была самым ярким пятном во всём приложении.
+        var note = new StackPanel { Orientation = Orientation.Horizontal };
+        var noteIcon = new SymbolIcon
         {
-            Title = L.S.CallConsentTitle,
-            Message = L.S.CallConsentNote,
-            Severity = InfoBarSeverity.Warning,
-            IsOpen = true,
-            IsClosable = false,
-            Margin = new Thickness(0, 0, 0, 14),
-        });
+            Symbol = SymbolRegular.Info24,
+            FontSize = 16,
+            Margin = new Thickness(0, 1, Tokens.Space3, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        noteIcon.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");
+        note.Children.Add(noteIcon);
+        TextBlock noteText = Ui.Body(L.S.CallConsentNote);
+        noteText.MaxWidth = 560;
+        note.Children.Add(noteText);
+
+        var banner = new Border
+        {
+            Child = note,
+            Padding = new Thickness(Tokens.Space3, 10, Tokens.Space3, 10),
+            CornerRadius = Tokens.ControlRadius,
+            Margin = new Thickness(0, 0, 0, Tokens.Space2),
+        };
+        banner.SetResourceReference(Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
+        _page.Children.Add(banner);
 
         AddGroup(L.S.GroupRecording);
 
@@ -1387,13 +1379,7 @@ public partial class SettingsWindow : FluentWindow
 
     private void BuildAboutSection()
     {
-        _page.Children.Add(new TextBlock
-        {
-            Text = L.S.AboutTagline,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.8,
-            Margin = new Thickness(2, 0, 24, 14),
-        });
+        _page.Children.Add(Intro(L.S.AboutTagline));
 
         AddCard(SymbolRegular.Tag24, L.S.AboutVersion, description: null, ValueText(AppVersion));
         AddCard(SymbolRegular.People24, L.S.AboutAuthors, description: null, ValueText(L.S.AboutAuthorsValue));
@@ -1526,11 +1512,18 @@ public partial class SettingsWindow : FluentWindow
     private static string AppVersion =>
         Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 
+    /// <summary>Вступление страницы — одна строка-две над карточками.</summary>
+    private static TextBlock Intro(string text)
+    {
+        TextBlock intro = Ui.BodySecondary(text);
+        intro.Margin = new Thickness(2, 0, Tokens.Space5, Tokens.Space2);
+        return intro;
+    }
+
     private static TextBlock ValueText(string text) => new()
     {
         Text = text,
-        Opacity = 0.75,
-        TextWrapping = TextWrapping.Wrap,
+        Style = Ui.StyleOf("TextBodySecondary"),
         MaxWidth = 320,
         TextAlignment = TextAlignment.Right,
         VerticalAlignment = VerticalAlignment.Center,
@@ -1553,10 +1546,10 @@ public partial class SettingsWindow : FluentWindow
         var status = new TextBlock
         {
             Visibility = Visibility.Collapsed,
-            FontSize = 12,
+            FontSize = Tokens.Caption,
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = ControlColumnWidth,
-            Margin = new Thickness(0, 6, 0, 0),
+            Margin = new Thickness(0, Tokens.Space1, 0, 0),
             Foreground = ThemeBrush("SystemFillColorCautionBrush", Colors.OrangeRed),
         };
 
@@ -1698,7 +1691,7 @@ public partial class SettingsWindow : FluentWindow
         {
             Text = title,
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(2, _page.Children.Count == 0 ? 0 : 20, 0, 8),
+            Margin = new Thickness(2, _page.Children.Count == 0 ? 0 : Tokens.Space5, 0, Tokens.Space2),
         });
     }
 
@@ -1814,14 +1807,9 @@ public partial class SettingsWindow : FluentWindow
 
         if (description is not null)
         {
-            panel.Children.Add(new TextBlock
-            {
-                Text = description,
-                FontSize = 12,
-                Opacity = 0.65,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 3, 0, 0),
-            });
+            TextBlock caption = Ui.Caption(description);
+            caption.Margin = new Thickness(0, 2, 0, 0);
+            panel.Children.Add(caption);
         }
 
         return panel;
@@ -1900,13 +1888,10 @@ public partial class SettingsWindow : FluentWindow
         };
 
         panel.Children.Add(box);
-        panel.Children.Add(new TextBlock
-        {
-            Text = unit,
-            Opacity = 0.65,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        });
+        TextBlock unitText = Ui.BodySecondary(unit);
+        unitText.VerticalAlignment = VerticalAlignment.Center;
+        unitText.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
+        panel.Children.Add(unitText);
 
         return panel;
     }
@@ -2261,7 +2246,7 @@ public partial class SettingsWindow : FluentWindow
             // Отдельная фраза для единственного числа. «1 models are
             // sitting» — мелочь, но именно по таким мелочам видно, что текст
             // собран машиной и никем не прочитан.
-            string size = FormatSize(existing.Sum(m => m.Bytes));
+            string size = L.S.Size(existing.Sum(m => m.Bytes));
             string question = existing.Count == 1
                 ? string.Format(CultureInfo.CurrentCulture, L.S.ModelsMoveQuestionOne, size)
                 : string.Format(CultureInfo.CurrentCulture, L.S.ModelsMoveQuestion, existing.Count, size);

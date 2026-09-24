@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -18,10 +17,10 @@ public sealed class DictationRow
 
     public required string Day { get; init; }
 
-    public string Time => Entry.At.ToLocalTime().ToString("HH:mm", CultureInfo.CurrentCulture);
+    public string Time => L.S.Time(Entry.At);
 
     public string Words => string.Format(
-        CultureInfo.CurrentCulture,
+        L.S.Formatting,
         L.S.DictationWords,
         Entry.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length);
 
@@ -109,17 +108,21 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
     private void Reload()
     {
         _rows.Clear();
-        foreach (DictationEntry entry in _journal.Load())
+
+        // Сортируем по времени, а не верим порядку строк в файле: после
+        // перевода часов или ручной правки журнала «Вчера» вставало над
+        // «Сегодня», а группы дней шли в порядке первого появления.
+        foreach (DictationEntry entry in _journal.Load().OrderByDescending(e => e.At))
         {
             _rows.Add(new DictationRow { Entry = entry, Day = Day(entry.At) });
         }
 
         CountText.Text = _rows.Count == 0
             ? string.Empty
-            : string.Format(CultureInfo.CurrentCulture, L.S.DictationsCount, _rows.Count);
+            : string.Format(L.S.Formatting, L.S.DictationsCount, _rows.Count);
 
         HistoryOffBanner.Visibility = _settings.Current.KeepDictationHistory ? Visibility.Collapsed : Visibility.Visible;
-        EmptyHint.Text = string.Format(CultureInfo.CurrentCulture, L.S.DictationsEmpty, _settings.Current.Hotkey);
+        EmptyHint.Text = string.Format(L.S.Formatting, L.S.DictationsEmpty, _settings.Current.Hotkey);
         EmptyHint.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -138,9 +141,7 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
             return L.S.DayYesterday;
         }
 
-        return day.Year == today.Year
-            ? day.ToString("d MMMM", CultureInfo.CurrentCulture)
-            : day.ToString("d MMMM yyyy", CultureInfo.CurrentCulture);
+        return L.S.Date(at);
     }
 
     private bool Matches(object item)
