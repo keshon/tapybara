@@ -689,8 +689,6 @@ section.plain { border-top: 0; }
 
 /* --- скриншоты ------------------------------------------------------------ */
 
-.shots { display: grid; gap: 40px; }
-.shots figure { margin: 0; }
 /*
    РАДИУСЫ. Правило одно: то, что ИЗОБРАЖАЕТ настоящий предмет, сохраняет его
    собственную геометрию; вся остальная мебель страницы — 2px.
@@ -698,20 +696,51 @@ section.plain { border-top: 0; }
      2px   кнопки, переключатели, рамка демонстрации, код, notice, площадка
            под индикатором — то есть всё, что придумано для страницы
      4px   kbd: у клавиши скруглённые углы, потому что у клавиши они и есть
-     6px   окна настроек: Windows 11 скругляет окна, и снимок это показывает
-     10px  тот же снимок крупным планом — радиус растёт вместе с кадром,
-           иначе оптический вес скругления уезжает
+     8px   окна Windows 11 — они и правда скруглены, и снимок это показывает
+     10px  крупный снимок окна — радиус растёт вместе с кадром, иначе
+           оптический вес скругления уезжает
      50%   круги: аватар в шапке и точка в переключателе
 
    Острые края — язык страницы. Скруглённые — цитата из чужого интерфейса,
    и именно поэтому их нельзя приводить к 2px: это стёрло бы форму окна,
    которую снимок и показывает.
 */
-.shots img { border: 1px solid var(--line); border-radius: 6px; }
-.shots figure:first-child img { border-radius: 10px; }
-.shots figcaption { margin-top: 14px; font-size: 16.5px; color: var(--muted); max-width: 68ch; }
-.shots figcaption b { color: var(--text); }
-@media (min-width: 940px) { .shots { grid-template-columns: repeat(2, 1fr); } .shots figure:first-child { grid-column: 1 / -1; } }
+
+/* --- снимки приложения --------------------------------------------------- */
+
+/*
+   Снимок в теме страницы. Приложение следует теме Windows, страница —
+   своей, и светлое окно на тёмной странице выглядело вырезкой из чужого
+   сайта. Поэтому каждый снимок снят дважды, а показывается тот, что
+   совпадает с текущей темой страницы — в том числе выбранной вручную.
+   Скрытая картинка с loading="lazy" не скачивается, так что платят
+   только за одну.
+*/
+img.t-light { display: none; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) img.t-light { display: block; }
+  :root:not([data-theme="dark"]) img.t-dark { display: none; }
+}
+:root[data-theme="light"] img.t-light { display: block; }
+:root[data-theme="light"] img.t-dark { display: none; }
+
+.shot { margin: 0; }
+.shot img { width: 100%; border: 1px solid var(--line); border-radius: 10px; }
+.shot figcaption { margin-top: 14px; font-size: 16.5px; color: var(--muted); max-width: 68ch; }
+.shot figcaption b { color: var(--text); }
+.shot.small { max-width: 560px; }
+.shot.small img { border-radius: 8px; }
+
+/* Экскурсия: одна крупная картинка и переключатели над ней — вместо сетки
+   из четырёх окон, где каждое мелко и ни одно не рассмотреть. */
+.tour-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.tour-tabs .sw[aria-selected="true"] { border-color: var(--accent-dim); color: var(--text); }
+.tour-tabs .sw[aria-selected="true"] .dot { background: var(--accent); }
+.tour .shot + .shot { margin-top: 40px; }
+.tour.js .shot + .shot { margin-top: 0; }
+
+.start-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; }
+@media (min-width: 1100px) { .start-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 480px); align-items: start; } }
 
 /* --- код ------------------------------------------------------------------ */
 
@@ -822,6 +851,7 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
     <nav class="topnav">
       <a class="hide-sm" href="#local">Why local</a>
       <a class="hide-sm" href="#calls">Calls</a>
+      <a class="hide-sm" href="#app">The app</a>
       <a class="hide-sm" href="#start">Quick start</a>
       <a class="hide-sm" href="#faq">FAQ</a>
       <a href="https://github.com/keshon/tapybara/releases/latest">Download</a>
@@ -1007,6 +1037,37 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
         </div>
       </div>
     </div>
+
+    <div class="body-cols" style="margin-top:64px">
+      <p class="spine">naming voices</p>
+      <div>
+        <h3 style="font-size:clamp(22px,2.6vw,30px);margin-bottom:18px">You name a voice by what it said.</h3>
+        <p>
+          A voice split off the far track has no name — and guessing one from the
+          order people joined is how transcripts end up confidently wrong. So each
+          voice comes with its quotes and a play button, and you click the name of
+          whoever said them. The name goes into every line of that voice at once,
+          without transcribing again. Two voices that turn out to be one person
+          merge with <em>Same person as…</em>; a wrong count is fixed by splitting
+          again.
+        </p>
+        <p>
+          Named voices are remembered. On the next call Tapybara says
+          <em>Sounds like Kirill · 87%</em> and waits for <em>That's right</em> — it
+          never writes a name on its own guess. The voiceprints stay on this
+          computer, remembering can be switched off, and a person is forgotten with
+          one click.
+        </p>
+
+        <figure class="shot" style="margin-top:32px">
+          <img class="t-dark" src="assets/screens/calls-dark.webp" width="1920" height="1200" loading="lazy"
+               alt="The Tapybara window, Calls page: a list of recorded calls, a transcript with coloured speaker names, and a Voices panel where one voice is named, one has the suggestion Sounds like Kirill, and one asks Who is this? with name chips">
+          <img class="t-light" src="assets/screens/calls-light.webp" width="1920" height="1200" loading="lazy"
+               alt="The Tapybara window, Calls page: a list of recorded calls, a transcript with coloured speaker names, and a Voices panel where one voice is named, one has the suggestion Sounds like Kirill, and one asks Who is this? with name chips">
+          <figcaption><b>The call from the demo above, in the app.</b> Marina is named, Tapybara recognises Kirill from an earlier call, and the third voice is waiting for a name.</figcaption>
+        </figure>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -1018,7 +1079,7 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
       <div>
         <h2>Three keystrokes, and no window to visit.</h2>
         <p class="sec-lede">
-          Tapybara lives in the tray. You never switch to it, which is the point:
+          Dictating never takes you to Tapybara's window. That is the point:
           switching away from what you were writing defeats the exercise.
         </p>
       </div>
@@ -1050,43 +1111,50 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
   </div>
 </section>
 
-<!-- ======================= SETTINGS ======================= -->
-<section id="settings">
+<!-- ======================= THE APP ======================= -->
+<section id="app">
   <div class="wrap">
     <div class="sec-head">
-      <p class="spine">configuration</p>
+      <p class="spine">the app</p>
       <div>
-        <h2>Set it up once, then forget the window.</h2>
+        <h2>One window for what you come back to.</h2>
         <p class="sec-lede">
-          The settings follow the system: same typography, same card layout, same light
-          and dark as everything else on the desktop.
+          Dictations, calls and the dictionary share one window; settings have their
+          own, which you open once. Both follow Windows — its type, its cards, its
+          light and dark.
         </p>
       </div>
     </div>
 
-    <div class="shots">
-      <figure>
-        <a href="assets/screens/settings-dictation.webp">
-          <img src="assets/screens/settings-dictation.webp" width="1200" height="840" loading="lazy"
-               alt="Tapybara settings, Dictation page: hotkey, microphone picker, insertion options and safety limits">
-        </a>
-        <figcaption><b>Dictation.</b> Choose the hotkey by pressing it, and pick which microphone rather than accepting whatever Windows calls default. Text can be inserted, or only copied.</figcaption>
+    <div class="tour" id="tour">
+      <div class="tour-tabs" role="tablist" aria-label="Pages of the app" hidden>
+        <button class="sw" type="button" role="tab" aria-selected="true" aria-controls="tour-dictations"><span class="dot"></span>Dictations</button>
+        <button class="sw" type="button" role="tab" aria-selected="false" aria-controls="tour-dictionary"><span class="dot"></span>Dictionary</button>
+        <button class="sw" type="button" role="tab" aria-selected="false" aria-controls="tour-settings"><span class="dot"></span>Settings</button>
+      </div>
+
+      <figure class="shot" id="tour-dictations" role="tabpanel">
+          <img class="t-dark" src="assets/screens/dictations-dark.webp" width="1920" height="1200" loading="lazy"
+               alt="The Dictations page: everything dictated today and yesterday, each with its time and word count, and a search field">
+          <img class="t-light" src="assets/screens/dictations-light.webp" width="1920" height="1200" loading="lazy"
+               alt="The Dictations page: everything dictated today and yesterday, each with its time and word count, and a search field">
+        <figcaption><b>Dictations.</b> Everything you dictated, kept on this computer and searchable, so a sentence that went into the wrong window is one click from the clipboard. Switch it off if you dictate passwords.</figcaption>
       </figure>
 
-      <figure>
-        <a href="assets/screens/settings-models.webp">
-          <img src="assets/screens/settings-models.webp" width="1200" height="840" loading="lazy"
-               alt="Tapybara settings, Models page: models folder, installed models with sizes and delete buttons, and a download list">
-        </a>
-        <figcaption><b>Models.</b> Downloaded from here, so there is no hunting for the right file on a model-hosting site. They live wherever you have room, and the ones you tried and did not keep can be deleted.</figcaption>
+      <figure class="shot" id="tour-dictionary" role="tabpanel">
+          <img class="t-dark" src="assets/screens/dictionary-dark.webp" width="1920" height="1200" loading="lazy"
+               alt="The Dictionary page: replacements grouped by the correct word, several misheard variants on each line, Export and Import buttons, and a list of people with remembered voices">
+          <img class="t-light" src="assets/screens/dictionary-light.webp" width="1920" height="1200" loading="lazy"
+               alt="The Dictionary page: replacements grouped by the correct word, several misheard variants on each line, Export and Import buttons, and a list of people with remembered voices">
+        <figcaption><b>Dictionary.</b> Replacements grouped by the word they fix — every way the model mishears <em>Hugging Face</em> on one line. Add one from a transcript with a right-click. Export the whole dictionary, people and voices included, and import it on the next computer.</figcaption>
       </figure>
 
-      <figure>
-        <a href="assets/screens/settings-recognition.webp">
-          <img src="assets/screens/settings-recognition.webp" width="1200" height="840" loading="lazy"
-               alt="Tapybara settings, Recognition page: model selection, decoding, idle unload, recognition language and prompt">
-        </a>
-        <figcaption><b>Recognition.</b> Language, decoding effort, and a prompt that biases vocabulary and punctuation style. The model unloads after a period of inactivity, so an idle Tapybara holds no memory.</figcaption>
+      <figure class="shot" id="tour-settings" role="tabpanel">
+          <img class="t-dark" src="assets/screens/settings-dark.webp" width="1770" height="1106" loading="lazy"
+               alt="Tapybara settings, Calls page: hotkey, output device, your name in transcripts, telling voices apart and remembering voices">
+          <img class="t-light" src="assets/screens/settings-light.webp" width="1770" height="1106" loading="lazy"
+               alt="Tapybara settings, Calls page: hotkey, output device, your name in transcripts, telling voices apart and remembering voices">
+        <figcaption><b>Settings.</b> Six pages you visit once: hotkeys and microphone, calls and voices, models to download, and under <em>Advanced</em> the knobs for people who want them.</figcaption>
       </figure>
     </div>
   </div>
@@ -1120,12 +1188,12 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
         <p>Cancelling watches the key through a hook rather than claiming it, so dialogs still close and menus still dismiss while a dictation is running.</p>
       </div>
       <div>
-        <h3>A replacements list</h3>
-        <p>Recognition mangles product names in predictable ways. Fixing them is a line each, including names carrying punctuation like <code>C#</code> or <code>.NET</code>.</p>
+        <h3>A speech detector first</h3>
+        <p>A small model finds where the speech actually is before Whisper runs, so each line sits where it was said and silence does not come back as <em>thanks for watching</em>.</p>
       </div>
       <div>
-        <h3>Recent dictations</h3>
-        <p>The last ten sit in the tray menu, in case one landed in the wrong window.</p>
+        <h3>Calls have their own hotkey</h3>
+        <p><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd> starts and stops a recording from anywhere. The indicator shows a ring instead of a dot, so a call is never mistaken for a dictation.</p>
       </div>
       <div>
         <h3>Portable mode</h3>
@@ -1156,11 +1224,20 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
     <div class="body-cols">
       <p class="spine">three steps</p>
       <div>
-        <ol class="ol-steps">
-          <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
-          <li><b>Open Settings › Models</b> from the tray and download one. <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB. Nothing works until this is done.</li>
-          <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>.</li>
-        </ol>
+        <div class="start-grid">
+          <ol class="ol-steps">
+            <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
+            <li><b>Follow the first-run window.</b> It downloads a model — <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB — checks the microphone, and has you dictate a first sentence.</li>
+            <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>. For a call, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd>.</li>
+          </ol>
+
+          <figure class="shot small">
+            <img class="t-dark" src="assets/screens/welcome-dark.webp" width="960" height="630" loading="lazy"
+               alt="The first-run window: step one of three, Download a recognition model, with three model choices and their sizes">
+          <img class="t-light" src="assets/screens/welcome-light.webp" width="960" height="630" loading="lazy"
+               alt="The first-run window: step one of three, Download a recognition model, with three model choices and their sizes">
+          </figure>
+        </div>
 
         <p style="color:var(--faint);font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.04em">Or build it yourself:</p>
         <pre><span class="c"># Windows, .NET 10 SDK</span>
@@ -1189,12 +1266,12 @@ build.cmd run</pre>
     <div class="faq">
       <details open>
         <summary>Does any audio leave the machine?</summary>
-        <p>No. Recognition, voice activity detection and telling voices apart all run locally. The only request Tapybara makes is downloading a model when you ask it to, from Hugging Face. There is no telemetry and no server component.</p>
+        <p>No. Recognition, voice activity detection and telling voices apart all run locally. The only request Tapybara makes is downloading a model when you ask it to, from Hugging Face. There is no telemetry and no server component. Your dictation history and the voiceprints of people you named stay on disk here too.</p>
       </details>
 
       <details>
         <summary>Why is no model included?</summary>
-        <p>Models are hundreds of megabytes, and which one suits you depends on your hardware and the language you speak. Bundling one would enlarge the download for everybody and still be the wrong choice for many. The Models page fetches it, and resumes where it left off if the connection drops.</p>
+        <p>Models are hundreds of megabytes, and which one suits you depends on your hardware and the language you speak. Bundling one would enlarge the download for everybody and still be the wrong choice for many. The first-run window fetches one, Settings › Models has the rest, and a download resumes where it left off if the connection drops.</p>
       </details>
 
       <details>
@@ -1209,7 +1286,17 @@ build.cmd run</pre>
 
       <details>
         <summary>How well does it tell voices apart?</summary>
-        <p>Honestly: better with help than without. Naming the participants when the call ends gives the splitter the number of voices to look for, and that single hint is worth more than any threshold. Several people sharing one room and one microphone defeat every system of this kind, including this one — so the transcript records how the names were arrived at, rather than presenting a guess as a fact.</p>
+        <p>Honestly: better with help than without. Naming the participants when the call ends gives the splitter the number of voices to look for, and that single hint is worth more than any threshold. The names themselves come from you, picked by what each voice said — never from the order people joined. Several people sharing one room and one microphone defeat every system of this kind, including this one, and the panel lets you merge two voices or split again when the count came out wrong.</p>
+      </details>
+
+      <details>
+        <summary>Does it keep what I dictated?</summary>
+        <p>Yes — in a file next to the settings, so a dictation that went into the wrong window is never lost. It is plain text on your own disk. Single entries can be deleted from the Dictations page, and Settings › General switches history off if you dictate passwords.</p>
+      </details>
+
+      <details>
+        <summary>Can I move my setup to a new computer?</summary>
+        <p>The part that took months to build up, yes: Dictionary › Export saves the replacements, the prompt, the people and their voiceprints into one file, and Import on the other machine merges it in without overwriting what is already there. Hotkeys, devices and folders stay behind, because they belong to the machine.</p>
       </details>
 
       <details>
@@ -1552,6 +1639,46 @@ build.cmd run</pre>
       render(null);
     });
   }
+
+  /* =========================================================================
+     Экскурсия по окну: переключатели над одним крупным снимком.
+
+     Без скрипта переключателей нет, а снимки идут друг под другом — страница
+     остаётся целой и без JS.
+     ========================================================================= */
+
+  (function () {
+    var tour = document.getElementById("tour");
+    if (!tour) { return; }
+    var bar = tour.querySelector(".tour-tabs");
+    var tabs = Array.prototype.slice.call(bar.querySelectorAll('[role="tab"]'));
+
+    function select(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+      });
+    }
+
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { select(t); });
+      /* Стрелки — как у любого набора вкладок. */
+      t.addEventListener("keydown", function (e) {
+        var step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (!step) { return; }
+        var next = tabs[(i + step + tabs.length) % tabs.length];
+        select(next);
+        next.focus();
+        e.preventDefault();
+      });
+    });
+
+    bar.hidden = false;
+    tour.classList.add("js");
+    select(tabs[0]);
+  })();
 
   /* =========================================================================
      Переключатель темы.
