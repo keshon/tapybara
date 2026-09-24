@@ -74,7 +74,7 @@ public static class CallRepair
                     TimeSpan measured = MeasureDuration(session.MicPath);
                     if (measured > session.Duration)
                     {
-                        CallMeta.Save(session with { Duration = measured });
+                        CallMeta.Update(directory, s => s with { Duration = measured });
                     }
                 }
             }

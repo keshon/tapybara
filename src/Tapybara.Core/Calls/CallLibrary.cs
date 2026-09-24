@@ -15,6 +15,16 @@ public enum CallState
     /// <summary>Транскрипт готов.</summary>
     Ready,
 
+    /// <summary>
+    /// Транскрипт готов, но голосов несколько и не все названы.
+    /// </summary>
+    /// <remarks>
+    /// Отдельное состояние, а не пометка у «готово»: это единственное
+    /// состояние, которое ждёт от человека действия, и в списке оно обязано
+    /// выделяться.
+    /// </remarks>
+    NeedsNames,
+
     /// <summary>Звук есть, транскрипта нет.</summary>
     NotTranscribed,
 
@@ -34,6 +44,16 @@ public sealed record CallEntry
 
     /// <summary>Есть ли рядом заметка о звонке.</summary>
     public bool HasNote { get; init; }
+
+    /// <summary>
+    /// Есть ли распознанные реплики, из которых транскрипт можно пересобрать.
+    /// </summary>
+    /// <remarks>
+    /// Звонки, распознанные до появления <c>transcript.json</c>, лежат только
+    /// markdown-ом. Назвать в них голоса нельзя — голосов в markdown нет, —
+    /// и интерфейс должен честно предложить распознать заново.
+    /// </remarks>
+    public bool HasTranscriptData { get; init; }
 
     public string Directory => Session.Directory;
 
@@ -125,6 +145,7 @@ public static class CallLibrary
         long micBytes = SizeOf(session.MicPath);
         long systemBytes = SizeOf(session.SystemPath);
         bool hasTranscript = File.Exists(session.TranscriptPath);
+        bool hasData = File.Exists(session.TranscriptDataPath);
 
         // Заголовок WAV — 44 байта, и файл такого размера означает «дорожка
         // открылась и не получила ни одного сэмпла». Считать это звуком нельзя:
@@ -132,7 +153,7 @@ public static class CallLibrary
         bool hasAudio = micBytes > 1024 || systemBytes > 1024;
 
         CallState state = liveState ?? (hasTranscript
-            ? CallState.Ready
+            ? (hasData && CallSpeakers.NeedsNames(session) ? CallState.NeedsNames : CallState.Ready)
             : hasAudio ? CallState.NotTranscribed : CallState.Damaged);
 
         return new CallEntry
@@ -141,6 +162,7 @@ public static class CallLibrary
             State = state,
             AudioBytes = micBytes + systemBytes,
             HasNote = File.Exists(Path.Combine(directory, NoteFileName)),
+            HasTranscriptData = hasData,
         };
     }
 

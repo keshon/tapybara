@@ -47,6 +47,11 @@ public sealed record UiStrings
     public required string StatusCallSaved { get; init; }
     public required string NotifyCallReadyTitle { get; init; }
     public required string NotifyCallReadyBody { get; init; }
+    public required string NotifyCallNamesTitle { get; init; }
+    public required string NotifyCallNamesBody { get; init; }
+    public required string StatusTranscribingCallProgress { get; init; }
+    public required string PillTranscribingCall { get; init; }
+    public required string PillCallReady { get; init; }
     public required string NotifyCallStoppedTitle { get; init; }
     public required string CallStoppedDeviceLost { get; init; }
     public required string CallStoppedLengthLimit { get; init; }
@@ -254,6 +259,7 @@ public sealed record UiStrings
     public required string TranscriptVoicesHinted { get; init; }
     public required string TranscriptVoicesGuessed { get; init; }
     public required string TranscriptUnknownSpeaker { get; init; }
+    public required string TranscriptVoice { get; init; }
 
     // --- звонок: кто в нём был ---
     public required string ParticipantsEntryPlaceholder { get; init; }
@@ -291,6 +297,7 @@ public sealed record UiStrings
     public required string CallStateRecording { get; init; }
     public required string CallStateTranscribing { get; init; }
     public required string CallStateReady { get; init; }
+    public required string CallStateNeedsNames { get; init; }
     public required string CallStateNotTranscribed { get; init; }
     public required string CallStateDamaged { get; init; }
     public required string TranscriptBleedRemoved { get; init; }
@@ -370,6 +377,10 @@ public sealed record UiStrings
         _ => StatusTranscribingCall,
     };
 
+    /// <summary>Этап и проценты распознавания звонка — для трея.</summary>
+    public string Describe(CallTranscriptionProgress progress) =>
+        string.Format(Culture, StatusTranscribingCallProgress, Describe(progress.Stage), progress.Percent);
+
     /// <summary>Как назвать причину самостоятельной остановки записи.</summary>
     public string Describe(CallStopReason reason) => reason switch
     {
@@ -419,6 +430,7 @@ public sealed record UiStrings
         TranscriptVoicesHinted,
         TranscriptVoicesGuessed,
         TranscriptUnknownSpeaker,
+        TranscriptVoice,
         TranscriptBleedRemoved,
         TranscriptBleedByText,
         TranscriptBleedByEnergy,
@@ -451,6 +463,11 @@ public sealed record UiStrings
         StatusCallSaved = "Call saved: {0}",
         NotifyCallReadyTitle = "Transcript ready",
         NotifyCallReadyBody = "Click to open the call.",
+        NotifyCallNamesTitle = "Name the voices",
+        NotifyCallNamesBody = "Voices on the call: {0}. Click to hear each and pick names.",
+        StatusTranscribingCallProgress = "{0} {1}%",
+        PillTranscribingCall = "Transcribing the call · {0}%",
+        PillCallReady = "✓ Transcript ready",
         NotifyCallStoppedTitle = "Recording stopped",
         CallStoppedDeviceLost = "The audio device went away. What was recorded is saved.",
         CallStoppedLengthLimit = "The length limit was reached. What was recorded is saved.",
@@ -651,6 +668,7 @@ public sealed record UiStrings
         TranscriptVoicesHinted = "using the participant list",
         TranscriptVoicesGuessed = "without a participant list",
         TranscriptUnknownSpeaker = "Speaker",
+        TranscriptVoice = "Voice",
         ParticipantsEntryPlaceholder = "add / find",
         ParticipantsEntryHint = "Type a name and press Enter, or filter the ones you already use",
         ParticipantsMeHint = "You are always on the call — that is your microphone track",
@@ -684,6 +702,7 @@ public sealed record UiStrings
         CallStateRecording = "recording",
         CallStateTranscribing = "transcribing",
         CallStateReady = "ready",
+        CallStateNeedsNames = "name the voices",
         CallStateNotTranscribed = "not transcribed",
         CallStateDamaged = "no audio",
         TranscriptBleedRemoved = "Other-side speech removed from your channel",
@@ -764,6 +783,11 @@ public sealed record UiStrings
         StatusCallSaved = "Звонок сохранён: {0}",
         NotifyCallReadyTitle = "Транскрипт готов",
         NotifyCallReadyBody = "Нажмите, чтобы открыть звонок.",
+        NotifyCallNamesTitle = "Назовите голоса",
+        NotifyCallNamesBody = "Голосов на звонке: {0}. Нажмите, чтобы послушать каждый и выбрать имена.",
+        StatusTranscribingCallProgress = "{0} {1}%",
+        PillTranscribingCall = "Распознаю звонок · {0}%",
+        PillCallReady = "✓ Транскрипт готов",
         NotifyCallStoppedTitle = "Запись остановлена",
         CallStoppedDeviceLost = "Звуковое устройство пропало. Записанное сохранено.",
         CallStoppedLengthLimit = "Достигнут предел длительности. Записанное сохранено.",
@@ -964,6 +988,7 @@ public sealed record UiStrings
         TranscriptVoicesHinted = "по списку участников",
         TranscriptVoicesGuessed = "без списка участников",
         TranscriptUnknownSpeaker = "Собеседник",
+        TranscriptVoice = "Голос",
         ParticipantsEntryPlaceholder = "имя / поиск",
         ParticipantsEntryHint = "Наберите имя и нажмите Enter — или отфильтруйте тех, с кем уже говорили",
         ParticipantsMeHint = "Вы на звонке всегда — это ваша дорожка микрофона",
@@ -997,6 +1022,7 @@ public sealed record UiStrings
         CallStateRecording = "пишется",
         CallStateTranscribing = "распознаётся",
         CallStateReady = "готово",
+        CallStateNeedsNames = "назовите голоса",
         CallStateNotTranscribed = "не распознано",
         CallStateDamaged = "нет звука",
         TranscriptBleedRemoved = "Отсеяно чужой речи из своего канала",

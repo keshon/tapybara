@@ -97,6 +97,28 @@ public partial class App : Application, IDisposable
     /// <summary>Папка звонка, который распознаётся прямо сейчас.</summary>
     private string? _transcribingCallDirectory;
 
+    /// <summary>Как далеко распознавание текущего звонка — для пилюли и списка.</summary>
+    private CallTranscriptionProgress? _callProgress;
+
+    /// <summary>Отмена распознавания текущего звонка — если его удаляют на ходу.</summary>
+    private CancellationTokenSource? _callCancellation;
+
+    /// <summary>
+    /// Работа над звонками идёт по одной.
+    /// </summary>
+    /// <remarks>
+    /// Разделитель голосов не потокобезопасен, а распознавание, разделение и
+    /// перерисовка правят одни и те же файлы. Звонок, остановленный, пока
+    /// распознаётся предыдущий, просто встаёт в очередь.
+    /// </remarks>
+    private readonly SemaphoreSlim _callGate = new(1, 1);
+
+    /// <summary>Звонки, ждущие своей очереди на распознавание.</summary>
+    private readonly HashSet<string> _queuedCalls = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Откладывает возврат пилюли звонка, пока видна вспышка диктовки.</summary>
+    private DispatcherTimer? _callOverlayDelay;
+
     private readonly CallRecorder _callRecorder = new();
 
     /// <summary>Пересборка движка идёт — второй одновременный запуск запрещён.</summary>
@@ -162,6 +184,7 @@ public partial class App : Application, IDisposable
                 _ = ToggleCallRecordingAsync();
             }
         };
+        _overlay.OpenCallsRequested += () => OpenCalls(_transcribingCallDirectory);
         _overlay.Moved += (left, top) =>
             _settings.Update(s => s with { OverlayLeft = left, OverlayTop = top });
         ApplyOverlayPosition();
@@ -749,11 +772,9 @@ public partial class App : Application, IDisposable
                     _overlay.FlashAndHide(_idleNote ?? L.S.PillDone);
                 }
 
-                // Запись звонка могла идти всё это время — вернём её индикатор.
-                if (_callRecorder.IsRecording && _settings.Current.ShowOverlay)
-                {
-                    _overlay!.ShowCallRecording(_settings.Current.CallHotkey.ToString());
-                }
+                // Звонок мог писаться или распознаваться всё это время — вернём
+                // его пилюлю, но после вспышки результата, а не поверх неё.
+                ShowCallOverlaySoon();
 
                 break;
         }
@@ -905,16 +926,22 @@ public partial class App : Application, IDisposable
 
             CallSession? session = await _callRecorder.StopAsync();
             _tray!.SetRecordingCall(false);
-            _overlay!.HideNow();
+            if (_overlay!.Mode == OverlayMode.CallRecording)
+            {
+                _overlay.HideNow();
+            }
+
             UpdateElapsedTimer();
 
             if (session is not null)
             {
-                CallSession? reviewed = await ReviewCallAsync(session);
-                if (reviewed is not null)
-                {
-                    await TranscribeCallAsync(reviewed);
-                }
+                // Распознавание начинается сразу и окно не ждёт. Кто был на
+                // звонке, нужно знать только к разделению голосов, а это
+                // конец работы: к тому времени человек обычно уже ответил,
+                // а если нет — голоса разделятся без подсказки и их назовут
+                // по цитатам.
+                ReviewCall(session);
+                await TranscribeCallAsync(session);
             }
         }
         catch (Exception ex)
@@ -1048,27 +1075,21 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>
-    /// Спросить, кто был на звонке, и дождаться ответа.
+    /// Спросить, кто был на звонке, — не задерживая распознавание.
     /// </summary>
-    /// <returns>
-    /// Звонок с проставленными участниками, или <c>null</c>, если запись удалили.
-    /// </returns>
     /// <remarks>
-    /// Распознавание ждёт закрытия окна намеренно. Участники меняют то, как
-    /// собирается транскрипт: один собеседник подписывается своим именем, а не
-    /// «Them». Запустив распознавание раньше ответа, мы бы гарантированно
-    /// собрали транскрипт по устаревшим данным и заставили распознавать заново.
+    /// Раньше распознавание ждало закрытия этого окна. Окно не забирает фокус,
+    /// и его легко не заметить, — а незамеченное окно означало звонок без
+    /// транскрипта. Теперь участники пишутся в мету при каждом щелчке, и
+    /// распознавание читает их оттуда, когда до них доходит.
     /// <para>
     /// Не <c>ShowDialog</c>: модальное окно забирает фокус, а звонок часто
     /// заканчивается поверх чего-то, во что человек продолжает печатать.
-    /// Ждём закрытия через <see cref="TaskCompletionSource"/> — приложение
-    /// при этом живо, трей отвечает, можно начать следующую запись.
     /// </para>
     /// </remarks>
-    private Task<CallSession?> ReviewCallAsync(CallSession session)
+    private void ReviewCall(CallSession session)
     {
         AppSettings settings = _settings.Current;
-        var finished = new TaskCompletionSource<CallSession?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var window = new CallReviewWindow(
             session,
@@ -1080,7 +1101,6 @@ public partial class App : Application, IDisposable
             if (window.Outcome == CallReviewOutcome.Deleted)
             {
                 DeleteCall(session.Directory);
-                finished.TrySetResult(null);
                 return;
             }
 
@@ -1095,20 +1115,36 @@ public partial class App : Application, IDisposable
                 });
             }
 
-            finished.TrySetResult(session with { Participants = selected });
+            // Если распознавание уже закончилось — возможно, раньше, чем
+            // человек отметил всех, — приводим транскрипт к ответу.
+            if (!IsCallBusy(session.Directory))
+            {
+                _ = ReconcileCallAsync(session.Directory);
+            }
         };
 
         window.Show();
-        return finished.Task;
     }
+
+    /// <summary>Идёт ли или ждёт очереди работа над этим звонком.</summary>
+    private bool IsCallBusy(string directory) =>
+        _queuedCalls.Contains(directory)
+        || string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Убрать папку звонка целиком.</summary>
     /// <remarks>
     /// В корзину, а не мимо неё: «удалить» нажимают и по ошибке, а разговор
-    /// заново не случится.
+    /// заново не случится. Распознавание этого звонка, если оно идёт,
+    /// отменяется: иначе оно дописало бы файлы в папку, которой уже нет.
     /// </remarks>
     private void DeleteCall(string directory)
     {
+        _queuedCalls.Remove(directory);
+        if (string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase))
+        {
+            _callCancellation?.Cancel();
+        }
+
         try
         {
             Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
@@ -1130,29 +1166,74 @@ public partial class App : Application, IDisposable
     /// Запись уже на диске, поэтому сбой распознавания её не теряет: звонок
     /// можно будет разобрать позже, а не переживать разговор заново.
     /// </remarks>
-    private async Task TranscribeCallAsync(CallSession session)
+    private Task TranscribeCallAsync(CallSession session) =>
+        RunCallJobAsync(
+            session.Directory,
+            async (transcriber, progress, token) => await transcriber.TranscribeAsync(session, progress, token),
+            announce: true);
+
+    /// <summary>
+    /// Привести транскрипт к тому, что человек сказал об участниках.
+    /// </summary>
+    /// <remarks>
+    /// Обычно это перерисовка за миллисекунды. Разделение голосов заново —
+    /// только если отмечено несколько человек, а искали под другое число.
+    /// </remarks>
+    private Task ReconcileCallAsync(string directory) =>
+        RunCallJobAsync(
+            directory,
+            (transcriber, progress, token) => transcriber.ReconcileAsync(directory, progress, token),
+            announce: false);
+
+    /// <summary>
+    /// Одна работа над звонком: в очереди, с прогрессом на пилюле и в трее.
+    /// </summary>
+    /// <param name="directory">Папка звонка.</param>
+    /// <param name="work">Сама работа; возвращает путь к транскрипту.</param>
+    /// <param name="announce">
+    /// Сообщить уведомлением, когда готово. Для распознавания — да: оно
+    /// идёт минутами, и человек уже занят другим. Для перерисовки после
+    /// щелчка по имени — нет: он смотрит прямо на результат.
+    /// </param>
+    private async Task RunCallJobAsync(
+        string directory,
+        Func<CallTranscriber, IProgress<CallTranscriptionProgress>, CancellationToken, Task<string?>> work,
+        bool announce)
     {
-        if (_callTranscriber is not { } transcriber)
+        if (_callTranscriber is null)
         {
             _tray!.SetStatus(L.S.StatusModelStillLoading);
             return;
         }
 
-        _tray!.SetStatus(L.S.StatusTranscribingCall);
-        _tray.SetEngineBusy(true);
-        _transcribingCallDirectory = session.Directory;
+        _queuedCalls.Add(directory);
+        await _callGate.WaitAsync().ConfigureAwait(true);
+
+        // Пока ждали очереди, звонок могли удалить.
+        if (!_queuedCalls.Remove(directory) || _callTranscriber is not { } transcriber)
+        {
+            _callGate.Release();
+            return;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        _callCancellation = cancellation;
+        _transcribingCallDirectory = directory;
+        _tray!.SetCallTranscribing(true);
+
         try
         {
-            var progress = new Progress<CallTranscriptionStage>(stage =>
-                _tray.SetStatus(L.S.Describe(stage)));
+            var progress = new Progress<CallTranscriptionProgress>(OnCallProgress);
+            string? path = await work(transcriber, progress, cancellation.Token).ConfigureAwait(true);
 
-            await transcriber.TranscribeAsync(session, progress);
-            _tray.SetStatus(string.Format(
-                CultureInfo.CurrentCulture, L.S.StatusCallSaved, Path.GetFileName(session.Directory)));
-            _tray.ShowBalloon(
-                L.S.NotifyCallReadyTitle,
-                L.S.NotifyCallReadyBody,
-                onClick: () => OpenCalls(session.Directory));
+            if (path is not null && announce)
+            {
+                AnnounceCallReady(directory);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            AppLog.Info($"Работа над звонком отменена: {directory}.");
         }
         catch (Exception ex)
         {
@@ -1161,9 +1242,116 @@ public partial class App : Application, IDisposable
         }
         finally
         {
+            Volatile.Write(ref _callCancellation, null);
             _transcribingCallDirectory = null;
-            _tray.SetEngineBusy(false);
+            _callProgress = null;
+            _tray.SetCallTranscribing(false);
+            _callsWindow?.RefreshCalls();
+            _callGate.Release();
+
+            if (_overlay!.Mode == OverlayMode.CallTranscribing && _overlay.IsVisible)
+            {
+                _overlay.FlashAndHide(L.S.PillCallReady);
+            }
         }
+    }
+
+    private void OnCallProgress(CallTranscriptionProgress progress)
+    {
+        // Прогресс приходит в очередь диспетчера и может опоздать: работа уже
+        // кончилась, а сообщение о её середине ещё в пути.
+        if (_transcribingCallDirectory is null)
+        {
+            return;
+        }
+
+        _callProgress = progress;
+        _tray!.SetStatus(L.S.Describe(progress));
+        ShowCallOverlay();
+    }
+
+    /// <summary>
+    /// Сообщить, что транскрипт готов, — или что осталось назвать голоса.
+    /// </summary>
+    /// <remarks>
+    /// Щелчок по уведомлению открывает этот звонок. Прежде он открывал
+    /// журнал: уведомления не различали, о чём они.
+    /// </remarks>
+    private void AnnounceCallReady(string directory)
+    {
+        _tray!.SetStatus(string.Format(
+            CultureInfo.CurrentCulture, L.S.StatusCallSaved, Path.GetFileName(directory)));
+
+        CallSession? session = CallMeta.Load(directory);
+        if (session is not null && CallSpeakers.NeedsNames(session))
+        {
+            _tray.ShowBalloon(
+                L.S.NotifyCallNamesTitle,
+                string.Format(CultureInfo.CurrentCulture, L.S.NotifyCallNamesBody, session.Voices.Count),
+                onClick: () => OpenCalls(directory));
+            return;
+        }
+
+        _tray.ShowBalloon(
+            L.S.NotifyCallReadyTitle,
+            L.S.NotifyCallReadyBody,
+            onClick: () => OpenCalls(directory));
+    }
+
+    /// <summary>
+    /// Показать на пилюле то, что сейчас происходит со звонками.
+    /// </summary>
+    /// <remarks>
+    /// Диктовка главнее: пока она идёт, пилюля её. Среди звонков запись
+    /// главнее распознавания — идущая запись требует внимания, а распознавание
+    /// закончится само.
+    /// </remarks>
+    private void ShowCallOverlay()
+    {
+        if (!_settings.Current.ShowOverlay
+            || _controller is { State: not DictationState.Idle }
+            || _callOverlayDelay?.IsEnabled == true)
+        {
+            return;
+        }
+
+        if (_callRecorder.IsRecording)
+        {
+            if (_overlay!.Mode != OverlayMode.CallRecording || !_overlay.IsVisible)
+            {
+                _overlay.ShowCallRecording(_settings.Current.CallHotkey.ToString());
+            }
+
+            return;
+        }
+
+        if (_callProgress is { } progress)
+        {
+            _overlay!.ShowCallTranscribing(
+                string.Format(CultureInfo.CurrentCulture, L.S.PillTranscribingCall, progress.Percent));
+        }
+    }
+
+    /// <summary>Вернуть пилюлю звонка после того, как погаснет вспышка диктовки.</summary>
+    private void ShowCallOverlaySoon()
+    {
+        if (!_callRecorder.IsRecording && _callProgress is null)
+        {
+            return;
+        }
+
+        if (_callOverlayDelay is null)
+        {
+            _callOverlayDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1400) };
+            _callOverlayDelay.Tick += (_, _) =>
+            {
+                _callOverlayDelay.Stop();
+                ShowCallOverlay();
+            };
+        }
+
+        _callOverlayDelay.Stop();
+        _callOverlayDelay.Start();
     }
 
     private string CallsDirectory() => _settings.Current.CallsDirectory ?? AppPaths.DefaultCallsDirectory;
@@ -1289,7 +1477,13 @@ public partial class App : Application, IDisposable
 
     private CallsWindow CreateCallsWindow()
     {
-        var window = new CallsWindow(_settings, CallsDirectory, LiveCallState, TranscribeCallAsync);
+        var window = new CallsWindow(
+            _settings,
+            CallsDirectory,
+            LiveCallState,
+            LiveCallPercent,
+            TranscribeCallAsync,
+            ReconcileCallAsync);
         window.Closed += (_, _) => _callsWindow = null;
         _callsWindow = window;
         return window;
@@ -1306,6 +1500,11 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private CallState? LiveCallState(string directory)
     {
+        if (_queuedCalls.Contains(directory))
+        {
+            return CallState.Transcribing;
+        }
+
         if (_callRecorder.IsRecording
             && string.Equals(_callRecorder.CurrentDirectory, directory, StringComparison.OrdinalIgnoreCase))
         {
@@ -1316,6 +1515,12 @@ public partial class App : Application, IDisposable
             ? CallState.Transcribing
             : null;
     }
+
+    /// <summary>Сколько процентов распознано у звонка, если он распознаётся сейчас.</summary>
+    private int? LiveCallPercent(string directory) =>
+        string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase)
+            ? _callProgress?.Percent
+            : null;
 
     private void OpenSettings() => OpenSettings(SettingsSection.Dictation);
 
@@ -1608,6 +1813,7 @@ public partial class App : Application, IDisposable
         _settings?.Dispose();
 
         _rebuildGate.Dispose();
+        _callGate.Dispose();
 
         _instanceMutex?.Dispose();
         _instanceMutex = null;

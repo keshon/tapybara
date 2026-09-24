@@ -24,6 +24,9 @@ public sealed record CallSession
     public const string MetaFileName = "meta.json";
     public const string TranscriptFileName = "transcript.md";
 
+    /// <summary>Распознанные реплики — то, из чего собирается <see cref="TranscriptFileName"/>.</summary>
+    public const string TranscriptDataFileName = "transcript.json";
+
     public required string Directory { get; init; }
 
     public required DateTimeOffset StartedAt { get; init; }
@@ -40,6 +43,25 @@ public sealed record CallSession
     /// </remarks>
     public IReadOnlyList<string> Participants { get; init; } = [];
 
+    /// <summary>Как человек назвал звонок. Пусто — звонок называется временем начала.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>
+    /// Голоса собеседников, найденные при распознавании, в порядке появления.
+    /// </summary>
+    /// <remarks>
+    /// Копия того, что лежит в <c>transcript.json</c>. Список звонков
+    /// пересматривает папку каждые две секунды, и разбирать ради одного
+    /// признака «есть неназванные голоса» транскрипт часового звонка на
+    /// каждой записи было бы расточительно.
+    /// </remarks>
+    public IReadOnlyList<string> Voices { get; init; } = [];
+
+    /// <summary>
+    /// Имена голосов: буква голоса → имя. Даёт их человек, по цитатам.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> VoiceNames { get; init; } = new Dictionary<string, string>();
+
     [JsonIgnore]
     public string MicPath => Path.Combine(Directory, MicFileName);
 
@@ -51,6 +73,9 @@ public sealed record CallSession
 
     [JsonIgnore]
     public string TranscriptPath => Path.Combine(Directory, TranscriptFileName);
+
+    [JsonIgnore]
+    public string TranscriptDataPath => Path.Combine(Directory, TranscriptDataFileName);
 
     /// <summary>Сколько символов имени приложения помещаем в имя папки.</summary>
     private const int MaxTriggerLength = 40;
@@ -136,8 +161,51 @@ public static class CallMeta
     /// <remarks>
     /// Через временный файл и переименование: обрыв на середине оставил бы
     /// битый JSON, и звонок стал бы неопознаваемым для дальнейшей обработки.
+    /// <para>
+    /// Целиком перезаписывает то, что лежит на диске. Для правки одного поля
+    /// у существующего звонка — <see cref="Update"/>: снимок сессии в окне
+    /// мог устареть, пока распознавание дописывало в мету найденные голоса.
+    /// </para>
     /// </remarks>
     public static void Save(CallSession session)
+    {
+        lock (Gate)
+        {
+            Write(session);
+        }
+    }
+
+    /// <summary>
+    /// Прочитать мету с диска, поправить и записать под одним замком.
+    /// </summary>
+    /// <returns>Записанное, или <c>null</c>, если меты нет.</returns>
+    /// <remarks>
+    /// Мету правят несколько сторон сразу: окно после звонка (участники),
+    /// окно записей (имена голосов), распознавание в фоне (найденные голоса).
+    /// Каждая раньше писала свой снимок целиком, и последний молча стирал
+    /// правки остальных.
+    /// </remarks>
+    public static CallSession? Update(string callDirectory, Func<CallSession, CallSession> change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+
+        lock (Gate)
+        {
+            if (Load(callDirectory) is not { } current)
+            {
+                return null;
+            }
+
+            CallSession updated = change(current) with { Directory = callDirectory };
+            Write(updated);
+            return updated;
+        }
+    }
+
+    /// <summary>Одна запись меты за раз во всём приложении, см. <see cref="Update"/>.</summary>
+    private static readonly System.Threading.Lock Gate = new();
+
+    private static void Write(CallSession session)
     {
         try
         {
