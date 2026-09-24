@@ -1,19 +1,12 @@
-<ui:FluentWindow x:Class="Tapybara.App.CallsWindow"
-                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 xmlns:app="clr-namespace:Tapybara.App"
-                 Width="1200" Height="760"
-                 MinWidth="980" MinHeight="520"
-                 ResizeMode="CanResize"
-                 WindowStartupLocation="CenterScreen"
-                 ExtendsContentIntoTitleBar="True"
-                 WindowBackdropType="Mica"
-                 WindowCornerPreference="Round"
-                 FontFamily="{StaticResource AppFontFamily}"
-                 FontSize="{StaticResource AppFontSize}">
+<UserControl x:Class="Tapybara.App.CallsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:app="clr-namespace:Tapybara.App"
+             FontFamily="{StaticResource AppFontFamily}"
+             FontSize="{StaticResource AppFontSize}">
     <!--
-        Записи разговоров.
+        Звонки — страница главного окна.
 
         Три колонки: список, звонок, голоса. Главное в звонке — транскрипт,
         и он теперь внутри окна. Раньше здесь были только чипы участников и
@@ -24,7 +17,7 @@
         не расходится с реальностью после падения приложения и переживает
         правку папки руками — а папку правят, это её назначение.
     -->
-    <ui:FluentWindow.Resources>
+    <UserControl.Resources>
         <!-- Кнопка-ссылка: метка времени, имя говорящего. Без рамки и фона. -->
         <Style x:Key="FlatLinkButton" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
@@ -59,17 +52,10 @@
                 </Setter.Value>
             </Setter>
         </Style>
-    </ui:FluentWindow.Resources>
+    </UserControl.Resources>
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <ui:TitleBar Grid.Row="0" x:Name="WindowTitleBar" />
-
-        <Grid Grid.Row="1">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="300" />
                 <ColumnDefinition Width="*" MinWidth="420" />
@@ -384,4 +370,4 @@
             </Border>
         </Grid>
     </Grid>
-</ui:FluentWindow>
+</UserControl>

@@ -19,8 +19,17 @@ public enum BalloonKind
 /// Иконка в системном трее и её меню.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Используется <c>NotifyIcon</c> из WinForms: своего трея у WPF нет, и это
 /// стандартный способ. Никакой другой части WinForms приложение не использует.
+/// </para>
+/// <para>
+/// Меню — статус и действия, а не настройки. Здесь было тринадцать пунктов:
+/// выбор модели, автовставка, автозапуск и папка моделей стояли вперемешку с
+/// диктовкой и звонками. Меню трея открывают по десять раз в день, а эти
+/// настройки трогают раз в месяц; им место в окне настроек, а истории
+/// диктовок — в главном окне, где её видно целиком.
+/// </para>
 /// </remarks>
 public sealed partial class TrayIconHost : IDisposable
 {
@@ -28,15 +37,10 @@ public sealed partial class TrayIconHost : IDisposable
     private readonly ToolStripMenuItem _statusItem;
     private readonly ToolStripMenuItem _toggleItem;
     private readonly ToolStripMenuItem _cancelItem;
-    private readonly ToolStripMenuItem _historyItem;
     private readonly ToolStripMenuItem _retryHotkeyItem;
-    private readonly ToolStripMenuItem _modelsItem;
-    private readonly ToolStripMenuItem _autoPasteItem;
-    private readonly ToolStripMenuItem _autoStartItem;
+    private readonly ToolStripMenuItem _openItem;
     private readonly ToolStripMenuItem _settingsItem;
-    private readonly ToolStripMenuItem _modelsFolderItem;
     private readonly ToolStripMenuItem _recordCallItem;
-    private readonly ToolStripMenuItem _callsItem;
     private readonly ToolStripMenuItem _exitItem;
 
     private Icon _idleIcon;
@@ -73,35 +77,22 @@ public sealed partial class TrayIconHost : IDisposable
         _cancelItem = new ToolStripMenuItem { Visible = false };
         _cancelItem.Click += (_, _) => CancelRequested?.Invoke();
 
-        _historyItem = new ToolStripMenuItem();
-
         // Хоткей мог быть занят чужим процессом в момент запуска. Требовать
         // ради этого перезапуск приложения — плохо: даём переиграть на месте.
         _retryHotkeyItem = new ToolStripMenuItem { Visible = false };
         _retryHotkeyItem.Click += (_, _) => RetryHotkeyRequested?.Invoke();
 
-        _modelsItem = new ToolStripMenuItem();
-
-        // Обработчик вешаем ОТДЕЛЬНО от создания: лямбда читает состояние
-        // самого пункта, а внутри инициализатора поле ещё не присвоено.
-        // CheckOnClick не включаем: галочку ставит настройка, а не сам клик.
-        _autoPasteItem = new ToolStripMenuItem();
-        _autoPasteItem.Click += (_, _) => AutoPasteToggled?.Invoke(!_autoPasteItem.Checked);
-
-        _autoStartItem = new ToolStripMenuItem();
-        _autoStartItem.Click += (_, _) => AutoStartToggled?.Invoke(!_autoStartItem.Checked);
+        // Жирным — как пункт по умолчанию в меню Windows: то же самое
+        // делает щелчок по иконке.
+        _openItem = new ToolStripMenuItem();
+        _openItem.Font = new Font(_openItem.Font, FontStyle.Bold);
+        _openItem.Click += (_, _) => OpenRequested?.Invoke();
 
         _settingsItem = new ToolStripMenuItem();
         _settingsItem.Click += (_, _) => SettingsRequested?.Invoke();
 
-        _modelsFolderItem = new ToolStripMenuItem();
-        _modelsFolderItem.Click += (_, _) => OpenModelsFolderRequested?.Invoke();
-
         _recordCallItem = new ToolStripMenuItem();
         _recordCallItem.Click += (_, _) => RecordCallRequested?.Invoke();
-
-        _callsItem = new ToolStripMenuItem();
-        _callsItem.Click += (_, _) => CallsRequested?.Invoke();
 
         _exitItem = new ToolStripMenuItem();
         _exitItem.Click += (_, _) => ExitRequested?.Invoke();
@@ -113,18 +104,12 @@ public sealed partial class TrayIconHost : IDisposable
             new ToolStripSeparator(),
             _toggleItem,
             _cancelItem,
-            _historyItem,
-            new ToolStripSeparator(),
             _recordCallItem,
-            _callsItem,
             new ToolStripSeparator(),
-            _retryHotkeyItem,
-            _modelsItem,
-            _autoPasteItem,
-            _autoStartItem,
-            new ToolStripSeparator(),
+            _openItem,
             _settingsItem,
-            _modelsFolderItem,
+            _retryHotkeyItem,
+            new ToolStripSeparator(),
             _exitItem,
         ]);
 
@@ -163,13 +148,11 @@ public sealed partial class TrayIconHost : IDisposable
     public event Action? ToggleRequested;
     public event Action? CancelRequested;
     public event Action? ExitRequested;
-    public event Action? OpenModelsFolderRequested;
-    public event Action? CallsRequested;
     public event Action? RecordCallRequested;
     public event Action? SettingsRequested;
     public event Action? RetryHotkeyRequested;
 
-    /// <summary>Щелчок левой кнопкой по иконке.</summary>
+    /// <summary>Щелчок левой кнопкой по иконке или пункт «Открыть Tapybara».</summary>
     public event Action? OpenRequested;
 
     /// <summary>
@@ -181,23 +164,14 @@ public sealed partial class TrayIconHost : IDisposable
     /// это одного перечисления каталога.
     /// </remarks>
     public event Action? MenuOpening;
-    public event Action<bool>? AutoPasteToggled;
-    public event Action<bool>? AutoStartToggled;
-    public event Action<string>? ModelSelected;
-    public event Action<string>? HistoryItemSelected;
 
     /// <summary>Перечитать все надписи из текущего языка.</summary>
     public void ApplyLanguage()
     {
         _cancelItem.Text = L.S.TrayCancel;
-        _historyItem.Text = L.S.TrayHistory;
         _retryHotkeyItem.Text = L.S.TrayRetryHotkey;
-        _modelsItem.Text = L.S.TrayModel;
-        _autoPasteItem.Text = L.S.TrayAutoPaste;
-        _autoStartItem.Text = L.S.TrayAutoStart;
+        _openItem.Text = L.S.TrayOpen;
         _settingsItem.Text = L.S.TraySettings;
-        _modelsFolderItem.Text = L.S.TrayModelsFolder;
-        _callsItem.Text = L.S.TrayCalls;
         _exitItem.Text = L.S.TrayExit;
 
         if (string.IsNullOrEmpty(_statusItem.Text))
@@ -291,11 +265,6 @@ public sealed partial class TrayIconHost : IDisposable
 
         _toggleItem.Enabled = _state != DictationState.Transcribing && !_engineBusy;
         _cancelItem.Visible = _state is DictationState.Recording or DictationState.Transcribing;
-
-        // Меню моделей во время переключения тоже блокируем: второй выбор,
-        // пришедший поверх незавершённого первого, оставил бы настройку и
-        // реально загруженную модель разными.
-        _modelsItem.Enabled = !_engineBusy && _state == DictationState.Idle;
     }
 
     /// <summary>Строка состояния вверху меню и всплывающая подсказка иконки.</summary>
@@ -337,69 +306,9 @@ public sealed partial class TrayIconHost : IDisposable
         return flat.Length <= limit ? flat : flat[..(limit - 1)] + "…";
     }
 
-    /// <summary>Наполнить подменю последних диктовок.</summary>
-    public void SetHistory(IReadOnlyList<string> history)
-    {
-        _historyItem.DropDownItems.Clear();
-
-        if (history.Count == 0)
-        {
-            _historyItem.DropDownItems.Add(new ToolStripMenuItem(L.S.TrayHistoryEmpty) { Enabled = false });
-            _historyItem.Enabled = false;
-            return;
-        }
-
-        _historyItem.Enabled = true;
-        foreach (string text in history)
-        {
-            string captured = text;
-            _historyItem.DropDownItems.Add(new ToolStripMenuItem(
-                Shorten(text, 60),
-                null,
-                (_, _) => HistoryItemSelected?.Invoke(captured)));
-        }
-    }
-
-    public void SetAutoPaste(bool enabled) => _autoPasteItem.Checked = enabled;
-
-    public void SetAutoStart(bool enabled, bool available)
-    {
-        _autoStartItem.Checked = enabled;
-        _autoStartItem.Enabled = available;
-    }
-
     public void SetHotkeyFailed(bool failed) => _retryHotkeyItem.Visible = failed;
 
-    /// <summary>Заполнить подменю выбора модели.</summary>
-    public void SetModels(IEnumerable<string> fileNames, string selected)
-    {
-        _modelsItem.DropDownItems.Clear();
-
-        foreach (string fileName in fileNames)
-        {
-            string captured = fileName;
-            _modelsItem.DropDownItems.Add(new ToolStripMenuItem(
-                PrettyModelName(fileName),
-                null,
-                (_, _) => ModelSelected?.Invoke(captured))
-            {
-                Checked = string.Equals(fileName, selected, StringComparison.OrdinalIgnoreCase),
-            });
-        }
-
-        if (_modelsItem.DropDownItems.Count == 0)
-        {
-            _modelsItem.DropDownItems.Add(new ToolStripMenuItem(L.S.TrayNoModels) { Enabled = false });
-        }
-    }
-
     /// <summary>Всплывающее уведомление.</summary>
-    /// <remarks>
-    /// Значок — параметр, а не константа. Раньше всё показывалось с жёлтым
-    /// треугольником, включая «Транскрипт готов»: успех выглядел так же
-    /// тревожно, как отказ.
-    /// </remarks>
-    /// <summary>Показать уведомление.</summary>
     /// <param name="title">Заголовок.</param>
     /// <param name="message">Текст.</param>
     /// <param name="kind">Насколько срочно.</param>
@@ -407,6 +316,11 @@ public sealed partial class TrayIconHost : IDisposable
     /// Что открыть по щелчку. <c>null</c> — щелчок просто закрывает
     /// уведомление: лучше ничего, чем место, не связанное с тем, о чём оно.
     /// </param>
+    /// <remarks>
+    /// Значок — параметр, а не константа. Раньше всё показывалось с жёлтым
+    /// треугольником, включая «Транскрипт готов»: успех выглядел так же
+    /// тревожно, как отказ.
+    /// </remarks>
     public void ShowBalloon(
         string title,
         string message,
@@ -421,12 +335,6 @@ public sealed partial class TrayIconHost : IDisposable
             kind == BalloonKind.Warning ? ToolTipIcon.Warning : ToolTipIcon.Info);
     }
 
-    /// <summary>«ggml-large-v3-turbo-q5_0.bin» → «large-v3-turbo-q5_0».</summary>
-    private static string PrettyModelName(string fileName)
-    {
-        string name = Path.GetFileNameWithoutExtension(fileName);
-        return name.StartsWith("ggml-", StringComparison.OrdinalIgnoreCase) ? name[5..] : name;
-    }
 
     /// <summary>
     /// Иконки состояний под текущую тему панели задач.

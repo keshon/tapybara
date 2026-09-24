@@ -1,54 +1,58 @@
-﻿using System.Globalization;
-using System.IO;
+using System.Globalization;
 using System.Windows;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Tapybara.App.Localization;
 using Tapybara.Core.Calls;
-using Tapybara.Core.Diagnostics;
 using Wpf.Ui.Controls;
+
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace Tapybara.App;
 
-/// <summary>Чем закончилось окно разбора звонка.</summary>
+/// <summary>Чем закончилась карточка звонка.</summary>
 public enum CallReviewOutcome
 {
-    /// <summary>Окно закрыли; участники и заметка сохранены.</summary>
+    /// <summary>Карточку закрыли; название и участники сохранены.</summary>
     Closed,
 
     /// <summary>Запись не нужна — удалить папку целиком.</summary>
     Deleted,
+
+    /// <summary>Открыть звонок в окне Tapybara.</summary>
+    Opened,
 }
 
 /// <summary>
-/// «Кто был на звонке?» — окно, которое превращает «Them» в имена.
+/// Карточка после звонка: как назвать и кто был — пока идёт распознавание.
 /// </summary>
 /// <remarks>
-/// Один собеседник — его именем подписывается весь чужой канал, и никакого
-/// разделения голосов не требуется вовсе. Несколько — имена становятся
-/// подсказкой: разделителю голосов заранее известно, сколько их искать, а это
-/// самый сильный рычаг точности, какой у такой задачи бывает.
 /// <para>
-/// Всё сохраняется при ЛЮБОМ закрытии — кнопкой, крестиком, Escape. Здесь
-/// была пара «Позже» / «Сохранить», и «Позже» не откладывало ничего:
-/// распознавание всё равно начиналось сразу, просто без заметки. Две кнопки,
-/// которые отличаются только тем, теряют ли набранный текст, — это ловушка,
-/// а не выбор.
+/// Один собеседник — его именем подписывается весь чужой канал, и никакого
+/// разделения голосов не требуется вовсе. Несколько — это подсказка, сколько
+/// голосов искать: самый сильный рычаг точности, какой у такой задачи бывает.
+/// Кто из отмеченных какой голос — решает человек потом, по цитатам.
+/// </para>
+/// <para>
+/// Всё сохраняется сразу и при любом закрытии. Раньше здесь была пара
+/// «Позже» / «Сохранить», и «Позже» не откладывало ничего: распознавание
+/// всё равно начиналось, просто без заметки.
 /// </para>
 /// </remarks>
 public partial class CallReviewWindow : FluentWindow
 {
-    private readonly CallSession _session;
-    private readonly string _otherSideLabel;
+    /// <summary>Отступ карточки от края рабочей области — как у уведомлений Windows.</summary>
+    private const double EdgeMargin = 12;
 
-    public CallReviewWindow(
-        CallSession session,
-        string myName,
-        string otherSideLabel,
-        IReadOnlyList<string> known)
+    private readonly CallSession _session;
+
+    public CallReviewWindow(CallSession session, string myName, IReadOnlyList<string> known)
     {
         InitializeComponent();
 
         _session = session;
-        _otherSideLabel = otherSideLabel;
 
         Participants.Load(myName, known, session.Participants);
         Participants.SelectionChanged += () =>
@@ -57,13 +61,16 @@ public partial class CallReviewWindow : FluentWindow
 
             // Сразу на диск, а не при закрытии: распознавание уже идёт и
             // прочитает участников из меты, когда дойдёт до разделения
-            // голосов. Окно к тому времени может быть ещё открыто.
+            // голосов. Карточка к тому времени может быть ещё открыта.
             SaveParticipants();
         };
 
-        NoteBox.Text = ReadNote(session.Directory);
+        TitleBox.Text = session.Title ?? string.Empty;
 
         ApplyLanguage();
+        SetWaiting();
+
+        Loaded += (_, _) => PlaceNearTray();
         Closing += (_, _) => Persist();
     }
 
@@ -73,34 +80,78 @@ public partial class CallReviewWindow : FluentWindow
     /// <summary>Отмеченные участники на момент закрытия.</summary>
     public IReadOnlyList<string> SelectedParticipants { get; private set; } = [];
 
+    /// <summary>Папка звонка, о котором карточка.</summary>
+    public string CallDirectory => _session.Directory;
+
     /// <summary>Подставить надписи текущего языка.</summary>
     public void ApplyLanguage()
     {
-        string title = Describe(_session);
-
         Title = L.S.CallReviewTitle;
-        WindowTitleBar.Title = L.S.CallReviewTitle;
-        HeadingText.Text = L.S.CallReviewHeading;
-        SubheadingText.Text = title;
-        ParticipantsLabel.Text = L.S.CallReviewParticipants;
-        NoteLabel.Text = L.S.CallReviewNote;
-        NoteBox.PlaceholderText = L.S.CallReviewNotePlaceholder;
-        DeleteButton.Content = L.S.CallReviewDelete;
-        SaveButton.Content = L.S.CallReviewSave;
+        WindowTitleBar.Title = "Tapybara";
+        HeadingText.Text = string.Format(CultureInfo.CurrentCulture, L.S.CardHeading, L.S.Duration(_session.Duration));
+        SubheadingText.Text = Describe(_session);
+        TitleLabel.Text = L.S.CardTitleField;
+        TitleBox.PlaceholderText = L.S.CardTitlePlaceholder;
+        ParticipantsLabel.Text = L.S.CardWho;
+        OpenButton.Content = L.S.CardOpenCall;
+        DoneButton.Content = L.S.CallReviewSave;
+        MoreButton.ToolTip = L.S.CallsMore;
 
         Participants.ApplyLanguage();
         UpdateHint();
+    }
+
+    /// <summary>Звонок ждёт, пока распознается предыдущий.</summary>
+    public void SetWaiting()
+    {
+        ProgressText.Text = L.S.CardWaiting;
+        PercentText.Text = string.Empty;
+        Progress.IsIndeterminate = true;
+    }
+
+    /// <summary>Как идёт распознавание этого звонка.</summary>
+    public void SetProgress(CallTranscriptionProgress progress)
+    {
+        Progress.IsIndeterminate = false;
+        Progress.Value = progress.Percent;
+        ProgressText.Text = L.S.Describe(progress.Stage);
+        PercentText.Text = $"{progress.Percent.ToString(CultureInfo.CurrentCulture)}%";
+    }
+
+    /// <summary>Распознавание закончилось.</summary>
+    /// <param name="needsNames">Нашлось несколько голосов без имён.</param>
+    public void SetFinished(bool needsNames)
+    {
+        Progress.IsIndeterminate = false;
+        Progress.Value = 100;
+        ProgressText.Text = needsNames ? L.S.CardNeedsNames : L.S.CardReady;
+        PercentText.Text = string.Empty;
+
+        // Теперь главное действие — открыть звонок: там транскрипт и голоса.
+        OpenButton.Appearance = ControlAppearance.Primary;
+        DoneButton.Appearance = ControlAppearance.Secondary;
     }
 
     /// <summary>Подпись звонка: когда и откуда.</summary>
     private static string Describe(CallSession session)
     {
         string when = session.StartedAt.ToString("d MMMM, HH:mm", CultureInfo.CurrentCulture);
-        string length = L.S.Duration(session.Duration);
+        return string.IsNullOrWhiteSpace(session.Trigger) ? when : $"{when} · {session.Trigger}";
+    }
 
-        return string.IsNullOrWhiteSpace(session.Trigger)
-            ? $"{when} · {length}"
-            : $"{when} · {length} · {session.Trigger}";
+    /// <summary>
+    /// Поставить карточку в угол у трея.
+    /// </summary>
+    /// <remarks>
+    /// Там, где Windows показывает уведомления, — то есть там, куда глаз
+    /// смотрит после «записано». Раньше окно вставало посреди экрана, поверх
+    /// того, чем человек был занят.
+    /// </remarks>
+    private void PlaceNearTray()
+    {
+        Rect area = SystemParameters.WorkArea;
+        Left = area.Right - ActualWidth - EdgeMargin;
+        Top = area.Bottom - ActualHeight - EdgeMargin;
     }
 
     /// <summary>
@@ -108,20 +159,57 @@ public partial class CallReviewWindow : FluentWindow
     /// </summary>
     /// <remarks>
     /// «Отметьте участников» ничего не сообщает: и так видно, что это чипы.
-    /// А вот что один собеседник распознается быстрее, чем трое, — знание,
-    /// из-за которого человек и правда отметит имена.
+    /// А вот что один собеседник подпишется сразу, а несколько — назовутся
+    /// по цитатам, — знание, из-за которого человек и правда отметит имена.
     /// </remarks>
     private void UpdateHint() =>
         ParticipantsHint.Text = Participants.Selected.Count switch
         {
-            0 => string.Format(CultureInfo.CurrentCulture, L.S.CallReviewHintNone, _otherSideLabel),
+            0 => L.S.CardHintNone,
             1 => L.S.CallReviewHintOne,
-            _ => string.Format(CultureInfo.CurrentCulture, L.S.CallReviewHintMany, Participants.Selected.Count),
+            _ => string.Format(CultureInfo.CurrentCulture, L.S.CardHintMany, Participants.Selected.Count),
         };
 
-    private void OnSaveClick(object sender, RoutedEventArgs e) => Close();
+    private void OnTitleKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            SaveTitle();
+            Participants.Focus();
+        }
+    }
 
-    private void OnDeleteClick(object sender, RoutedEventArgs e)
+    private void OnDoneClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnOpenClick(object sender, RoutedEventArgs e)
+    {
+        Outcome = CallReviewOutcome.Opened;
+        Close();
+    }
+
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = MoreButton, Placement = PlacementMode.Top };
+        var delete = new MenuItem
+        {
+            Header = L.S.CallReviewDelete,
+            Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
+        };
+        delete.Click += (_, _) => AskDelete();
+        menu.Items.Add(delete);
+        menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Удалить запись — из меню «⋯», а не кнопкой на виду.
+    /// </summary>
+    /// <remarks>
+    /// Раньше «Удалить запись» стояла первой кнопкой в окне, которое
+    /// выскакивает сразу после разговора. Разговор заново не случится, а
+    /// промахнуться мимо «Готово» легко.
+    /// </remarks>
+    private void AskDelete()
     {
         ConfirmChoice choice = ConfirmWindow.Ask(this, new ConfirmWindow(
             L.S.CallDeleteTitle,
@@ -157,7 +245,7 @@ public partial class CallReviewWindow : FluentWindow
 
         Participants.Flush();
         SaveParticipants();
-        WriteNote(_session.Directory, NoteBox.Text);
+        SaveTitle();
     }
 
     private void SaveParticipants()
@@ -167,43 +255,10 @@ public partial class CallReviewWindow : FluentWindow
         CallMeta.Update(_session.Directory, s => s with { Participants = selected });
     }
 
-    private static string ReadNote(string directory)
+    private void SaveTitle()
     {
-        string path = Path.Combine(directory, CallLibrary.NoteFileName);
-        try
-        {
-            return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return string.Empty;
-        }
-    }
-
-    private static void WriteNote(string directory, string text)
-    {
-        string path = Path.Combine(directory, CallLibrary.NoteFileName);
-        try
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                // Пустая заметка — это отсутствие заметки, а не файл из одного
-                // перевода строки. Иначе список звонков показывал бы значок
-                // заметки там, где читать нечего.
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-
-                return;
-            }
-
-            Directory.CreateDirectory(directory);
-            File.WriteAllText(path, text.Trim() + Environment.NewLine);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            AppLog.Error("Не удалось сохранить заметку о звонке.", ex);
-        }
+        string text = TitleBox.Text.Trim();
+        string? title = text.Length == 0 ? null : text;
+        CallMeta.Update(_session.Directory, s => s.Title == title ? s : s with { Title = title });
     }
 }

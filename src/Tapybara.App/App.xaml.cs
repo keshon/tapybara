@@ -92,7 +92,14 @@ public partial class App : Application, IDisposable
 
     /// <summary>Окно настроек. Оно одно: второе рассинхронизировалось бы с первым.</summary>
     private SettingsWindow? _settingsWindow;
-    private CallsWindow? _callsWindow;
+    /// <summary>Главное окно: диктовки, звонки, словарь. Одно на приложение.</summary>
+    private MainWindow? _mainWindow;
+
+    /// <summary>История диктовок на диске.</summary>
+    private DictationJournal _journal = null!;
+
+    /// <summary>Открытые карточки «звонок записан» — по папке звонка.</summary>
+    private readonly Dictionary<string, CallReviewWindow> _reviewCards = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Папка звонка, который распознаётся прямо сейчас.</summary>
     private string? _transcribingCallDirectory;
@@ -192,12 +199,7 @@ public partial class App : Application, IDisposable
         _tray = new TrayIconHost();
         _tray.ToggleRequested += () => _ = ToggleAsync();
         _tray.CancelRequested += () => _ = CancelAsync();
-        _tray.HistoryItemSelected += CopyText;
         _tray.ExitRequested += Shutdown;
-        _tray.OpenModelsFolderRequested += OpenModelsFolder;
-        _tray.AutoPasteToggled += enabled => _settings.Update(s => s with { AutoPaste = enabled });
-        _tray.AutoStartToggled += OnAutoStartToggled;
-        _tray.ModelSelected += fileName => _settings.Update(s => s with { ModelFileName = fileName });
         _tray.RetryHotkeyRequested += () =>
         {
             StartHotkey();
@@ -205,9 +207,7 @@ public partial class App : Application, IDisposable
         };
         _tray.SettingsRequested += OpenSettings;
         _tray.RecordCallRequested += () => _ = ToggleCallRecordingAsync();
-        _tray.CallsRequested += OpenCalls;
-        _tray.OpenRequested += OpenCalls;
-        _tray.MenuOpening += RefreshTrayFromSettings;
+        _tray.OpenRequested += () => OpenMain();
 
         _callRecorder.Stopped += (reason, detail) => OnUi(() => OnCallStoppedItself(reason, detail));
 
@@ -225,7 +225,8 @@ public partial class App : Application, IDisposable
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _elapsedTimer.Tick += (_, _) => OnElapsedTick();
 
-        RefreshTrayFromSettings();
+        _journal = new DictationJournal(AppPaths.DictationsPath);
+
         StartHotkey();
         StartCallHotkey();
 
@@ -246,7 +247,11 @@ public partial class App : Application, IDisposable
 
         if (e.Args.Any(a => string.Equals(a, "--calls", StringComparison.OrdinalIgnoreCase)))
         {
-            OpenCalls();
+            OpenMain(MainPage.Calls);
+        }
+        else if (e.Args.Any(a => string.Equals(a, "--open", StringComparison.OrdinalIgnoreCase)))
+        {
+            OpenMain();
         }
     }
 
@@ -384,7 +389,6 @@ public partial class App : Application, IDisposable
             _ = RebuildEngineAsync();
         }
 
-        RefreshTrayFromSettings();
         return null;
     }
 
@@ -477,8 +481,15 @@ public partial class App : Application, IDisposable
         }
     }
 
-    private void ShowAlreadyRunning() =>
-        _tray?.ShowBalloon(L.S.NotifyAlreadyRunningTitle, L.S.NotifyAlreadyRunningBody, onClick: OpenCalls);
+    /// <summary>
+    /// Программу запустили второй раз — показать окно.
+    /// </summary>
+    /// <remarks>
+    /// Раньше второй запуск показывал уведомление «уже запущена, она в
+    /// трее». Человек, дважды щёлкнувший по ярлыку, хотел открыть программу, а
+    /// не узнать, где она прячется.
+    /// </remarks>
+    private void ShowAlreadyRunning() => OpenMain();
 
     // --- сборка движка -----------------------------------------------------
 
@@ -787,10 +798,16 @@ public partial class App : Application, IDisposable
 
     private void OnTextReady(string text)
     {
-        _tray!.SetHistory(_controller?.History ?? []);
         _resultFlashed = true;
 
         AppSettings settings = _settings.Current;
+
+        // В историю — до вставки: если вставка упадёт, текст всё равно
+        // сохранится, а ради этого история и заведена.
+        if (settings.KeepDictationHistory)
+        {
+            _journal.Append(new DictationEntry(DateTimeOffset.Now, text));
+        }
 
         try
         {
@@ -805,7 +822,7 @@ public partial class App : Application, IDisposable
                 _overlay!.FlashAndHide(L.S.PillClipboardOnly);
             }
 
-            _tray.SetStatus(DescribeResult(text, settings));
+            _tray!.SetStatus(DescribeResult(text, settings));
         }
         catch (Exception ex)
         {
@@ -813,7 +830,7 @@ public partial class App : Application, IDisposable
             // администратора. Пользователь не должен потерять надиктованное.
             AppLog.Warn("Вставка не удалась — текст остался в буфере.", ex);
             _overlay!.FlashAndHide(L.S.PillInsertedViaClipboard);
-            _tray.SetStatus(ex.Message);
+            _tray!.SetStatus(ex.Message);
         }
     }
 
@@ -835,20 +852,6 @@ public partial class App : Application, IDisposable
 
         int words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
         return string.Format(CultureInfo.CurrentCulture, L.S.StatusTextReady, words);
-    }
-
-    private void CopyText(string text)
-    {
-        try
-        {
-            ClipboardWriter.SetText(text, _settings.Current.ExcludeFromClipboardHistory);
-            _tray!.SetStatus(L.S.StatusCopied);
-        }
-        catch (Exception ex)
-        {
-            AppLog.Warn("Не удалось записать в буфер обмена.", ex);
-            _tray!.SetStatus(ex.Message);
-        }
     }
 
     /// <summary>
@@ -1001,7 +1004,7 @@ public partial class App : Application, IDisposable
             L.S.NotifyCallStoppedTitle,
             detail is null ? message : $"{message} {detail}",
             BalloonKind.Warning,
-            OpenCalls);
+            () => OpenMain(MainPage.Calls));
     }
 
     /// <summary>
@@ -1096,17 +1099,22 @@ public partial class App : Application, IDisposable
     {
         AppSettings settings = _settings.Current;
 
-        var window = new CallReviewWindow(
-            session,
-            settings.EffectiveMyName,
-            CallsWindow.OtherSideLabel(settings),
-            settings.KnownParticipants);
+        var window = new CallReviewWindow(session, settings.EffectiveMyName, settings.KnownParticipants);
+        _reviewCards[session.Directory] = window;
+
         window.Closed += (_, _) =>
         {
+            _reviewCards.Remove(session.Directory);
+
             if (window.Outcome == CallReviewOutcome.Deleted)
             {
                 DeleteCall(session.Directory);
                 return;
+            }
+
+            if (window.Outcome == CallReviewOutcome.Opened)
+            {
+                OpenCalls(session.Directory);
             }
 
             // Отмеченные имена поднимаются в начало списка знакомых: на
@@ -1251,7 +1259,7 @@ public partial class App : Application, IDisposable
             _transcribingCallDirectory = null;
             _callProgress = null;
             _tray.SetCallTranscribing(false);
-            _callsWindow?.RefreshCalls();
+            _mainWindow?.RefreshCalls();
             _callGate.Release();
 
             if (_overlay!.Mode == OverlayMode.CallTranscribing && _overlay.IsVisible)
@@ -1272,6 +1280,12 @@ public partial class App : Application, IDisposable
 
         _callProgress = progress;
         _tray!.SetStatus(L.S.Describe(progress));
+
+        if (_reviewCards.TryGetValue(_transcribingCallDirectory, out CallReviewWindow? card))
+        {
+            card.SetProgress(progress);
+        }
+
         ShowCallOverlay();
     }
 
@@ -1288,7 +1302,17 @@ public partial class App : Application, IDisposable
             CultureInfo.CurrentCulture, L.S.StatusCallSaved, Path.GetFileName(directory)));
 
         CallSession? session = CallMeta.Load(directory);
-        if (session is not null && CallSpeakers.NeedsNames(session))
+        bool needsNames = session is not null && CallSpeakers.NeedsNames(session);
+
+        // Карточка звонка ещё открыта — сообщаем в ней, а не уведомлением
+        // поверх: человек и так смотрит на этот звонок.
+        if (_reviewCards.TryGetValue(directory, out CallReviewWindow? card))
+        {
+            card.SetFinished(needsNames);
+            return;
+        }
+
+        if (session is not null && needsNames)
         {
             _tray.ShowBalloon(
                 L.S.NotifyCallNamesTitle,
@@ -1361,43 +1385,6 @@ public partial class App : Application, IDisposable
 
     private string CallsDirectory() => _settings.Current.CallsDirectory ?? AppPaths.DefaultCallsDirectory;
 
-    private void OpenModelsFolder() => OpenFolder(
-        ModelLocator.FindModelsDirectory(_settings.Current.ModelsDirectory) ?? AppPaths.DefaultModelsDirectory);
-
-    /// <summary>
-    /// Открыть папку в проводнике.
-    /// </summary>
-    /// <remarks>
-    /// Путь приходит из settings.json, то есть из файла, который пользователь
-    /// правит руками. Проверяем, что это действительно путь к папке: запуск
-    /// оболочкой чего угодно из настроечного файла — не то поведение, которое
-    /// стоит оставлять без присмотра.
-    /// </remarks>
-    private void OpenFolder(string directory)
-    {
-        try
-        {
-            if (!Path.IsPathFullyQualified(directory))
-            {
-                AppLog.Warn($"Отказ открыть «{directory}»: это не полный путь к папке.");
-                return;
-            }
-
-            Directory.CreateDirectory(directory);
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = $"\"{directory}\"",
-                UseShellExecute = false,
-            });
-        }
-        catch (Exception ex) when (ex is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            AppLog.Warn($"Не удалось открыть папку {directory}.", ex);
-            _tray?.SetStatus(ex.Message);
-        }
-    }
-
     // --- таймер и оверлей ---------------------------------------------------
 
     private void OnElapsedTick()
@@ -1453,14 +1440,24 @@ public partial class App : Application, IDisposable
 
     // --- окно настроек -----------------------------------------------------
 
-    /// <summary>Показать список записанных разговоров.</summary>
-    private void OpenCalls() => OpenCalls(select: null);
-
-    /// <summary>Показать список записанных разговоров и выбрать в нём звонок.</summary>
+    /// <summary>Показать раздел звонков и выбрать в нём звонок.</summary>
     /// <param name="select">Папка звонка, или <c>null</c> — оставить выбор как есть.</param>
     private void OpenCalls(string? select)
     {
-        CallsWindow window = _callsWindow ?? CreateCallsWindow();
+        MainWindow window = OpenMain(MainPage.Calls);
+        if (select is not null)
+        {
+            window.SelectCall(select);
+        }
+    }
+
+    /// <summary>
+    /// Показать главное окно.
+    /// </summary>
+    /// <param name="page">Какой раздел открыть; <c>null</c> — тот, что был открыт.</param>
+    private MainWindow OpenMain(MainPage? page = null)
+    {
+        MainWindow window = _mainWindow ?? CreateMainWindow();
 
         if (!window.IsVisible)
         {
@@ -1474,15 +1471,18 @@ public partial class App : Application, IDisposable
 
         window.Activate();
 
-        if (select is not null)
+        if (page is { } wanted)
         {
-            window.Select(select);
+            window.Show(wanted);
         }
+
+        return window;
     }
 
-    private CallsWindow CreateCallsWindow()
+    private MainWindow CreateMainWindow()
     {
-        var window = new CallsWindow(new CallsServices(
+        var window = new MainWindow(
+            new CallsServices(
             _settings,
             CallsDirectory,
             LiveCallState,
@@ -1493,9 +1493,12 @@ public partial class App : Application, IDisposable
             RenderCall,
             DeleteCall,
             () => _ = ToggleCallRecordingAsync(),
-            CanSplitVoices));
-        window.Closed += (_, _) => _callsWindow = null;
-        _callsWindow = window;
+            CanSplitVoices),
+            _journal,
+            () => OpenSettings(SettingsSection.General));
+
+        window.Closed += (_, _) => _mainWindow = null;
+        _mainWindow = window;
         return window;
     }
 
@@ -1549,7 +1552,7 @@ public partial class App : Application, IDisposable
             CallTranscriptRenderer.Write(
                 directory,
                 settings.EffectiveMyName,
-                CallsWindow.OtherSideLabel(settings),
+                CallsPage.OtherSideLabel(settings),
                 L.S.TranscriptLabels);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1573,7 +1576,7 @@ public partial class App : Application, IDisposable
             ? _callProgress?.Percent
             : null;
 
-    private void OpenSettings() => OpenSettings(SettingsSection.Dictation);
+    private void OpenSettings() => OpenSettings(SettingsSection.General);
 
     private void OpenSettings(SettingsSection section)
     {
@@ -1584,7 +1587,7 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync);
+        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync, _journal);
         window.HotkeyCaptureChanged += OnHotkeyCaptureChanged;
         window.ModelsChanged += OnModelsChanged;
         window.Closed += (_, _) => _settingsWindow = null;
@@ -1609,7 +1612,12 @@ public partial class App : Application, IDisposable
             L.Use(change.Current.UiLanguage);
             _tray!.ApplyLanguage();
             _settingsWindow?.ApplyLanguage();
-            _callsWindow?.ApplyLanguage();
+            _mainWindow?.ApplyLanguage();
+
+            foreach (CallReviewWindow card in _reviewCards.Values)
+            {
+                card.ApplyLanguage();
+            }
         }
 
         if (change.AffectsTheme)
@@ -1641,7 +1649,6 @@ public partial class App : Application, IDisposable
             StartModelsWatcher();
         }
 
-        RefreshTrayFromSettings();
 
         if (change.AffectsEngine)
         {
@@ -1660,7 +1667,6 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private void OnModelsChanged()
     {
-        RefreshTrayFromSettings();
         _settingsWindow?.RefreshFromDisk();
 
         AppSettings settings = _settings.Current;
@@ -1737,25 +1743,6 @@ public partial class App : Application, IDisposable
             AppLog.Warn("Не удалось перечислить модели.", ex);
             return [];
         }
-    }
-
-    private void OnAutoStartToggled(bool enabled)
-    {
-        if (!AutoStart.SetEnabled(enabled))
-        {
-            _tray!.SetStatus(L.S.FieldAutoStartUnavailable);
-        }
-
-        RefreshTrayFromSettings();
-    }
-
-    private void RefreshTrayFromSettings()
-    {
-        AppSettings settings = _settings.Current;
-        _tray!.SetModels(AvailableModels(), settings.ModelFileName);
-        _tray.SetAutoPaste(settings.AutoPaste);
-        _tray.SetAutoStart(AutoStart.IsEnabled, AutoStart.IsAvailable);
-        _tray.SetHistory(_controller?.History ?? []);
     }
 
     // --- служебное ---------------------------------------------------------

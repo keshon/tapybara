@@ -104,6 +104,9 @@ public static class AppPaths
 
     public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
+    /// <summary>История диктовок — рядом с настройками, чтобы портативный режим увозил и её.</summary>
+    public static string DictationsPath => Path.Combine(DataDirectory, "dictations.jsonl");
+
     /// <summary>
     /// Папка со звонками по умолчанию.
     /// </summary>

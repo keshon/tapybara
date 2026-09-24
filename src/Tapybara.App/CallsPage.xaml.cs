@@ -33,7 +33,7 @@ using VerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace Tapybara.App;
 
-/// <summary>Что окну звонков нужно от приложения.</summary>
+/// <summary>Что странице звонков нужно от приложения.</summary>
 /// <param name="Settings">Настройки: имя владельца, знакомые имена, словарь замен.</param>
 /// <param name="CallsDirectory">Где лежат звонки.</param>
 /// <param name="LiveState">Что приложение прямо сейчас делает со звонком.</param>
@@ -182,7 +182,7 @@ internal static class VoicePalette
 /// появления — то есть угадывала.
 /// </para>
 /// </remarks>
-public partial class CallsWindow : FluentWindow, IDisposable
+public partial class CallsPage : System.Windows.Controls.UserControl, IDisposable
 {
     /// <summary>
     /// Как часто пересматриваем папку, пока окно открыто.
@@ -230,7 +230,10 @@ public partial class CallsWindow : FluentWindow, IDisposable
 
     private bool _loading;
 
-    public CallsWindow(CallsServices services)
+    /// <summary>Есть ли звонок, ждущий имён, — по последнему просмотру папки.</summary>
+    private bool _attention;
+
+    public CallsPage(CallsServices services)
     {
         InitializeComponent();
 
@@ -251,9 +254,11 @@ public partial class CallsWindow : FluentWindow, IDisposable
         _playbackTimer.Tick += (_, _) => FollowPlayback();
         _player.Stopped += OnPlayerStopped;
 
+        // Страница живёт, пока живёт окно, но на экране — только когда
+        // выбрана. Пересматривать папку, пока её не видно, незачем.
         Loaded += (_, _) =>
         {
-            Reload(keepSelection: false);
+            Reload(keepSelection: true);
 
             // Открыли окно — показываем последний звонок, а не пустую панель
             // «выберите запись слева»: чаще всего нужен именно он.
@@ -265,13 +270,11 @@ public partial class CallsWindow : FluentWindow, IDisposable
             _refresh.Start();
         };
 
-        Closing += (_, _) =>
+        Unloaded += (_, _) =>
         {
             _refresh.Stop();
-            _playbackTimer.Stop();
             SaveNote();
             SaveTitle();
-            Dispose();
         };
 
         ApplyLanguage();
@@ -279,9 +282,13 @@ public partial class CallsWindow : FluentWindow, IDisposable
 
     private AppSettings Settings => _services.Settings.Current;
 
-    /// <summary>Отпустить устройство вывода и открытые дорожки. Зовётся при закрытии окна.</summary>
+    /// <summary>Дописать правки и отпустить устройство вывода. Зовётся при закрытии окна.</summary>
     public void Dispose()
     {
+        _refresh.Stop();
+        _playbackTimer.Stop();
+        SaveNote();
+        SaveTitle();
         _player.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -289,8 +296,6 @@ public partial class CallsWindow : FluentWindow, IDisposable
     /// <summary>Подставить надписи текущего языка.</summary>
     public void ApplyLanguage()
     {
-        Title = L.S.CallsTitle;
-        WindowTitleBar.Title = L.S.CallsTitle;
         ListTitle.Text = L.S.SectionCalls;
         SearchBox.PlaceholderText = L.S.CallsSearchPlaceholder;
         EmptyHint.Text = L.S.CallsEmpty;
@@ -308,6 +313,19 @@ public partial class CallsWindow : FluentWindow, IDisposable
         Reload(keepSelection: true);
         ShowDetail(_current, force: true);
     }
+
+    /// <summary>
+    /// Появился или пропал звонок, ждущий имён голосов.
+    /// </summary>
+    /// <remarks>
+    /// Главное окно ставит по нему точку на значке раздела: это единственное
+    /// состояние звонка, которое ждёт от человека действия, и узнать о нём
+    /// надо, не заходя в раздел.
+    /// </remarks>
+    public event Action<bool>? AttentionChanged;
+
+    /// <summary>Есть ли сейчас звонок, ждущий имён.</summary>
+    public bool NeedsAttention => _attention;
 
     /// <summary>Перечитать список: работа над звонком закончилась.</summary>
     public void RefreshCalls() => Reload(keepSelection: true);
@@ -358,6 +376,13 @@ public partial class CallsWindow : FluentWindow, IDisposable
             {
                 _loading = false;
             }
+        }
+
+        bool attention = entries.Any(e => e.State == CallState.NeedsNames);
+        if (attention != _attention)
+        {
+            _attention = attention;
+            AttentionChanged?.Invoke(attention);
         }
 
         EmptyHint.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -1160,7 +1185,11 @@ public partial class CallsWindow : FluentWindow, IDisposable
                 Padding = new Thickness(10, 3, 10, 3),
                 FontSize = 12.5,
             };
-            chip.Click += (_, _) => pick(selected ? null : name);
+            // Checked/Unchecked, а не Click: щелчок — лишь один из способов
+            // переключить чип. Экранный диктор и UI Automation переключают
+            // его через TogglePattern, и Click при этом не приходит вовсе.
+            chip.Checked += (_, _) => pick(name);
+            chip.Unchecked += (_, _) => pick(null);
             chips.Children.Add(chip);
         }
 
@@ -1173,7 +1202,7 @@ public partial class CallsWindow : FluentWindow, IDisposable
             Opacity = 0.8,
         };
 
-        other.Click += (_, _) =>
+        other.Checked += (_, _) =>
         {
             int at = chips.Children.IndexOf(other);
             chips.Children.Remove(other);
@@ -1538,7 +1567,7 @@ public partial class CallsWindow : FluentWindow, IDisposable
         dialog.AddContent(Labeled(L.S.ReplacementCorrect, correctBox));
         dialog.Loaded += (_, _) => (heard.Length == 0 ? heardBox : correctBox).Focus();
 
-        if (ConfirmWindow.Ask(this, dialog) != ConfirmChoice.Primary)
+        if (ConfirmWindow.Ask(Window.GetWindow(this), dialog) != ConfirmChoice.Primary)
         {
             return;
         }
@@ -1784,7 +1813,7 @@ public partial class CallsWindow : FluentWindow, IDisposable
             return;
         }
 
-        ConfirmChoice choice = ConfirmWindow.Ask(this, new ConfirmWindow(
+        ConfirmChoice choice = ConfirmWindow.Ask(Window.GetWindow(this), new ConfirmWindow(
             L.S.CallDeleteTitle,
             L.S.CallDeleteBody,
             primaryButton: L.S.CallDeleteConfirm,

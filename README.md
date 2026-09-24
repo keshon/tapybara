@@ -37,17 +37,19 @@ somebody's server.
 - A speech detector finds where the speech actually is, so each line gets the
   position it was measured at rather than one the model guessed. It also
   removes the phrases Whisper invents on silence.
-- Names it keeps mangling get fixed by a replacements list — including ones
-  carrying punctuation, like `C#` and `.NET`.
+- Names it keeps mangling get fixed by a dictionary of replacements — including
+  ones carrying punctuation, like `C#` and `.NET` — added right from a
+  transcript when you spot the mistake.
+- Every dictation is kept, so one that went into the wrong window is never
+  lost. Switch it off if you dictate passwords.
 - It stays out of the way: a tray icon, a floating indicator you can drag
-  wherever you want it, and a settings window you visit once.
+  wherever you want it, one window for what you come back to — dictations,
+  calls, dictionary — and a settings window you visit once.
 - Calls are recorded as two separate tracks — your microphone and your system
-  audio — and merged into one transcript with names against the lines. When a
-  recording stops, Tapybara asks who was on the call while you still remember;
-  with more than one other person it also tells their voices apart, on your own
-  machine, using that answer as the hint.
-- Recordings have a window of their own: what is recorded, what is transcribed,
-  who was on it, and a note about what it was about.
+  audio — and merged into one transcript. Transcription starts the moment the
+  recording stops. With more than one other person their voices are told
+  apart on your own machine, and you name each voice from its quotes and by
+  listening to it; the transcript follows at once, without transcribing again.
 
 ## Getting started
 
@@ -59,7 +61,7 @@ Then open **Settings › Models** from the tray and download one.
 works until this is done.
 
 Put the caret in any text field and press `Ctrl`+`Alt`+`D`. Speak. Press it
-again. `Ctrl`+`Alt`+`R` starts and stops recording a call.
+again. `Ctrl`+`Alt`+`C` starts and stops recording a call.
 
 Or build it yourself:
 
@@ -114,7 +116,7 @@ the whole pipeline.
 Decoding weighs several wordings of a phrase and scores them whole, rather than
 committing to the likeliest next word and never reconsidering. On one 28-second
 sample it costs about half again in time — 0.46 s against 0.70 s — and fixes
-errors that greedy decoding reproduces every run. Settings › Recognition can
+errors that greedy decoding reproduces every run. Settings › Advanced can
 trade it back for speed.
 
 Calls are two tracks rather than one, and for a conversation between two people
@@ -136,7 +138,7 @@ recorder and the Windows-specific traps in full.
 
 ```
 src/Tapybara.Core/         engine, audio, settings, Win32 plumbing — no UI
-src/Tapybara.App/          WPF application: tray, overlay, settings
+src/Tapybara.App/          WPF application: tray, overlay, main window, settings
 tests/Tapybara.Core.Tests/ unit tests for the pure logic in Core
 tools/Tapybara.Bench/      console harness for benchmarking and diagnostics
 ```
