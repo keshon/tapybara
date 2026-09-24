@@ -391,6 +391,23 @@ public sealed record UiStrings
     public required string DictationNoModel { get; init; }
     public required string DictationDownloadModel { get; init; }
     public required string DictationOpenModels { get; init; }
+    public required string UpdatesTitle { get; init; }
+    public required string UpdatesManual { get; init; }
+    public required string UpdatesReleases { get; init; }
+    public required string UpdatesIdle { get; init; }
+    public required string UpdatesChecking { get; init; }
+    public required string UpdatesUpToDate { get; init; }
+    public required string UpdatesDownloading { get; init; }
+    public required string UpdatesReady { get; init; }
+    public required string UpdatesFailed { get; init; }
+    public required string UpdatesCheckNow { get; init; }
+    public required string UpdatesRestart { get; init; }
+    public required string UpdatesBusy { get; init; }
+    public required string FieldAutoUpdate { get; init; }
+    public required string FieldAutoUpdateHint { get; init; }
+    public required string TrayUpdateReady { get; init; }
+    public required string FieldPortableInstalled { get; init; }
+    public required string AboutRuntimeNotLoaded { get; init; }
     public required string RecordCall { get; init; }
     public required string RecordDictate { get; init; }
     public required string RecordStop { get; init; }
@@ -955,6 +972,23 @@ public sealed record UiStrings
         DictationNoModel = "Dictation needs a recognition model, and none is downloaded yet.",
         DictationDownloadModel = "Download a model",
         DictationOpenModels = "Open Models",
+        UpdatesTitle = "Updates",
+        UpdatesManual = "This copy was unpacked from a zip, so it updates by hand: download the new release and replace the folder. The installer on the same page keeps itself up to date.",
+        UpdatesReleases = "Releases",
+        UpdatesIdle = "Not checked yet.",
+        UpdatesChecking = "Checking…",
+        UpdatesUpToDate = "Version {0} is the latest.",
+        UpdatesDownloading = "Downloading version {0} — {1}%",
+        UpdatesReady = "Version {0} is downloaded and installs the next time Tapybara starts.",
+        UpdatesFailed = "Could not check: {0}",
+        UpdatesCheckNow = "Check now",
+        UpdatesRestart = "Restart now",
+        UpdatesBusy = "Not now: something is being recorded or transcribed. The update installs the next time Tapybara starts.",
+        FieldAutoUpdate = "Check for updates automatically",
+        FieldAutoUpdateHint = "At start and every few hours, against the releases on GitHub. The request asks for the list of releases and nothing else. Downloads happen in the background; Tapybara never restarts on its own.",
+        TrayUpdateReady = "Restart to update to {0}",
+        FieldPortableInstalled = "Not available in the installed version: an update replaces the program folder, and anything kept beside the program would go with it. For a portable copy, use the zip from the releases page.",
+        AboutRuntimeNotLoaded = "not loaded yet",
         RecordCall = "Record a call",
         RecordDictate = "Dictate",
         RecordStop = "Stop",
@@ -1387,6 +1421,23 @@ public sealed record UiStrings
         DictationNoModel = "Для диктовки нужна модель распознавания, а она ещё не скачана.",
         DictationDownloadModel = "Скачать модель",
         DictationOpenModels = "Открыть модели",
+        UpdatesTitle = "Обновления",
+        UpdatesManual = "Эта копия распакована из zip и обновляется руками: скачайте новый релиз и замените папку. Установщик с той же страницы обновляется сам.",
+        UpdatesReleases = "Релизы",
+        UpdatesIdle = "Ещё не проверялось.",
+        UpdatesChecking = "Проверяю…",
+        UpdatesUpToDate = "Версия {0} — последняя.",
+        UpdatesDownloading = "Скачиваю версию {0} — {1}%",
+        UpdatesReady = "Версия {0} скачана и установится при следующем запуске Tapybara.",
+        UpdatesFailed = "Не удалось проверить: {0}",
+        UpdatesCheckNow = "Проверить",
+        UpdatesRestart = "Перезапустить",
+        UpdatesBusy = "Не сейчас: идёт запись или распознавание. Обновление установится при следующем запуске Tapybara.",
+        FieldAutoUpdate = "Проверять обновления автоматически",
+        FieldAutoUpdateHint = "При запуске и раз в несколько часов, по релизам на GitHub. Запрос — только список релизов, больше ничего. Скачивание идёт в фоне; сама Tapybara не перезапускается.",
+        TrayUpdateReady = "Перезапустить и обновить до {0}",
+        FieldPortableInstalled = "Недоступно в установленной версии: обновление заменяет папку программы, и всё, что лежит рядом с ней, пропало бы. Для портативной копии возьмите zip со страницы релизов.",
+        AboutRuntimeNotLoaded = "ещё не загружен",
         RecordCall = "Записать звонок",
         RecordDictate = "Диктовать",
         RecordStop = "Стоп",

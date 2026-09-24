@@ -120,25 +120,24 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "isRelease=$([string]::IsNullOrEmpty($version) -eq $false)" >> $env:GITHUB_OUTPUT
 
-      # Самодостаточная сборка: на машине пользователя .NET не нужен.
-      # Не PublishSingleFile — нативные библиотеки whisper.cpp лежат в
-      # подпапках runtimes\ и грузятся по пути во время работы, поэтому
-      # рабочая форма поставки — папка.
-      #
-      # CUDA не включаем. Она весит 150 МБ и требует cublas из CUDA Toolkit,
-      # которого на обычной машине нет: почти для всех это 150 МБ, которые
-      # загружаются, не находят зависимость и уступают Vulkan.
-      - name: Publish
+      # Прошлый релиз нужен vpk, чтобы собрать дельту: обновление с него на
+      # новый весит мегабайты, а не сотню. У первого релиза прошлого нет —
+      # поэтому шаг не обязан пройти.
+      - name: Fetch the previous release for delta updates
+        if: steps.version.outputs.isRelease == 'True'
+        continue-on-error: true
         shell: pwsh
         run: |
-          # Не $args: это автоматическая переменная PowerShell, и присваивание
-          # ей внутри скрипта работает, но читается как ошибка.
-          $publishArgs = @('publish', 'src/Tapybara.App', '-c', 'Release', '-r', 'win-x64',
-                           '--self-contained', 'true', '-o', 'dist')
-          if ("${{ steps.version.outputs.version }}" -ne "") {
-            $publishArgs += "-p:Version=${{ steps.version.outputs.version }}"
-          }
-          dotnet @publishArgs
+          dotnet tool restore
+          dotnet vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --outputDir Releases
+
+      # Сборка и упаковка — тем же build.cmd, что и на машине разработчика:
+      # релиз не должен собираться иначе, чем его проверяли локально. Там же
+      # объяснено, почему папка, а не один файл, и почему без CUDA.
+      # Без версии (сборка из ветки) build.cmd берёт её из Directory.Build.props.
+      - name: Publish and pack
+        shell: cmd
+        run: build.cmd installer ${{ steps.version.outputs.version }}
 
       - name: Zip
         shell: pwsh
@@ -152,7 +151,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Tapybara-win-x64
-          path: ${{ env.ZIP_NAME }}
+          path: |
+            ${{ env.ZIP_NAME }}
+            Releases/Tapybara-win-Setup.exe
           retention-days: 30
 
       # Текст релиза — из тела аннотированного тега. Это единственное место,
@@ -175,15 +176,18 @@ jobs:
           $install = @(
             '---'
             ''
-            'Self-contained build for Windows x64 - .NET is not required on the target machine.'
+            'Windows x64 - .NET is not required on the target machine.'
             ''
-            'Unzip anywhere and run `Tapybara.exe`. On first launch a short window walks you'
-            'through downloading a recognition model, checking the microphone and dictating'
-            'a first sentence; nothing works until a model is there.'
+            '**Install:** run `Tapybara-win-Setup.exe`. It installs for your user, without'
+            'administrator rights, and keeps itself up to date: new versions download in the'
+            'background and install the next time Tapybara starts.'
             ''
-            'For a portable install, put an empty file named `portable.txt` next to the'
-            'executable - settings and models then live in a `Data` folder beside it instead'
-            'of in `%APPDATA%`.'
+            '**Portable:** unzip `Tapybara-*-win-x64.zip` anywhere and run `Tapybara.exe`. Put an'
+            'empty file named `portable.txt` next to it and settings and models live in a `Data`'
+            'folder beside it. The zip does not update itself.'
+            ''
+            'On first launch a short window walks you through downloading a recognition model,'
+            'checking the microphone and dictating a first sentence.'
           ) -join "`n"
 
           if ($hasBody) { $full = $body + "`n`n" + $install } else { $full = $install }
@@ -202,3 +206,12 @@ jobs:
           files: ${{ env.ZIP_NAME }}
           body: ${{ steps.notes.outputs.body }}
           generate_release_notes: ${{ steps.notes.outputs.hasBody != 'True' }}
+
+      # Установщик и пакеты обновлений — в тот же релиз (--merge), а не в
+      # отдельный: установленные копии ищут обновления именно в последнем
+      # релизе, по файлу releases.win.json, который vpk кладёт рядом.
+      - name: Upload installer and update packages
+        if: steps.version.outputs.isRelease == 'True'
+        shell: pwsh
+        run: |
+          dotnet vpk upload github --outputDir Releases --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --merge --publish --tag ${{ github.ref_name }}

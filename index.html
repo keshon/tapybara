@@ -879,7 +879,7 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
       <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
       <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
     </div>
-    <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+    <p class="cta-note">MIT · installer or zip · no account · Windows 10 and 11</p>
 
     <div class="pill-stage">
       <img src="assets/screens/pill-recording.webp" width="472" height="110" loading="lazy"
@@ -1197,7 +1197,7 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
       </div>
       <div>
         <h3>Portable mode</h3>
-        <p>An empty <code>portable.txt</code> next to the executable moves settings and models beside it, leaving nothing in the system.</p>
+        <p>In the zip build, an empty <code>portable.txt</code> next to the executable moves settings and models beside it, leaving nothing in the system.</p>
       </div>
       <div>
         <h3>No CUDA toolkit</h3>
@@ -1217,7 +1217,7 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
     <div class="sec-head">
       <p class="spine">quick start</p>
       <div>
-        <h2>Unzip, fetch a model, press the hotkey.</h2>
+        <h2>Install, fetch a model, press the hotkey.</h2>
       </div>
     </div>
 
@@ -1226,7 +1226,7 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
       <div>
         <div class="start-grid">
           <ol class="ol-steps">
-            <li><b>Run <code>Tapybara.exe</code>.</b> No installer and no .NET needed — the build is self-contained.</li>
+            <li><b>Run <code>Tapybara-win-Setup.exe</code>.</b> It installs for your user without administrator rights and keeps itself up to date. No .NET needed. Prefer a portable copy? The zip on the same page runs from any folder.</li>
             <li><b>Follow the first-run window.</b> It downloads a model — <code>Large&nbsp;v3&nbsp;Turbo&nbsp;(q5_0)</code> is a reasonable first pick at about 550&nbsp;MB — checks the microphone, and has you dictate a first sentence.</li>
             <li><b>Put the caret somewhere</b> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd>. For a call, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd>.</li>
           </ol>
@@ -1266,7 +1266,7 @@ build.cmd run</pre>
     <div class="faq">
       <details open>
         <summary>Does any audio leave the machine?</summary>
-        <p>No. Recognition, voice activity detection and telling voices apart all run locally. The only request Tapybara makes is downloading a model when you ask it to, from Hugging Face. There is no telemetry and no server component. Your dictation history and the voiceprints of people you named stay on disk here too.</p>
+        <p>No. Recognition, voice activity detection and telling voices apart all run locally. Tapybara makes two kinds of request: downloading a model when you ask it to, from Hugging Face, and — in the installed version — asking GitHub for the list of releases, which can be switched off. Neither carries anything about you or your recordings. There is no telemetry and no server component. Your dictation history and the voiceprints of people you named stay on disk here too.</p>
       </details>
 
       <details>
@@ -1326,7 +1326,7 @@ build.cmd run</pre>
       <a class="btn btn-primary" href="https://github.com/keshon/tapybara/releases/latest">Download for Windows</a>
       <a class="btn btn-ghost" href="https://github.com/keshon/tapybara">Read the source</a>
     </div>
-    <p class="cta-note">MIT · no installer · no account · Windows 10 and 11</p>
+    <p class="cta-note">MIT · installer or zip · no account · Windows 10 and 11</p>
   </div>
 </section>
 

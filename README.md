@@ -26,7 +26,8 @@ somebody's server.
   typing. It is inserted, not left on the clipboard for you to paste, and the
   path it uses works in Electron and Chromium apps too.
 - Nothing leaves the machine. No account, no telemetry, and no connection
-  needed once a model is downloaded.
+  needed once a model is downloaded — the installed version asks GitHub for
+  the list of releases to update itself, and that can be switched off.
 - Pauses become paragraphs. Whisper does not mark them, but its timings say
   where the speaker stopped, so a ten-minute dictation is not one wall of text.
 - Escape cancels — and stays available to everything else. Cancelling watches
@@ -57,8 +58,14 @@ somebody's server.
 
 ## Getting started
 
-Unzip a [release](https://github.com/keshon/tapybara/releases/latest) and run
-`Tapybara.exe`. No installer, and no .NET needed — the build is self-contained.
+Download `Tapybara-win-Setup.exe` from the
+[latest release](https://github.com/keshon/tapybara/releases/latest) and run
+it. It installs for your user without administrator rights, and keeps itself
+up to date: a new version downloads in the background and installs the next
+time Tapybara starts. No .NET needed — the build is self-contained.
+
+For a portable copy, unzip `Tapybara-*-win-x64.zip` from the same page instead
+and run `Tapybara.exe`; that one is updated by hand.
 
 On first launch a short window walks you through it: download a model
 (`Large v3 Turbo (q5_0)` is a reasonable first pick at about 550 MB), check the
@@ -76,7 +83,9 @@ cd tapybara
 build.cmd run
 ```
 
-`build.cmd` also takes `build`, `debug`, `test`, `publish` and `stop`. It stops
+`build.cmd` also takes `build`, `debug`, `test`, `publish`, `installer` and
+`stop`; `installer` packs `Setup.exe` and the update packages into `Releases\`
+with [Velopack](https://velopack.io), exactly as CI does. It stops
 a running instance first — politely, then forcibly if it does not respond —
 which matters because the app lives in the tray and is easy to forget about
 while it holds the output files locked.
@@ -169,8 +178,11 @@ build.cmd test
 ## Releases
 
 Every push to `main` builds and tests on Windows and leaves a ready-to-run
-`Tapybara-<sha>-win-x64.zip` as a workflow artifact. Pushing an annotated tag
-publishes it as a GitHub Release, with the tag's message body as the notes:
+zip and `Setup.exe` as workflow artifacts. Pushing an annotated tag publishes
+a GitHub Release, with the tag's message body as the notes. The release
+carries the zip, the installer and the Velopack update packages — including a
+delta from the previous release, a fraction of a megabyte instead of a hundred
+— and installed copies pick it up from there:
 
 ```bash
 git tag -a --cleanup=verbatim v0.3.0 -F notes.md
@@ -182,10 +194,12 @@ git push origin v0.3.0
 
 ## Roadmap
 
-- Import and export of the replacements list, so vocabularies can be shared.
-  Shipping preset dictionaries is deliberately **not** planned: a replacement
+- Shipping preset dictionaries is deliberately **not** planned: a replacement
   fires without understanding context, and a wrong entry in a preset silently
-  corrupts text for someone who never opened the list.
+  corrupts text for someone who never opened the list. Your own dictionary
+  moves between computers with Dictionary › Export and Import.
+- Code signing, so Windows stops warning about an unknown publisher on first
+  run
 - Push-to-talk in addition to toggle
 - Streaming recognition, so the tail latency approaches zero
 - Per-application system audio capture, so a call recording contains the call

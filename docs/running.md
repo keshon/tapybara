@@ -21,8 +21,35 @@ otherwise inexplicable.
 
 ## Install
 
-Unzip the release anywhere and run `Tapybara.exe`. There is no installer, and
-nothing is written outside the data folder.
+Two ways, both from the
+[latest release](https://github.com/keshon/tapybara/releases/latest):
+
+- **`Tapybara-win-Setup.exe`** installs for your user, without administrator
+  rights, into `%LocalAppData%\Tapybara`, with a Start menu shortcut and an
+  entry in Settings › Apps for removing it. This version updates itself (see
+  below).
+- **`Tapybara-*-win-x64.zip`** is the portable copy: unzip it anywhere and run
+  `Tapybara.exe`. Nothing is written outside the data folder, and it is
+  updated by hand — download the new zip and replace the folder.
+
+Until the builds are code-signed, Windows may say it protected your PC on the
+first run; *More info › Run anyway* starts it.
+
+### Updates
+
+The installed version checks the GitHub releases at start and every six hours
+and downloads a new version in the background — usually a delta of well under
+a megabyte. It never restarts on its own: the new version installs the next
+time Tapybara starts, or at once from Settings › About › **Restart now** or the
+tray menu. Either refuses while a dictation or a call is being recorded or
+transcribed, so an update cannot cut a recording short.
+
+The check is a request to GitHub for the list of releases, carrying nothing
+about you or your recordings. Settings › About switches it off; the **Check
+now** button still works when you want it.
+
+Settings, history, voices, models and calls live outside the program folder,
+so updates and uninstalling leave them alone.
 
 A dot appears in the system tray, and on the very first launch a short window
 walks you through downloading a model, checking the microphone and dictating a
@@ -95,7 +122,7 @@ the question you arrived with:
 | **Calls** | Hotkey, output device to record, your name, telling voices apart, folder, limits |
 | **Models** | Which model is active, what to download, what is installed, where they live |
 | **Advanced** | Decoding effort, idle unload, speech detection, voice models and threshold, portable mode |
-| **About** | Version, compute backend, where data lives, diagnostics, log |
+| **About** | Version and updates, compute backend, where data lives, diagnostics, log |
 
 Everything that needs knowing how recognition works is under **Advanced**;
 sensible values are already set. Replacements and the prompt live in the
@@ -113,6 +140,10 @@ application to a `Data` folder beside itself instead — useful on a USB stick o
 when you would rather leave nothing behind in the system. The older
 `Tapybara.portable` name still works. There is also a toggle in
 Settings › Advanced, which creates the same file.
+
+Portable mode belongs to the zip. In the installed version the toggle is off
+and disabled: an update replaces the program folder, and a `Data` folder kept
+beside the program would go with it.
 
 Detection is deliberately file-based rather than a setting: reading a setting
 would require already knowing where settings live.

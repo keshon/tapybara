@@ -297,7 +297,7 @@ async Task RunAsync(string? modelHint, string wavPath)
     loadTimer.Stop();
 
     // Печатаем ПОСЛЕ загрузки: до неё нативная библиотека ещё не выбрана.
-    Console.WriteLine($"Рантайм:  {WhisperEngine.LoadedRuntime}");
+    Console.WriteLine($"Рантайм:  {WhisperEngine.LoadedRuntime ?? "ещё не загружен"}");
 
     var runTimer = Stopwatch.StartNew();
     IReadOnlyList<TranscriptSegment> segments = await engine.TranscribeAsync(samples);
@@ -499,7 +499,7 @@ async Task TranscribeCallAsync(string callDirectory)
     Console.WriteLine($"Модель: {Path.GetFileName(modelPath)}, язык: {language}");
     Console.Write("Прогреваю движок… ");
     await engine.LoadAsync();
-    Console.WriteLine(WhisperEngine.LoadedRuntime);
+    Console.WriteLine(WhisperEngine.LoadedRuntime ?? "ещё не загружен");
 
     // --no-vad позволяет сравнить с детектором и без него на одной записи.
     SpeechDetector? detector = null;

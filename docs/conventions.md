@@ -103,6 +103,17 @@ names may be added to `AppPaths.PortableMarkerNames`; existing ones stay.
 running instance — two copies then fight over the global hotkey, and the loser
 reports that the hotkey is taken by "another application" which is itself.
 
+**The Velopack package id and channel.** `--packId Tapybara` in `build.cmd`
+and the default `win` channel. Installed copies look for updates by that id in
+`releases.win.json` on the latest GitHub release; change either and every
+installed copy silently stops updating, with no way to reach it except asking
+people to reinstall. The same goes for moving releases to another repository:
+`AppUpdater.RepositoryUrl` is compiled into every installed copy.
+
+**Release versions go up.** A tag lower than the installed version is not an
+update, and Velopack ignores it. A bad release is fixed by releasing a higher
+version, not by deleting the tag and re-pushing a lower one.
+
 ## Concurrency contracts
 
 **The WASAPI callback thread is not yours.** `AudioCapture` raises

@@ -288,6 +288,16 @@ public sealed record AppSettings
     /// </remarks>
     public bool RememberVoices { get; init; } = true;
 
+    /// <summary>
+    /// Проверять обновления на GitHub при запуске и раз в несколько часов.
+    /// </summary>
+    /// <remarks>
+    /// Только в установленной версии: копия из zip обновляется руками.
+    /// Запрос — список релизов, без сведений о человеке; но это запрос в
+    /// сеть, и кто не хочет ни одного, выключает его здесь.
+    /// </remarks>
+    public bool CheckForUpdates { get; init; } = true;
+
     /// <summary>Вставлять текст автоматически или только класть в буфер.</summary>
     public bool AutoPaste { get; init; } = true;
 

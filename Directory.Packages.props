@@ -23,6 +23,11 @@
     <!-- WASAPI: захват микрофона и loopback системного звука -->
     <PackageVersion Include="NAudio" Version="2.2.1" />
 
+    <!-- Установщик и обновления. Версия обязана совпадать с инструментом vpk
+         в dotnet-tools.json: пакет и упаковщик договариваются о формате
+         релизов, и разные версии Velopack прямо просят так не делать. -->
+    <PackageVersion Include="Velopack" Version="1.2.158" />
+
     <!-- Тесты -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
