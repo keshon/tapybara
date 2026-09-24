@@ -39,6 +39,9 @@ public partial class OverlayWindow : Window
     private bool _pressed;
     private bool _dragged;
 
+    /// <summary>Пилюля показывает запись звонка, а не диктовку.</summary>
+    private bool _callMode;
+
     public OverlayWindow()
     {
         InitializeComponent();
@@ -124,8 +127,15 @@ public partial class OverlayWindow : Window
         _ => brush.GetType().Name,
     };
 
-    /// <summary>Клик по пилюле — то же, что нажать хоткей.</summary>
+    /// <summary>Клик по пилюле диктовки — то же, что нажать хоткей.</summary>
+    /// <remarks>
+    /// По пилюле звонка щелчок не приходит вовсе: у звонка своя кнопка
+    /// остановки, см. <see cref="StopCallRequested"/>.
+    /// </remarks>
     public event Action? Clicked;
+
+    /// <summary>Нажата кнопка ■ на пилюле звонка.</summary>
+    public event Action? StopCallRequested;
 
     /// <summary>Пользователь перетащил пилюлю. Координаты логические.</summary>
     public event Action<double, double>? Moved;
@@ -146,7 +156,7 @@ public partial class OverlayWindow : Window
     public void ShowRecording(string hotkeyHint)
     {
         ShowPanel(recording: true);
-        RecordingDot.Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0x4D, 0x4D));
+        SetCallMode(false);
         HotkeyHint.Text = string.Format(CultureInfo.CurrentCulture, L.S.PillHintStop, hotkeyHint);
         ElapsedText.Text = "0:00";
         ResetLevels();
@@ -154,19 +164,30 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>Показать пилюлю в состоянии записи звонка.</summary>
+    /// <param name="hotkeyHint">Сочетание, которым звонок останавливается.</param>
     /// <remarks>
     /// Раньше запись звонка не показывалась вовсе — только точка в трее, и та
     /// того же цвета, что у диктовки. Запись, идущую часами, было буквально
     /// нечем заметить.
     /// </remarks>
-    public void ShowCallRecording()
+    public void ShowCallRecording(string hotkeyHint)
     {
         ShowPanel(recording: true);
-        RecordingDot.Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0xB0, 0x20));
-        HotkeyHint.Text = L.S.PillRecordingCall;
+        SetCallMode(true);
+        HotkeyHint.Text = string.Format(CultureInfo.CurrentCulture, L.S.PillRecordingCall, hotkeyHint);
         ElapsedText.Text = "0:00";
         ResetLevels();
         Reveal();
+    }
+
+    private void SetCallMode(bool call)
+    {
+        _callMode = call;
+        RecordingRing.Visibility = call ? Visibility.Visible : Visibility.Collapsed;
+        RecordingDot.Width = call ? 5 : 9;
+        RecordingDot.Height = call ? 5 : 9;
+        StopCallButton.Visibility = call ? Visibility.Visible : Visibility.Collapsed;
+        StopCallButton.ToolTip = L.S.PillStopCall;
     }
 
     /// <summary>Переключить пилюлю в состояние распознавания.</summary>
@@ -238,6 +259,11 @@ public partial class OverlayWindow : Window
     private void ShowPanel(bool recording)
     {
         _hideTimer?.Stop();
+        if (!recording)
+        {
+            SetCallMode(false);
+        }
+
         RecordingPanel.Visibility = recording ? Visibility.Visible : Visibility.Collapsed;
         TranscribingPanel.Visibility = Visibility.Collapsed;
         NoteText.Visibility = Visibility.Collapsed;
@@ -448,8 +474,24 @@ public partial class OverlayWindow : Window
             return;
         }
 
-        // Не перетаскивание — значит клик.
-        Clicked?.Invoke();
+        // Не перетаскивание — значит клик. Но не по пилюле звонка: там
+        // щелчок раньше запускал диктовку, и человек, решивший, что так
+        // останавливают звонок, получал вторую запись вместо остановки первой.
+        if (!_callMode)
+        {
+            Clicked?.Invoke();
+        }
+    }
+
+    // --- кнопка остановки звонка -------------------------------------------
+
+    private void OnStopCallPressed(object sender, MouseButtonEventArgs e) =>
+        e.Handled = true; // иначе нажатие начнёт перетаскивание пилюли
+
+    private void OnStopCallReleased(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        StopCallRequested?.Invoke();
     }
 
     [StructLayout(LayoutKind.Sequential)]

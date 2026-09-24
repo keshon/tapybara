@@ -59,7 +59,7 @@ Then open **Settings › Models** from the tray and download one.
 works until this is done.
 
 Put the caret in any text field and press `Ctrl`+`Alt`+`D`. Speak. Press it
-again.
+again. `Ctrl`+`Alt`+`R` starts and stops recording a call.
 
 Or build it yourself:
 

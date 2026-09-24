@@ -70,6 +70,13 @@ public sealed record AppSettings
     /// <summary>Сочетание клавиш для старта и остановки диктовки.</summary>
     public HotkeyCombo Hotkey { get; init; } = HotkeyCombo.Default;
 
+    /// <summary>Сочетание клавиш для старта и остановки записи звонка.</summary>
+    /// <remarks>
+    /// Раньше запись звонка запускалась только из меню трея, а звонки
+    /// начинаются как раз тогда, когда руки на клавиатуре, а до трея далеко.
+    /// </remarks>
+    public HotkeyCombo CallHotkey { get; init; } = HotkeyCombo.DefaultCall;
+
     /// <summary>
     /// Устройство записи для диктовки и своего канала звонка.
     /// <c>null</c> — устройство по умолчанию.

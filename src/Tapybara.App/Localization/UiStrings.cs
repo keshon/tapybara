@@ -46,6 +46,7 @@ public sealed record UiStrings
     public required string StatusTranscribingCall { get; init; }
     public required string StatusCallSaved { get; init; }
     public required string NotifyCallReadyTitle { get; init; }
+    public required string NotifyCallReadyBody { get; init; }
     public required string NotifyCallStoppedTitle { get; init; }
     public required string CallStoppedDeviceLost { get; init; }
     public required string CallStoppedLengthLimit { get; init; }
@@ -89,6 +90,7 @@ public sealed record UiStrings
     public required string PillRecordingCall { get; init; }
     public required string PillHintStop { get; init; }
     public required string PillHintCancel { get; init; }
+    public required string PillStopCall { get; init; }
 
     // --- окно настроек: разделы ---
     public required string SettingsTitle { get; init; }
@@ -135,6 +137,8 @@ public sealed record UiStrings
     public required string FieldHotkeyCapturing { get; init; }
     public required string FieldHotkeyCaptureHint { get; init; }
     public required string FieldHotkeyTaken { get; init; }
+    public required string FieldHotkeyDuplicate { get; init; }
+    public required string FieldCallHotkeyHint { get; init; }
     public required string FieldMicrophone { get; init; }
     public required string FieldMicrophoneHint { get; init; }
     public required string FieldSystemAudioDevice { get; init; }
@@ -263,7 +267,6 @@ public sealed record UiStrings
     public required string CallReviewNote { get; init; }
     public required string CallReviewNotePlaceholder { get; init; }
     public required string CallReviewDelete { get; init; }
-    public required string CallReviewLater { get; init; }
     public required string CallReviewSave { get; init; }
     public required string CallReviewHintNone { get; init; }
     public required string CallReviewHintOne { get; init; }
@@ -447,6 +450,7 @@ public sealed record UiStrings
         StatusTranscribingCall = "Transcribing the call…",
         StatusCallSaved = "Call saved: {0}",
         NotifyCallReadyTitle = "Transcript ready",
+        NotifyCallReadyBody = "Click to open the call.",
         NotifyCallStoppedTitle = "Recording stopped",
         CallStoppedDeviceLost = "The audio device went away. What was recorded is saved.",
         CallStoppedLengthLimit = "The length limit was reached. What was recorded is saved.",
@@ -484,9 +488,10 @@ public sealed record UiStrings
         PillClipboardOnly = "In clipboard — Ctrl+V",
         PillDone = "Done",
         PillCancelled = "Cancelled",
-        PillRecordingCall = "Recording a call",
+        PillRecordingCall = "Call · {0}",
         PillHintStop = "{0} to stop",
         PillHintCancel = "Esc to cancel",
+        PillStopCall = "Stop recording the call",
 
         SettingsTitle = "Tapybara settings",
         SectionDictation = "Dictation",
@@ -530,6 +535,8 @@ public sealed record UiStrings
         FieldHotkeyCapturing = "Press a combination…",
         FieldHotkeyCaptureHint = "Esc to cancel. Win combinations are reserved by Windows.",
         FieldHotkeyTaken = "{0} is already taken by another application",
+        FieldHotkeyDuplicate = "{0} is already Tapybara's other hotkey",
+        FieldCallHotkeyHint = "Press it to start recording a call, press it again to stop.",
         FieldMicrophone = "Microphone",
         FieldMicrophoneHint = "Used for dictation and for your side of a call",
         FieldSystemAudioDevice = "Record the other side from",
@@ -655,9 +662,8 @@ public sealed record UiStrings
         CallReviewNote = "What it was about",
         CallReviewNotePlaceholder = "Saved next to the recording as note.md",
         CallReviewDelete = "Delete recording",
-        CallReviewLater = "Later",
-        CallReviewSave = "Save",
-        CallReviewHintNone = "Without names the other side stays “Them” in the transcript",
+        CallReviewSave = "Done",
+        CallReviewHintNone = "Without names the other side is labelled “{0}” — or “{0} 1”, “{0} 2” if there are several voices",
         CallReviewHintOne = "One person: no voice splitting needed, and the name goes straight into the transcript",
         CallReviewHintMany = "{0} people: their voices get split apart, knowing how many to look for",
         CallDeleteTitle = "Delete this recording?",
@@ -757,6 +763,7 @@ public sealed record UiStrings
         StatusTranscribingCall = "Распознаю звонок…",
         StatusCallSaved = "Звонок сохранён: {0}",
         NotifyCallReadyTitle = "Транскрипт готов",
+        NotifyCallReadyBody = "Нажмите, чтобы открыть звонок.",
         NotifyCallStoppedTitle = "Запись остановлена",
         CallStoppedDeviceLost = "Звуковое устройство пропало. Записанное сохранено.",
         CallStoppedLengthLimit = "Достигнут предел длительности. Записанное сохранено.",
@@ -794,9 +801,10 @@ public sealed record UiStrings
         PillClipboardOnly = "В буфере — Ctrl+V",
         PillDone = "Готово",
         PillCancelled = "Отменено",
-        PillRecordingCall = "Записываю звонок",
+        PillRecordingCall = "Звонок · {0}",
         PillHintStop = "{0} — закончить",
         PillHintCancel = "Esc — отменить",
+        PillStopCall = "Остановить запись звонка",
 
         SettingsTitle = "Настройки Tapybara",
         SectionDictation = "Диктовка",
@@ -840,6 +848,8 @@ public sealed record UiStrings
         FieldHotkeyCapturing = "Нажмите сочетание…",
         FieldHotkeyCaptureHint = "Esc — отмена. Сочетания с Win зарезервированы Windows.",
         FieldHotkeyTaken = "{0} уже занято другим приложением",
+        FieldHotkeyDuplicate = "{0} уже занято второй горячей клавишей Tapybara",
+        FieldCallHotkeyHint = "Нажатие начинает запись звонка, повторное — останавливает.",
         FieldMicrophone = "Микрофон",
         FieldMicrophoneHint = "Используется для диктовки и для вашего канала в звонке",
         FieldSystemAudioDevice = "Собеседника писать с",
@@ -965,9 +975,8 @@ public sealed record UiStrings
         CallReviewNote = "О чём говорили",
         CallReviewNotePlaceholder = "Сохранится рядом с записью в note.md",
         CallReviewDelete = "Удалить запись",
-        CallReviewLater = "Позже",
-        CallReviewSave = "Сохранить",
-        CallReviewHintNone = "Без имён собеседник останется в транскрипте «Them»",
+        CallReviewSave = "Готово",
+        CallReviewHintNone = "Без имён собеседник будет подписан «{0}», а если голосов несколько — «{0} 1», «{0} 2»",
         CallReviewHintOne = "Один собеседник: голоса разделять не нужно, имя попадёт прямо в транскрипт",
         CallReviewHintMany = "Собеседников {0}: голоса разделим, зная, сколько их искать",
         CallDeleteTitle = "Удалить эту запись?",

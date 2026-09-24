@@ -27,23 +27,28 @@ public enum CallReviewOutcome
 /// подсказкой: разделителю голосов заранее известно, сколько их искать, а это
 /// самый сильный рычаг точности, какой у такой задачи бывает.
 /// <para>
-/// Отмеченные имена сохраняются при ЛЮБОМ закрытии, включая «Позже» и крестик.
-/// Заметка — только по «Сохранить». Разница намеренная: чипы накликиваются
-/// мимоходом и терять их обидно, а недописанный текст сохранять как готовый
-/// нельзя.
+/// Всё сохраняется при ЛЮБОМ закрытии — кнопкой, крестиком, Escape. Здесь
+/// была пара «Позже» / «Сохранить», и «Позже» не откладывало ничего:
+/// распознавание всё равно начиналось сразу, просто без заметки. Две кнопки,
+/// которые отличаются только тем, теряют ли набранный текст, — это ловушка,
+/// а не выбор.
 /// </para>
 /// </remarks>
 public partial class CallReviewWindow : FluentWindow
 {
     private readonly CallSession _session;
+    private readonly string _otherSideLabel;
 
-    private bool _saved;
-
-    public CallReviewWindow(CallSession session, string myName, IReadOnlyList<string> known)
+    public CallReviewWindow(
+        CallSession session,
+        string myName,
+        string otherSideLabel,
+        IReadOnlyList<string> known)
     {
         InitializeComponent();
 
         _session = session;
+        _otherSideLabel = otherSideLabel;
 
         Participants.Load(myName, known, session.Participants);
         Participants.SelectionChanged += UpdateHint;
@@ -73,7 +78,6 @@ public partial class CallReviewWindow : FluentWindow
         NoteLabel.Text = L.S.CallReviewNote;
         NoteBox.PlaceholderText = L.S.CallReviewNotePlaceholder;
         DeleteButton.Content = L.S.CallReviewDelete;
-        LaterButton.Content = L.S.CallReviewLater;
         SaveButton.Content = L.S.CallReviewSave;
 
         Participants.ApplyLanguage();
@@ -102,18 +106,12 @@ public partial class CallReviewWindow : FluentWindow
     private void UpdateHint() =>
         ParticipantsHint.Text = Participants.Selected.Count switch
         {
-            0 => L.S.CallReviewHintNone,
+            0 => string.Format(CultureInfo.CurrentCulture, L.S.CallReviewHintNone, _otherSideLabel),
             1 => L.S.CallReviewHintOne,
             _ => string.Format(CultureInfo.CurrentCulture, L.S.CallReviewHintMany, Participants.Selected.Count),
         };
 
-    private void OnSaveClick(object sender, RoutedEventArgs e)
-    {
-        _saved = true;
-        Close();
-    }
-
-    private void OnLaterClick(object sender, RoutedEventArgs e) => Close();
+    private void OnSaveClick(object sender, RoutedEventArgs e) => Close();
 
     private void OnDeleteClick(object sender, RoutedEventArgs e)
     {
@@ -153,11 +151,7 @@ public partial class CallReviewWindow : FluentWindow
         SelectedParticipants = Participants.Selected;
 
         CallMeta.Save(_session with { Participants = SelectedParticipants });
-
-        if (_saved)
-        {
-            WriteNote(_session.Directory, NoteBox.Text);
-        }
+        WriteNote(_session.Directory, NoteBox.Text);
     }
 
     private static string ReadNote(string directory)

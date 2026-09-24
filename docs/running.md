@@ -24,8 +24,9 @@ otherwise inexplicable.
 Unzip the release anywhere and run `Tapybara.exe`. There is no installer, and
 nothing is written outside the data folder.
 
-A dot appears in the system tray. **Open Settings › Models and download a
-model** — nothing works until you do.
+A dot appears in the system tray. Click it to open the list of recorded calls;
+right-click for the menu. **Open Settings › Models and download a model** —
+nothing works until you do.
 
 ## Models
 
@@ -150,6 +151,11 @@ A call is recorded as two separate tracks — your microphone and your system
 audio — and merged into one chronological `transcript.md` with timestamps and
 names.
 
+Start and stop a recording with `Ctrl`+`Alt`+`R` (changeable in Settings ›
+Calls) or from the tray menu. While it runs, the floating indicator shows a red
+ring and a ■ button that stops it; clicking the rest of the indicator does
+nothing, so a stray click cannot start a dictation on top of the call.
+
 Pick the output device the call actually plays on in Settings › Calls. If you
 talk through a headset while your speakers are the system default, recording
 "the default device" captures silence.
@@ -168,8 +174,9 @@ that hint does more for accuracy than any setting on the page — on a two-voice
 check file, knowing the count put the boundary exactly where it belonged, and
 the same audio without it came apart into four speakers.
 
-Nothing is lost if you close the window: names are saved on any close, the note
-only when you press Save. **Recorded calls** in the tray menu lists everything
+Nothing is lost if you close the window: names and the note are saved however
+it is closed. When the transcript is ready, clicking the notification opens
+that call. **Recorded calls** — a click on the tray icon — lists everything
 recorded, what state each is in, and lets you fix names or transcribe again
 later.
 
