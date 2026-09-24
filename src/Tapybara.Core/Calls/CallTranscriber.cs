@@ -1,5 +1,3 @@
-﻿using System.Globalization;
-using System.Text;
 using Tapybara.Core.Audio;
 using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Settings;
@@ -17,6 +15,16 @@ public enum CallTranscriptionStage
     FilteringBleed,
     Done,
 }
+
+/// <summary>Где сейчас распознавание звонка.</summary>
+/// <param name="Stage">Этап.</param>
+/// <param name="Percent">Доля всей работы, 0–100, а не только текущего этапа.</param>
+/// <remarks>
+/// Процент общий. Прежде интерфейс знал только этап, и «Распознаю
+/// собеседников…» висело без движения по нескольку минут — неотличимо от
+/// зависания.
+/// </remarks>
+public readonly record struct CallTranscriptionProgress(CallTranscriptionStage Stage, int Percent);
 
 /// <summary>
 /// Подписи в готовом транскрипте.
@@ -36,6 +44,7 @@ public sealed record CallTranscriptLabels(
     string VoicesSplitHinted,
     string VoicesSplitGuessed,
     string UnknownSpeaker,
+    string Voice,
     string BleedRemoved,
     string BleedByText,
     string BleedByEnergy,
@@ -48,9 +57,10 @@ public sealed record CallTranscriptLabels(
         "Trigger",
         "Participants",
         "Voices told apart",
-        "with the participant list as a hint",
+        "with the participant count as a hint",
         "without a hint",
         "Someone",
+        "Voice",
         "Other-side speech removed from your channel",
         "by text",
         "by loudness",
@@ -61,10 +71,19 @@ public sealed record CallTranscriptLabels(
 /// Сборка транскрипта звонка из двух каналов.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Каналы распознаются раздельно, поэтому «кто говорит» известно заранее:
-/// микрофон — владелец, системный звук — собеседники. Диаризация по голосу
-/// нужна только чтобы разделить нескольких собеседников между собой, и для
+/// микрофон — владелец, системный звук — собеседники. Разделение по голосу
+/// нужно только чтобы разделить нескольких собеседников между собой, и для
 /// разговора один на один не требуется вовсе.
+/// </para>
+/// <para>
+/// Три операции разной цены. <see cref="TranscribeAsync"/> — распознавание,
+/// минуты на час записи. <see cref="ResplitAsync"/> — только разделение
+/// голосов по уже распознанному, минута процессора. <see cref="Render"/> —
+/// отрисовка, миллисекунды. Раньше существовала только первая, и любая
+/// правка имени стоила полного распознавания.
+/// </para>
 /// </remarks>
 public sealed class CallTranscriber(
     SpeechTranscriber transcriber,
@@ -72,16 +91,28 @@ public sealed class CallTranscriber(
     Func<CallTranscriptLabels>? labels = null,
     Func<SpeakerDiarizer?>? diarizer = null)
 {
-    /// <summary>Одна реплика в общей хронологии.</summary>
-    private sealed record Utterance(TimeSpan Start, string Speaker, string Text);
+    /// <summary>
+    /// Где кончается каждый этап — в процентах всей работы.
+    /// </summary>
+    /// <remarks>
+    /// Оценка, а не замер: дорожки одной длины, и распознавание каждой
+    /// стоит примерно одинаково; разделение голосов на процессоре — примерно
+    /// четверть распознавания на видеокарте. Точность здесь не нужна, нужно,
+    /// чтобы полоса двигалась и не откатывалась.
+    /// </remarks>
+    private const int MicrophoneEnds = 40;
+    private const int OtherSideEnds = 82;
+    private const int FilteringEnds = 85;
+    private const int SplittingEnds = 99;
 
-    /// <summary>Распознать звонок и записать <c>transcript.md</c> в его папку.</summary>
-    /// <returns>Путь к готовому транскрипту.</returns>
+    /// <summary>Распознать звонок и записать транскрипт в его папку.</summary>
+    /// <returns>Путь к <c>transcript.md</c>.</returns>
     public async Task<string> TranscribeAsync(
         CallSession session,
-        IProgress<CallTranscriptionStage>? progress = null,
+        IProgress<CallTranscriptionProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(session);
         AppSettings current = settings();
 
         if (!File.Exists(session.MicPath) || !File.Exists(session.SystemPath))
@@ -94,119 +125,164 @@ public sealed class CallTranscriber(
         // Чиним заголовки, прежде чем пытаться читать.
         CallRepair.RepairCall(session);
 
-        progress?.Report(CallTranscriptionStage.ReadingTracks);
+        progress?.Report(new(CallTranscriptionStage.ReadingTracks, 0));
 
         // Каналы обрабатываем ПО ОЧЕРЕДИ и массив отпускаем сразу. Держать оба
         // часовых канала в памяти — это около гигабайта в куче больших
         // объектов ради нескольких десятков средних значений, которые
         // прекрасно считаются по огибающей.
-        progress?.Report(CallTranscriptionStage.TranscribingMicrophone);
-        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy, _) = await ProcessChannelAsync(
+        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy) = await ProcessChannelAsync(
             session.MicPath,
             // Свой канал распознаём заданным языком: что говорит владелец
             // микрофона, известно заранее.
             current.Language,
             current,
-            // Свой канал не разделяем никогда: он и есть один человек.
-            speakersToLookFor: 0,
-            progress: null,
+            Stage(progress, CallTranscriptionStage.TranscribingMicrophone, 0, MicrophoneEnds),
             cancellationToken).ConfigureAwait(false);
 
-        progress?.Report(CallTranscriptionStage.TranscribingOtherSide);
-        (IReadOnlyList<TranscriptSegment> systemSegments, EnergyEnvelope systemEnergy, IReadOnlyList<SpeakerSpan> voices) =
-            await ProcessChannelAsync(
-                session.SystemPath,
-                // Чужой канал — определением языка. Навязанный не тому каналу язык
-                // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
-                current.OtherSideLanguage,
-                current,
-                // Разделять голоса имеет смысл только на чужом канале: свой
-                // принадлежит владельцу микрофона по построению.
-                SpeakersToLookFor(session, current),
-                progress,
-                cancellationToken).ConfigureAwait(false);
+        (IReadOnlyList<TranscriptSegment> systemSegments, EnergyEnvelope systemEnergy) = await ProcessChannelAsync(
+            session.SystemPath,
+            // Чужой канал — определением языка. Навязанный не тому каналу язык
+            // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
+            current.OtherSideLanguage,
+            current,
+            Stage(progress, CallTranscriptionStage.TranscribingOtherSide, MicrophoneEnds, OtherSideEnds),
+            cancellationToken).ConfigureAwait(false);
 
-        progress?.Report(CallTranscriptionStage.FilteringBleed);
+        progress?.Report(new(CallTranscriptionStage.FilteringBleed, OtherSideEnds));
         BleedFilter.Result filtered = BleedFilter.Apply(micSegments, systemSegments, micEnergy, systemEnergy);
 
-        CallTranscriptLabels text = labels?.Invoke() ?? CallTranscriptLabels.Default;
-        Func<TranscriptSegment, string> nameOther = OtherSideNamer(session, current, voices, text);
-
-        List<Utterance> timeline =
+        List<CallLine> lines =
         [
-            .. filtered.Kept.Select(s => new Utterance(s.Start, current.EffectiveMyName, s.Text)),
-            .. systemSegments.Select(s => new Utterance(s.Start, nameOther(s), s.Text)),
+            .. filtered.Kept.Select(s => new CallLine(CallChannel.Mine, s.Start, s.End, s.Text)),
+            .. systemSegments.Select(s => new CallLine(CallChannel.Theirs, s.Start, s.End, s.Text)),
         ];
 
-        timeline.Sort((a, b) => a.Start.CompareTo(b.Start));
+        lines.Sort((a, b) => a.Start.CompareTo(b.Start));
 
-        string markdown = Render(session, current, timeline, filtered, voices, text);
-        await File.WriteAllTextAsync(session.TranscriptPath, markdown, cancellationToken).ConfigureAwait(false);
+        // Участников перечитываем с диска именно здесь, а не берём из
+        // аргумента. Распознавание начинается сразу после остановки записи,
+        // и человек отмечает, кто был на звонке, пока оно идёт. Сколько
+        // голосов искать, нужно знать только к этому месту — и к этому
+        // месту ответ обычно уже есть.
+        CallSession fresh = CallMeta.Load(session.Directory) ?? session;
+        int expected = ExpectedVoices(fresh, current);
 
-        AppLog.Info($"Транскрипт готов: {session.TranscriptPath}, отсеяно {filtered.RemovedTotal} реплик.");
-        progress?.Report(CallTranscriptionStage.Done);
-        return session.TranscriptPath;
+        var transcript = new CallTranscript
+        {
+            Lines = lines,
+            RemovedByText = filtered.RemovedByText,
+            RemovedByEnergy = filtered.RemovedByEnergy,
+        };
+
+        if (expected != 0)
+        {
+            transcript = await SplitAsync(session, transcript, expected, current, progress, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        string path = Store(session.Directory, transcript, current);
+
+        AppLog.Info($"Транскрипт готов: {path}, отсеяно {filtered.RemovedTotal} реплик, голосов {transcript.Voices.Count}.");
+        progress?.Report(new(CallTranscriptionStage.Done, 100));
+        return path;
     }
 
     /// <summary>
-    /// Прочитать канал, распознать его, снять огибающую и, если нужно, разделить голоса.
+    /// Разделить голоса заново — по уже распознанному, без Whisper.
     /// </summary>
+    /// <param name="callDirectory">Папка звонка.</param>
+    /// <param name="expectedVoices">Сколько голосов искать; ноль или меньше — без подсказки.</param>
+    /// <param name="progress">Ход работы.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>Путь к транскрипту, или <c>null</c>, если разделять нечем или не по чему.</returns>
     /// <remarks>
-    /// Массив сэмплов живёт только внутри этого метода: наружу уходят сегменты,
-    /// огибающая и границы голосов, вместе занимающие меньше мегабайта на час
-    /// записи.
+    /// Нужна, когда человек отметил участников уже после разделения —
+    /// «их было трое», а искали без подсказки или двоих. Подсказка о числе
+    /// голосов — самый сильный рычаг точности, и применить её стоит минуту
+    /// процессора, а не повторное распознавание часа записи.
     /// </remarks>
-    private async Task<(IReadOnlyList<TranscriptSegment> Segments, EnergyEnvelope Energy, IReadOnlyList<SpeakerSpan> Voices)>
-        ProcessChannelAsync(
-            string path,
-            string language,
-            AppSettings current,
-            int speakersToLookFor,
-            IProgress<CallTranscriptionStage>? progress,
-            CancellationToken cancellationToken)
+    public async Task<string?> ResplitAsync(
+        string callDirectory,
+        int expectedVoices,
+        IProgress<CallTranscriptionProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
-        float[] samples = AudioFile.ReadMono16k(path);
-        if (samples.Length == 0)
+        if (CallMeta.Load(callDirectory) is not { } session
+            || CallTranscriptStore.Load(callDirectory) is not { } transcript
+            || diarizer?.Invoke() is null)
         {
-            return ([], EnergyEnvelope.Empty, []);
+            return null;
         }
 
-        // Огибающую снимаем ДО нормализации: анти-bleed сравнивает каналы
-        // между собой, а нормализация усиливает каждый по-своему.
-        EnergyEnvelope energy = EnergyEnvelope.Build(samples);
+        AppSettings current = settings();
+        CallTranscript split = await SplitAsync(
+            session,
+            transcript,
+            expectedVoices > 0 ? expectedVoices : -1,
+            current,
+            progress,
+            cancellationToken).ConfigureAwait(false);
 
-        IReadOnlyList<TranscriptSegment> segments = await transcriber
-            .TranscribeAsync(samples, progress: null, language: language, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
-        IReadOnlyList<SpeakerSpan> voices = [];
-        if (speakersToLookFor != 0 && diarizer?.Invoke() is { } splitter)
-        {
-            progress?.Report(CallTranscriptionStage.SplittingVoices);
-
-            // Разделяем ПОСЛЕ распознавания и по нормализованной копии.
-            // После — потому что своя копия распознавания к этому моменту уже
-            // освобождена, и в памяти снова лежит один лишний массив, а не два.
-            float[] audio = current.NormalizeAudio ? AudioNormalizer.Normalize(samples) : samples;
-
-            voices = await Task.Run(
-                () => splitter.Split(audio, speakersToLookFor, progress: null, cancellationToken),
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return (Clean(segments, current), energy, voices);
+        string path = Store(callDirectory, split, current);
+        progress?.Report(new(CallTranscriptionStage.Done, 100));
+        return path;
     }
 
     /// <summary>
-    /// Сколько голосов искать в чужом канале. Ноль — не искать вовсе.
+    /// Привести транскрипт в соответствие с тем, что человек сказал об участниках.
     /// </summary>
+    /// <returns>Путь к транскрипту, или <c>null</c>, если распознанных данных нет.</returns>
     /// <remarks>
-    /// Один названный собеседник — разделять нечего: его именем подписывается
-    /// весь канал, и это бесплатно и точно. Ни одного названного — ищем без
-    /// подсказки: людей там может быть и трое, просто мы не знаем их имён, а
-    /// «Them» на всех хуже, чем «Собеседник 1» и «Собеседник 2».
+    /// Зовётся после правки участников. Если отмечено несколько человек, а
+    /// голоса искали под другое число, — разделяем заново. Иначе хватает
+    /// перерисовки: один отмеченный участник и так подписывает весь чужой
+    /// канал, а имена голосов берутся из меты при отрисовке.
     /// </remarks>
-    private static int SpeakersToLookFor(CallSession session, AppSettings current)
+    public async Task<string?> ReconcileAsync(
+        string callDirectory,
+        IProgress<CallTranscriptionProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (CallMeta.Load(callDirectory) is not { } session
+            || CallTranscriptStore.Load(callDirectory) is not { } transcript)
+        {
+            return null;
+        }
+
+        AppSettings current = settings();
+        int expected = ExpectedVoices(session, current);
+
+        if (expected > 0 && transcript.ExpectedVoices != expected && diarizer?.Invoke() is not null)
+        {
+            AppLog.Info($"Участников стало {expected}, голоса искали под {transcript.ExpectedVoices} — разделяю заново.");
+            return await ResplitAsync(callDirectory, expected, progress, cancellationToken).ConfigureAwait(false);
+        }
+
+        return Render(callDirectory);
+    }
+
+    /// <summary>Перерисовать <c>transcript.md</c> по сохранённым данным. Мгновенно.</summary>
+    /// <returns>Путь к транскрипту, или <c>null</c>, если распознанных данных нет.</returns>
+    public string? Render(string callDirectory)
+    {
+        AppSettings current = settings();
+        CallTranscriptLabels text = Labels();
+
+        return CallTranscriptRenderer.Write(callDirectory, current.EffectiveMyName, Fallback(current, text), text);
+    }
+
+    /// <summary>
+    /// Сколько голосов искать в чужом канале.
+    /// </summary>
+    /// <returns>Ноль — не разделять; меньше нуля — без подсказки; больше — столько.</returns>
+    /// <remarks>
+    /// Один отмеченный собеседник — разделять нечего: его именем подписывается
+    /// весь канал, и это бесплатно и точно. Ни одного — ищем без подсказки:
+    /// людей там может быть и трое, просто их не отметили, а «Собеседник» на
+    /// всех хуже, чем «Голос A» и «Голос B».
+    /// </remarks>
+    internal static int ExpectedVoices(CallSession session, AppSettings current)
     {
         if (!current.SplitVoices || session.Participants.Count == 1)
         {
@@ -216,50 +292,124 @@ public sealed class CallTranscriber(
         return session.Participants.Count > 1 ? session.Participants.Count : -1;
     }
 
-    /// <summary>
-    /// Чем подписывать реплики чужого канала.
-    /// </summary>
+    /// <summary>Разделить голоса на чужой дорожке и разметить реплики.</summary>
     /// <remarks>
-    /// Порядок предпочтений: имя разделённого голоса, затем единственный
-    /// названный собеседник, затем общее слово из настроек. Каждый следующий
-    /// шаг — признание, что мы знаем меньше, и подпись обязана это показывать,
-    /// а не делать вид, что знает.
+    /// Дорожка читается заново, а не берётся из распознавания: к этому
+    /// моменту её массив уже отпущен, и держать его ради разделения значило бы
+    /// держать в памяти лишние сотни мегабайт на всё время распознавания.
+    /// Нормализованная копия — потому что сегментация решает по энергии, как
+    /// и детектор речи.
     /// </remarks>
-    private static Func<TranscriptSegment, string> OtherSideNamer(
+    private async Task<CallTranscript> SplitAsync(
         CallSession session,
+        CallTranscript transcript,
+        int expected,
         AppSettings current,
-        IReadOnlyList<SpeakerSpan> voices,
-        CallTranscriptLabels text)
+        IProgress<CallTranscriptionProgress>? progress,
+        CancellationToken cancellationToken)
     {
-        if (session.Participants.Count == 1)
+        if (diarizer?.Invoke() is not { } splitter)
         {
-            string only = session.Participants[0];
-            return _ => only;
+            return transcript;
         }
 
-        if (voices.Count == 0)
+        progress?.Report(new(CallTranscriptionStage.SplittingVoices, FilteringEnds));
+
+        float[] samples = AudioFile.ReadMono16k(session.SystemPath);
+        if (samples.Length == 0)
         {
-            string fallback = Fallback(current, text);
-            return _ => fallback;
+            return transcript;
         }
 
-        IReadOnlyDictionary<int, string> names =
-            SpeakerAssignment.Label(voices, session.Participants, text.UnknownSpeaker);
+        float[] audio = current.NormalizeAudio ? AudioNormalizer.Normalize(samples) : samples;
+        IProgress<int>? percent = Stage(progress, CallTranscriptionStage.SplittingVoices, FilteringEnds, SplittingEnds);
 
-        return segment =>
+        IReadOnlyList<SpeakerSpan> spans = await Task.Run(
+            () => splitter.Split(audio, expected > 0 ? expected : 0, percent, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+
+        List<CallLine> unassigned = [.. transcript.Lines.Select(l => l.Voice is null ? l : l with { Voice = null })];
+
+        return transcript with
         {
-            int? speaker = SpeakerAssignment.For(segment.Start, segment.End, voices);
-
-            // Реплика, не попавшая ни в один найденный участок, — обычное
-            // дело: распознавание слышит речь там, где сегментация её не
-            // разметила. Подписываем общим словом, а не ближайшим по времени
-            // именем: приписать фразу конкретному человеку наугад хуже, чем
-            // честно сказать «собеседник».
-            return speaker is not null && names.TryGetValue(speaker.Value, out string? name)
-                ? name
-                : Fallback(current, text);
+            Lines = CallVoices.Assign(unassigned, spans),
+            VoicesSplit = true,
+            ExpectedVoices = Math.Max(expected, 0),
         };
     }
+
+    /// <summary>
+    /// Записать данные, найденные голоса в мету — и отрисовать.
+    /// </summary>
+    /// <remarks>
+    /// Имена голосов при этом сбрасываются. Буквы раздаются заново по
+    /// порядку появления, и «B» нового разделения — не обязательно «B»
+    /// прежнего. Оставить старые имена значило бы молча подписать реплики
+    /// чужим именем, а именно с этим переделка и боролась.
+    /// </remarks>
+    private string Store(string callDirectory, CallTranscript transcript, AppSettings current)
+    {
+        CallTranscriptStore.Save(callDirectory, transcript);
+        CallMeta.Update(callDirectory, s => s with
+        {
+            Voices = transcript.Voices,
+            VoiceNames = new Dictionary<string, string>(),
+        });
+
+        CallTranscriptLabels text = Labels();
+        return CallTranscriptRenderer.Write(callDirectory, current.EffectiveMyName, Fallback(current, text), text)
+               ?? Path.Combine(callDirectory, CallSession.TranscriptFileName);
+    }
+
+    /// <summary>
+    /// Прочитать канал, распознать его и снять огибающую.
+    /// </summary>
+    /// <remarks>
+    /// Массив сэмплов живёт только внутри этого метода: наружу уходят сегменты
+    /// и огибающая, вместе занимающие меньше мегабайта на час записи.
+    /// </remarks>
+    private async Task<(IReadOnlyList<TranscriptSegment> Segments, EnergyEnvelope Energy)> ProcessChannelAsync(
+        string path,
+        string language,
+        AppSettings current,
+        IProgress<int>? progress,
+        CancellationToken cancellationToken)
+    {
+        float[] samples = AudioFile.ReadMono16k(path);
+        if (samples.Length == 0)
+        {
+            return ([], EnergyEnvelope.Empty);
+        }
+
+        // Огибающую снимаем ДО нормализации: анти-bleed сравнивает каналы
+        // между собой, а нормализация усиливает каждый по-своему.
+        EnergyEnvelope energy = EnergyEnvelope.Build(samples);
+
+        IReadOnlyList<TranscriptSegment> segments = await transcriber
+            .TranscribeAsync(samples, progress, language: language, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        return (Clean(segments, current), energy);
+    }
+
+    /// <summary>Пересчитать проценты этапа в проценты всей работы.</summary>
+    private static Progress<int>? Stage(
+        IProgress<CallTranscriptionProgress>? progress,
+        CallTranscriptionStage stage,
+        int from,
+        int to)
+    {
+        if (progress is null)
+        {
+            return null;
+        }
+
+        progress.Report(new(stage, from));
+        return new Progress<int>(percent =>
+            progress.Report(new(stage, from + ((to - from) * Math.Clamp(percent, 0, 100) / 100))));
+    }
+
+    private CallTranscriptLabels Labels() => labels?.Invoke() ?? CallTranscriptLabels.Default;
 
     /// <summary>Общее слово для собеседника, когда имени нет.</summary>
     private static string Fallback(AppSettings current, CallTranscriptLabels text) =>
@@ -274,126 +424,4 @@ public sealed class CallTranscriber(
                 .Select(s => s with { Text = TextPostProcessor.ApplyReplacements(s.Text, appSettings.Replacements) })
                 .Where(s => s.Text.Length > 0),
         ];
-
-    private static string Render(
-        CallSession session,
-        AppSettings appSettings,
-        IReadOnlyList<Utterance> timeline,
-        BleedFilter.Result filtered,
-        IReadOnlyList<SpeakerSpan> voices,
-        CallTranscriptLabels text)
-    {
-        var markdown = new StringBuilder();
-        markdown.Append("# ").AppendLine(Path.GetFileName(session.Directory)).AppendLine();
-
-        markdown.Append("- ").Append(text.StartedAt).Append(": ")
-            .AppendLine(session.StartedAt.ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture));
-        markdown.Append("- ").Append(text.Duration).Append(": ")
-            .AppendLine(Stamp(session.Duration));
-
-        if (!string.IsNullOrWhiteSpace(session.Trigger))
-        {
-            markdown.Append("- ").Append(text.Trigger).Append(": ").AppendLine(session.Trigger);
-        }
-
-        // Как именно разделены голоса — в шапку. Читающий транскрипт должен
-        // видеть, откуда взялись имена: по названным участникам или машина
-        // угадала сама. Это разные степени доверия к подписям.
-        if (voices.Count > 0)
-        {
-            int found = voices.Select(v => v.Speaker).Distinct().Count();
-            markdown.Append("- ").Append(text.VoicesSplit).Append(": ")
-                .Append(found.ToString(CultureInfo.CurrentCulture))
-                .Append(" (")
-                .Append(session.Participants.Count > 1 ? text.VoicesSplitHinted : text.VoicesSplitGuessed)
-                .AppendLine(")");
-        }
-
-        if (session.Participants.Count > 0)
-        {
-            markdown.Append("- ").Append(text.Participants).Append(": ")
-                .AppendLine(string.Join(", ", new[] { appSettings.EffectiveMyName }.Concat(session.Participants)));
-        }
-
-        // Честно пишем, сколько реплик отсеяно: если фильтр переусердствовал,
-        // это единственный способ заметить пропажу, не переслушивая запись.
-        if (filtered.RemovedTotal > 0)
-        {
-            markdown.Append("- ").Append(text.BleedRemoved).Append(": ")
-                .Append(filtered.RemovedTotal.ToString(CultureInfo.CurrentCulture))
-                .Append(" (").Append(text.BleedByText).Append(' ')
-                .Append(filtered.RemovedByText.ToString(CultureInfo.CurrentCulture))
-                .Append(", ").Append(text.BleedByEnergy).Append(' ')
-                .Append(filtered.RemovedByEnergy.ToString(CultureInfo.CurrentCulture))
-                .AppendLine(")");
-        }
-
-        markdown.AppendLine().AppendLine("---").AppendLine();
-
-        if (timeline.Count == 0)
-        {
-            markdown.AppendLine(text.NothingRecognized);
-            return markdown.ToString();
-        }
-
-        TimeSpan? headerAt = null;
-        string? headerSpeaker = null;
-
-        foreach (Utterance utterance in timeline)
-        {
-            if (NeedsHeader(utterance.Start, utterance.Speaker, headerAt, headerSpeaker))
-            {
-                markdown.Append("**[").Append(Stamp(utterance.Start)).Append("] ")
-                    .Append(utterance.Speaker).Append(":** ");
-
-                headerSpeaker = utterance.Speaker;
-                headerAt = utterance.Start;
-            }
-
-            markdown.AppendLine(utterance.Text).AppendLine();
-        }
-
-        return markdown.ToString();
-    }
-
-    /// <summary>Как часто повторять подпись внутри длинной реплики одного человека.</summary>
-    private static readonly TimeSpan HeaderInterval = TimeSpan.FromMinutes(2);
-
-    /// <summary>
-    /// Ставить ли перед этой репликой подпись «[время] Имя:».
-    /// </summary>
-    /// <param name="start">Начало реплики от начала записи.</param>
-    /// <param name="speaker">Кто её произнёс.</param>
-    /// <param name="headerAt">Время последней поставленной подписи, или <c>null</c>, если её ещё не было.</param>
-    /// <param name="headerSpeaker">Кто стоял в последней подписи.</param>
-    /// <remarks>
-    /// Подпись ставится на СМЕНЕ говорящего, а не на каждом сегменте. Whisper
-    /// режет речь на куски по несколько секунд, и штамп на каждом превращал
-    /// двухминутный монолог в сорок одинаковых строк «[2:14] Кирилл:», между
-    /// которыми терялся сам текст. Внутри длинного монолога подпись всё-таки
-    /// повторяется: без отметок времени в получасовой реплике невозможно найти
-    /// место в записи, а ради этого транскрипт и держат рядом со звуком.
-    /// <para>
-    /// Отсутствие предыдущей подписи — это <c>null</c>, а не «очень давно».
-    /// Здесь стояло <see cref="TimeSpan.MinValue"/>, и вычитание его из времени
-    /// реплики переполняло <see cref="TimeSpan"/> на ПЕРВОЙ же строке любого
-    /// транскрипта — час записи разговора не собирался вовсе. Отдельная функция
-    /// существует именно ради этого: на ней стоит тест, а внутри цикла
-    /// сборки markdown такой случай было некому проверить.
-    /// </para>
-    /// </remarks>
-    internal static bool NeedsHeader(TimeSpan start, string speaker, TimeSpan? headerAt, string? headerSpeaker) =>
-        headerAt is null
-        || speaker != headerSpeaker
-        || start - headerAt.Value >= HeaderInterval;
-
-    /// <summary>
-    /// Отметка времени.
-    /// </summary>
-    /// <remarks>
-    /// Минуты считаем через <c>TotalMinutes</c>, а не форматом <c>mm</c>:
-    /// тот обнуляется на шестидесятой минуте, а звонок бывает и длиннее.
-    /// </remarks>
-    private static string Stamp(TimeSpan time) =>
-        $"{(int)time.TotalMinutes}:{time.Seconds:D2}";
 }

@@ -16,6 +16,19 @@ using WinFormsScreen = System.Windows.Forms.Screen;
 
 namespace Tapybara.App;
 
+/// <summary>Что сейчас показывает пилюля — от этого зависит, что значит щелчок по ней.</summary>
+public enum OverlayMode
+{
+    /// <summary>Диктовка: запись, распознавание, вспышка результата.</summary>
+    Dictation,
+
+    /// <summary>Идёт запись звонка.</summary>
+    CallRecording,
+
+    /// <summary>Распознаётся записанный звонок.</summary>
+    CallTranscribing,
+}
+
 /// <summary>Плавающая пилюля-индикатор диктовки поверх всех окон.</summary>
 public partial class OverlayWindow : Window
 {
@@ -39,8 +52,6 @@ public partial class OverlayWindow : Window
     private bool _pressed;
     private bool _dragged;
 
-    /// <summary>Пилюля показывает запись звонка, а не диктовку.</summary>
-    private bool _callMode;
 
     public OverlayWindow()
     {
@@ -137,6 +148,12 @@ public partial class OverlayWindow : Window
     /// <summary>Нажата кнопка ■ на пилюле звонка.</summary>
     public event Action? StopCallRequested;
 
+    /// <summary>Щелчок по пилюле распознающегося звонка — показать звонок.</summary>
+    public event Action? OpenCallsRequested;
+
+    /// <summary>Что сейчас на пилюле.</summary>
+    public OverlayMode Mode { get; private set; }
+
     /// <summary>Пользователь перетащил пилюлю. Координаты логические.</summary>
     public event Action<double, double>? Moved;
 
@@ -180,9 +197,27 @@ public partial class OverlayWindow : Window
         Reveal();
     }
 
+    /// <summary>
+    /// Показать, что записанный звонок распознаётся.
+    /// </summary>
+    /// <remarks>
+    /// Раньше это было видно только во всплывающей подсказке иконки в трее:
+    /// часовой звонок распознавался минутами, и понять, идёт ли работа, можно
+    /// было, лишь наведя мышь на точку размером в восемь пикселей.
+    /// </remarks>
+    public void ShowCallTranscribing(string text)
+    {
+        ShowPanel(recording: false);
+        Mode = OverlayMode.CallTranscribing;
+        TranscribingPanel.Visibility = Visibility.Visible;
+        TranscribingText.Text = text;
+        CancelHint.Visibility = Visibility.Collapsed;
+        Reveal();
+    }
+
     private void SetCallMode(bool call)
     {
-        _callMode = call;
+        Mode = call ? OverlayMode.CallRecording : OverlayMode.Dictation;
         RecordingRing.Visibility = call ? Visibility.Visible : Visibility.Collapsed;
         RecordingDot.Width = call ? 5 : 9;
         RecordingDot.Height = call ? 5 : 9;
@@ -196,6 +231,7 @@ public partial class OverlayWindow : Window
         ShowPanel(recording: false);
         TranscribingPanel.Visibility = Visibility.Visible;
         TranscribingText.Text = string.Format(CultureInfo.CurrentCulture, L.S.PillTranscribing, percent);
+        CancelHint.Visibility = Visibility.Visible;
         CancelHint.Text = L.S.PillHintCancel;
     }
 
@@ -477,9 +513,14 @@ public partial class OverlayWindow : Window
         // Не перетаскивание — значит клик. Но не по пилюле звонка: там
         // щелчок раньше запускал диктовку, и человек, решивший, что так
         // останавливают звонок, получал вторую запись вместо остановки первой.
-        if (!_callMode)
+        switch (Mode)
         {
-            Clicked?.Invoke();
+            case OverlayMode.Dictation:
+                Clicked?.Invoke();
+                break;
+            case OverlayMode.CallTranscribing:
+                OpenCallsRequested?.Invoke();
+                break;
         }
     }
 

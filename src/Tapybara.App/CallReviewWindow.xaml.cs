@@ -51,7 +51,15 @@ public partial class CallReviewWindow : FluentWindow
         _otherSideLabel = otherSideLabel;
 
         Participants.Load(myName, known, session.Participants);
-        Participants.SelectionChanged += UpdateHint;
+        Participants.SelectionChanged += () =>
+        {
+            UpdateHint();
+
+            // Сразу на диск, а не при закрытии: распознавание уже идёт и
+            // прочитает участников из меты, когда дойдёт до разделения
+            // голосов. Окно к тому времени может быть ещё открыто.
+            SaveParticipants();
+        };
 
         NoteBox.Text = ReadNote(session.Directory);
 
@@ -148,10 +156,15 @@ public partial class CallReviewWindow : FluentWindow
         }
 
         Participants.Flush();
-        SelectedParticipants = Participants.Selected;
-
-        CallMeta.Save(_session with { Participants = SelectedParticipants });
+        SaveParticipants();
         WriteNote(_session.Directory, NoteBox.Text);
+    }
+
+    private void SaveParticipants()
+    {
+        SelectedParticipants = Participants.Selected;
+        IReadOnlyList<string> selected = SelectedParticipants;
+        CallMeta.Update(_session.Directory, s => s with { Participants = selected });
     }
 
     private static string ReadNote(string directory)

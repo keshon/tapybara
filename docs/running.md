@@ -162,17 +162,26 @@ talk through a headset while your speakers are the system default, recording
 
 ### Who was on the call
 
-When a recording stops, a small window asks. Names are chips — the people you
-talked to most recently come first — and there is a field for anyone new. It
-does not take focus, because calls usually end on top of something you are
-still typing into, and transcription waits for the answer.
+When a recording stops, transcription starts straight away and a small window
+asks who was there. Names are chips — the people you talked to most recently
+come first — and there is a field for anyone new. It does not take focus,
+because calls usually end on top of something you are still typing into, and
+transcription does not wait for it: the answer is read when transcription
+reaches the point of telling voices apart, which is the end.
 
 Answering is worth the two seconds. One other person needs no voice analysis at
 all: whoever spoke is settled by which track the speech landed on, and the name
-goes straight into the transcript. Several people make the answer a hint, and
-that hint does more for accuracy than any setting on the page — on a two-voice
-check file, knowing the count put the boundary exactly where it belonged, and
-the same audio without it came apart into four speakers.
+goes straight into the transcript. Several people make the answer a hint about
+how many voices to look for, and that hint does more for accuracy than any
+setting on the page — on a two-voice check file, knowing the count put the
+boundary exactly where it belonged, and the same audio without it came apart
+into four speakers.
+
+What the answer does not do is say which voice is whom. Voices are labelled
+`Voice A`, `Voice B` until you name them, and a call waiting for names is
+marked so in the list. Ticking the participants after transcription has
+finished is fine too: the transcript is rebuilt from the stored lines, and if
+the count changed, only the voice split runs again.
 
 Nothing is lost if you close the window: names and the note are saved however
 it is closed. When the transcript is ready, clicking the notification opens

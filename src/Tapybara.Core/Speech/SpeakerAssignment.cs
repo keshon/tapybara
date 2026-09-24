@@ -47,53 +47,6 @@ public static class SpeakerAssignment
         return best < 0 ? null : best;
     }
 
-    /// <summary>
-    /// Подписать каждый найденный голос.
-    /// </summary>
-    /// <param name="spans">Что нашёл разделитель.</param>
-    /// <param name="names">Имена участников в том порядке, в каком их назвали.</param>
-    /// <param name="unknown">Слово для голоса, которому имени не досталось.</param>
-    /// <remarks>
-    /// Соответствие номеров именам произвольно: разделитель нумерует голоса
-    /// в порядке, который знает только он, а человек называл участников в
-    /// своём. Единственное честное сопоставление — по времени первого
-    /// появления: кто заговорил раньше, тот получает первое имя. Это
-    /// угадывание, и оно на то и рассчитано, что подпись потом поправят.
-    /// <para>
-    /// Голосам сверх числа имён достаётся «Собеседник N», и N здесь — тоже
-    /// номер появления, а не внутренний номер кластера. Кластеры нумеруются
-    /// с дырами: на записи с единственным голосом разделитель вернул номер 2,
-    /// и пользователь увидел бы «Собеседник 2» там, где собеседник один.
-    /// </para>
-    /// </remarks>
-    public static IReadOnlyDictionary<int, string> Label(
-        IReadOnlyList<SpeakerSpan> spans,
-        IReadOnlyList<string> names,
-        string unknown)
-    {
-        ArgumentNullException.ThrowIfNull(spans);
-        ArgumentNullException.ThrowIfNull(names);
-
-        var order = new List<int>();
-        foreach (SpeakerSpan span in spans.OrderBy(s => s.Start))
-        {
-            if (!order.Contains(span.Speaker))
-            {
-                order.Add(span.Speaker);
-            }
-        }
-
-        var result = new Dictionary<int, string>();
-        for (int i = 0; i < order.Count; i++)
-        {
-            result[order[i]] = i < names.Count
-                ? names[i]
-                : $"{unknown} {(i + 1).ToString(System.Globalization.CultureInfo.CurrentCulture)}";
-        }
-
-        return result;
-    }
-
     private static TimeSpan Overlap(TimeSpan aStart, TimeSpan aEnd, TimeSpan bStart, TimeSpan bEnd)
     {
         TimeSpan start = aStart > bStart ? aStart : bStart;

@@ -78,7 +78,7 @@ detector threshold resets to 0.35 and nothing tells them. Add properties, don't
 rename them; if a rename is truly needed, read the old key too for a few
 releases.
 
-**Call folder layout.** `mic.wav`, `system.wav`, `meta.json`, `transcript.md`,
+**Call folder layout.** `mic.wav`, `system.wav`, `meta.json`, `transcript.json`, `transcript.md`,
 declared as constants on `CallSession`. They are English and independent of the
 interface language on purpose: they are read by code as well as by people, and
 renaming them would break recordings already sitting on disk.

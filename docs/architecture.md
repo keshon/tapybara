@@ -138,6 +138,35 @@ Levels come from an `EnergyEnvelope` — one value per 20 ms — rather than the
 raw samples. An hour of two-channel audio is about 460 MB of float arrays held
 only to compute a few dozen averages.
 
+### Voices, names and the three files
+
+A call folder holds three things that make up a transcript, each owned by
+someone different:
+
+- `transcript.json` — what the machine heard: every line with its channel,
+  timings, text and, on the far channel, a voice letter (`A`, `B`…) in order
+  of first appearance. Written by `CallTranscriber`.
+- `meta.json` — what the person knows: who was on the call, the call's title,
+  and which name each voice letter carries. Written by the windows, always
+  through `CallMeta.Update`, which re-reads the file under a lock so that one
+  writer's stale snapshot does not erase another's fields.
+- `transcript.md` — a rendering of the two, rebuilt by
+  `CallTranscriptRenderer` in milliseconds whenever either changes.
+
+Names are never handed to voices by order. Diarisation can tell voices apart;
+it cannot know which one is Kirill, and assigning the first listed name to the
+first voice heard was a coin toss on every two-person call that the transcript
+then presented as fact. A voice is named by the person, from quotes. The one
+exception is a single listed participant: then everything on the far channel
+is theirs by construction.
+
+That split is what makes the operations cheap. Transcription is minutes of
+Whisper. Re-splitting voices — because the person said three people were on the
+call after the split looked for two — reruns only diarisation over the stored
+lines, a minute of CPU. Renaming a voice is a re-render. Transcription starts
+the moment a recording stops and reads the participant list from `meta.json`
+only when it reaches the split, by which time the answer is usually there.
+
 ## Windows-specific notes
 
 Things that cost us time and may cost you some too.

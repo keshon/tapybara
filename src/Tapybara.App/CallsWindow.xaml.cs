@@ -64,7 +64,9 @@ public partial class CallsWindow : FluentWindow
     private readonly SettingsHost _host;
     private readonly Func<string> _callsDirectory;
     private readonly Func<string, CallState?> _liveState;
+    private readonly Func<string, int?> _livePercent;
     private readonly Func<CallSession, Task> _transcribe;
+    private readonly Func<string, Task> _reconcile;
 
     private readonly ObservableCollection<CallRow> _rows = [];
     private readonly DispatcherTimer _refresh;
@@ -76,14 +78,18 @@ public partial class CallsWindow : FluentWindow
         SettingsHost host,
         Func<string> callsDirectory,
         Func<string, CallState?> liveState,
-        Func<CallSession, Task> transcribe)
+        Func<string, int?> livePercent,
+        Func<CallSession, Task> transcribe,
+        Func<string, Task> reconcile)
     {
         InitializeComponent();
 
         _host = host;
         _callsDirectory = callsDirectory;
         _liveState = liveState;
+        _livePercent = livePercent;
         _transcribe = transcribe;
+        _reconcile = reconcile;
 
         CallList.ItemsSource = _rows;
         Participants.SelectionChanged += OnParticipantsChanged;
@@ -124,6 +130,9 @@ public partial class CallsWindow : FluentWindow
         Participants.ApplyLanguage();
         Reload(keepSelection: true);
     }
+
+    /// <summary>Перечитать список: работа над звонком закончилась.</summary>
+    public void RefreshCalls() => Reload(keepSelection: true);
 
     /// <summary>Выбрать звонок по его папке — например, по щелчку на уведомлении.</summary>
     public void Select(string directory)
@@ -197,6 +206,10 @@ public partial class CallsWindow : FluentWindow
         }
 
         (string text, string background, string foreground) = Badge(entry.State);
+        if (entry.State == CallState.Transcribing && _livePercent(entry.Directory) is { } percent)
+        {
+            text = $"{text} · {percent.ToString(CultureInfo.CurrentCulture)}%";
+        }
 
         return new CallRow
         {
@@ -223,6 +236,7 @@ public partial class CallsWindow : FluentWindow
         CallState.Recording => (L.S.CallStateRecording, "SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
         CallState.Transcribing => (L.S.CallStateTranscribing, "SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
         CallState.Ready => (L.S.CallStateReady, "SystemFillColorSuccessBackgroundBrush", "SystemFillColorSuccessBrush"),
+        CallState.NeedsNames => (L.S.CallStateNeedsNames, "SystemFillColorAttentionBackgroundBrush", "AccentTextFillColorPrimaryBrush"),
         CallState.Damaged => (L.S.CallStateDamaged, "SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
         _ => (L.S.CallStateNotTranscribed, "SubtleFillColorSecondaryBrush", "TextFillColorSecondaryBrush"),
     };
@@ -279,7 +293,7 @@ public partial class CallsWindow : FluentWindow
 
         NoteBox.Text = ReadNote(entry.Directory);
 
-        bool ready = entry.State == CallState.Ready;
+        bool ready = entry.State is CallState.Ready or CallState.NeedsNames;
         bool busy = entry.State is CallState.Recording or CallState.Transcribing;
 
         OpenTranscriptButton.IsEnabled = ready;
@@ -306,8 +320,9 @@ public partial class CallsWindow : FluentWindow
     /// <remarks>
     /// Без кнопки «Сохранить»: щелчок по чипу — уже законченное действие, и
     /// требовать после него подтверждения значило бы сделать из одного клика
-    /// два. Транскрипт при этом не пересобирается: имена попадут в него при
-    /// следующем распознавании, и кнопка для этого рядом.
+    /// два. Транскрипт пересобирается следом: раньше имена попадали в него
+    /// только при повторном распознавании, и до тех пор он молча оставался
+    /// старым.
     /// </remarks>
     private void OnParticipantsChanged()
     {
@@ -317,7 +332,12 @@ public partial class CallsWindow : FluentWindow
         }
 
         IReadOnlyList<string> selected = Participants.Selected;
-        CallMeta.Save(_current.Session with { Participants = selected });
+        CallMeta.Update(_current.Directory, s => s with { Participants = selected });
+
+        if (_current.HasTranscriptData)
+        {
+            _ = _reconcile(_current.Directory);
+        }
 
         if (selected.Count > 0)
         {

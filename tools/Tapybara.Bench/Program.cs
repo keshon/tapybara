@@ -505,7 +505,7 @@ async Task TranscribeCallAsync(string callDirectory)
         diarizer: () => diarizer);
 
     var timer = Stopwatch.StartNew();
-    var progress = new Progress<CallTranscriptionStage>(stage => Console.WriteLine($"  {stage}"));
+    var progress = new Progress<CallTranscriptionProgress>(p => Console.WriteLine($"  {p.Stage} {p.Percent}%"));
     string path = await transcriber.TranscribeAsync(session, progress);
     timer.Stop();
 

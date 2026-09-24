@@ -55,6 +55,7 @@ public sealed partial class TrayIconHost : IDisposable
     private DictationState _state = DictationState.Idle;
     private bool _engineBusy;
     private bool _recordingCall;
+    private bool _transcribingCall;
 
     public TrayIconHost()
     {
@@ -247,6 +248,21 @@ public sealed partial class TrayIconHost : IDisposable
     }
 
     /// <summary>
+    /// Распознаётся записанный звонок.
+    /// </summary>
+    /// <remarks>
+    /// Не то же самое, что <see cref="SetEngineBusy"/>. Раньше распознавание
+    /// звонка выдавало себя за загрузку модели: на несколько минут пункт
+    /// «Начать диктовку» становился серым «Загружаю модель…», хотя диктовать
+    /// можно — движок берёт диктовку между кусками звонка.
+    /// </remarks>
+    public void SetCallTranscribing(bool transcribing)
+    {
+        _transcribingCall = transcribing;
+        ApplyVisualState();
+    }
+
+    /// <summary>
     /// Свести состояние диктовки и занятость движка к одной картинке.
     /// </summary>
     /// <remarks>
@@ -261,7 +277,7 @@ public sealed partial class TrayIconHost : IDisposable
             DictationState.Recording => _activeIcon,
             _ when _recordingCall => _callIcon,
             DictationState.Transcribing => _busyIcon,
-            _ => _engineBusy ? _busyIcon : _idleIcon,
+            _ => _engineBusy || _transcribingCall ? _busyIcon : _idleIcon,
         };
 
         _recordCallItem.Text = _recordingCall ? L.S.TrayStopRecording : L.S.TrayStartRecording;
