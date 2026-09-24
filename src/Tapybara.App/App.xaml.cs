@@ -201,6 +201,14 @@ public partial class App : Application, IDisposable
         StartWakeListener();
 
         _overlay = new OverlayWindow();
+
+        // WPF назначает главным окном первое созданное — а первой создаётся
+        // пилюля. Библиотека тем при каждой смене оформления перекрашивает
+        // именно главное окно: даёт ему белую подложку и Mica, и вокруг
+        // пилюли появлялся белый прямоугольник. Главным становится настоящее
+        // окно приложения, когда его откроют (CreateMainWindow).
+        MainWindow = null;
+
         _overlay.Clicked += OnOverlayClicked;
         _overlay.StopCallRequested += () =>
         {
@@ -1651,6 +1659,7 @@ public partial class App : Application, IDisposable
 
         window.Closed += (_, _) => _mainWindow = null;
         _mainWindow = window;
+        MainWindow = window;
         return window;
     }
 

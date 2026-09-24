@@ -116,12 +116,42 @@ public partial class OverlayWindow : Window
                     {
                         Background = Brushes.Transparent;
                     }
+
+                    ClearNativeBackground();
                 }
                 finally
                 {
                     _restoringBackground = false;
                 }
             });
+    }
+
+    /// <summary>
+    /// Снять то, что библиотека тем кладёт под окно помимо свойства Background.
+    /// </summary>
+    /// <remarks>
+    /// Вернуть прозрачный <c>Background</c> мало. Та же
+    /// <c>WindowBackdrop.RestoreContentBackground</c> красит подложку
+    /// композиции в <c>SystemColors.WindowColor</c> — белый, — а следом
+    /// окну ставится системный фон Mica. Оба слоя лежат под WPF, и
+    /// прозрачный фон окна их не закрывает: белый прямоугольник оставался,
+    /// хотя в журнале значилось «возвращаю прозрачный».
+    /// </remarks>
+    private void ClearNativeBackground()
+    {
+        nint handle = new WindowInteropHelper(this).Handle;
+        if (handle == 0)
+        {
+            return;
+        }
+
+        if (HwndSource.FromHwnd(handle)?.CompositionTarget is { } target && target.BackgroundColor.A != 0)
+        {
+            target.BackgroundColor = Colors.Transparent;
+        }
+
+        int none = DwmBackdropNone;
+        _ = DwmSetWindowAttribute(handle, DwmSystemBackdropType, ref none, sizeof(int));
     }
 
     /// <summary>Прозрачна ли кисть настолько, что окно остаётся невидимым.</summary>
@@ -315,6 +345,7 @@ public partial class OverlayWindow : Window
             Background = Brushes.Transparent;
         }
 
+        ClearNativeBackground();
         MoveIntoPlace();
 
         // Show(), а не Activate(): активация увела бы фокус с приложения,
@@ -547,4 +578,13 @@ public partial class OverlayWindow : Window
 
     [LibraryImport("shcore.dll")]
     private static partial int GetDpiForMonitor(nint monitor, int type, out uint dpiX, out uint dpiY);
+
+    /// <summary><c>DWMWA_SYSTEMBACKDROP_TYPE</c>.</summary>
+    private const int DwmSystemBackdropType = 38;
+
+    /// <summary><c>DWMSBT_NONE</c>: без системного фона.</summary>
+    private const int DwmBackdropNone = 1;
+
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);
 }
