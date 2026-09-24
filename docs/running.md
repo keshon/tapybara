@@ -151,6 +151,23 @@ the call.
 Names that end in punctuation — `C#`, `C++`, `.NET` — work as replacement
 targets and as keys.
 
+The Dictionary page shows one row per correct word, with every way it was
+heard as chips on the left: type a variant and press Enter, or paste several
+separated by commas. A search field appears once there are more rows than fit
+on screen.
+
+### Moving the dictionary to another computer
+
+Tapybara › Dictionary › **Export…** saves the replacements, the prompt, the
+people and — if remembering voices is on — their voiceprints into one JSON
+file. **Import…** on the other computer merges it in rather than replacing:
+replacements already added there stay, a replacement present in both takes the
+file's version, and the prompt is taken only if there is none yet or it is
+still the default. Voiceprints are imported only when both computers use the
+same voice model, since prints from different models cannot be compared.
+Hotkeys, devices and folders are not part of the file: they belong to the
+machine.
+
 ### Speech detection
 
 The detector is measured, not guessed. Settings › Advanced has a **Measure**
@@ -240,7 +257,9 @@ whole far track is that person by construction — so one-to-one calls are
 enough for Tapybara to recognise people later on group calls.
 
 A voiceprint is biometric data. It is stored in `voices.json` next to the
-settings and never leaves the computer. Settings › Calls turns remembering off
+settings and never leaves the computer unless you export the dictionary
+yourself (and with remembering off, the export leaves voices out). Settings ›
+Calls turns remembering off
 and has a button that forgets every voice; Tapybara › Dictionary › People
 forgets one person, and renaming a person there carries the voice along.
 

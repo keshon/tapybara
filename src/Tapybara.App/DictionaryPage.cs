@@ -1,15 +1,16 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using System.Windows.Input;
 using Tapybara.App.Localization;
 using Tapybara.Core.Calls;
+using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Settings;
 using Wpf.Ui.Controls;
 
-using Brush = System.Windows.Media.Brush;
 using Button = Wpf.Ui.Controls.Button;
-using FontFamily = System.Windows.Media.FontFamily;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Orientation = System.Windows.Controls.Orientation;
 using Panel = System.Windows.Controls.Panel;
 using TextBlock = System.Windows.Controls.TextBlock;
@@ -34,6 +35,12 @@ namespace Tapybara.App;
 /// стиль, — а не про устройство распознавания.
 /// </para>
 /// <para>
+/// Словарь растёт годами, и страница рассчитана на сотни замен: одна строка
+/// на правильное слово, а не на каждый вариант того, как его услышали;
+/// поиск, как только строк становится больше, чем видно на экране; и
+/// выгрузка в файл — чтобы на новом компьютере не набирать всё заново.
+/// </para>
+/// <para>
 /// Собирается кодом, как карточки настроек: строки замен и имён — это
 /// пары полей, которые добавляются и удаляются, и шаблон с привязками
 /// только спрятал бы простую логику.
@@ -41,12 +48,25 @@ namespace Tapybara.App;
 /// </remarks>
 public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDisposable
 {
+    /// <summary>
+    /// Со скольких строк замен показывать поиск.
+    /// </summary>
+    /// <remarks>
+    /// Пока замен горстка, поле поиска — лишний элемент над тремя строками.
+    /// Восемь — примерно столько помещается в карточку без прокрутки.
+    /// </remarks>
+    private const int SearchFrom = 8;
+
     private readonly SettingsHost _settings;
     private readonly VoiceBook _voices;
     private readonly StackPanel _root = new() { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _replacements = new();
+    private readonly List<ReplacementRow> _rows = [];
     private readonly StackPanel _people = new();
     private readonly TextBox _prompt;
+    private readonly TextBox _search;
+    private readonly TextBlock _noMatches;
+    private readonly TextBlock _status;
 
     public DictionaryPage(SettingsHost settings, VoiceBook voices)
     {
@@ -59,6 +79,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             MinHeight = 72,
+            ClearButtonEnabled = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
         _prompt.LostFocus += (_, _) =>
@@ -66,6 +87,21 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             string value = _prompt.Text.Trim();
             _settings.Update(s => s with { Prompt = value.Length == 0 ? null : value });
         };
+
+        _search = new TextBox
+        {
+            Width = 260,
+            Icon = new SymbolIcon { Symbol = SymbolRegular.Search24 },
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        _search.TextChanged += (_, _) => ApplyFilter();
+
+        _noMatches = Ui.BodySecondary(string.Empty);
+        _noMatches.Margin = new Thickness(0, Tokens.Space2, 0, Tokens.Space2);
+
+        _status = Ui.BodySecondary(string.Empty);
+        _status.Margin = new Thickness(0, Tokens.Space3, 0, 0);
+        _status.Visibility = Visibility.Collapsed;
 
         Content = new ScrollViewer
         {
@@ -126,31 +162,44 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         Detach(_replacements);
         Detach(_prompt);
         Detach(_people);
+        Detach(_search);
+        Detach(_noMatches);
+        Detach(_status);
 
-        TextBlock title = Ui.Title(L.S.NavDictionary);
-        title.Margin = new Thickness(0, 0, 0, Tokens.Space2);
-        _root.Children.Add(title);
+        _root.Children.Add(Header());
 
         TextBlock intro = Ui.BodySecondary(L.S.DictionaryIntro);
-        intro.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        intro.Margin = new Thickness(0, Tokens.Space2, 0, 0);
         _root.Children.Add(intro);
+        _root.Children.Add(_status);
 
         // --- замены
         _root.Children.Add(Group(L.S.GroupReplacements, L.S.DictionaryReplacementsHint));
+        _search.PlaceholderText = L.S.DictionarySearch;
+        _noMatches.Text = L.S.DictionaryNoMatches;
         FillReplacements();
+
         var add = new Button
         {
             Content = L.S.ReplacementTitle,
             Icon = new SymbolIcon { Symbol = SymbolRegular.Add24 },
-            Margin = new Thickness(0, _replacements.Children.Count > 0 ? Tokens.Space1 : 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
         };
         add.Click += (_, _) =>
         {
-            TextBox heard = AddReplacementRow(string.Empty, string.Empty);
-            heard.Focus();
+            // Новая строка — сверху, а не в конце списка из сотни: иначе её
+            // пришлось бы искать прокруткой сразу после нажатия.
+            _search.Text = string.Empty;
+            ReplacementRow row = AddReplacementRow([], string.Empty, atTop: true);
+            row.NewVariant.Focus();
         };
 
-        _root.Children.Add(Card(new StackPanel { Children = { _replacements, add } }));
+        var toolbar = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
+        toolbar.Children.Add(add);
+        toolbar.Children.Add(_search);
+
+        _root.Children.Add(Card(new StackPanel { Children = { toolbar, _replacements, _noMatches } }));
+        ApplyFilter();
 
         // --- подсказка
         _root.Children.Add(Group(L.S.FieldPrompt, L.S.FieldPromptHint));
@@ -176,6 +225,27 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         _root.Children.Add(Group(L.S.DictionaryPeople, L.S.DictionaryPeopleHint));
         FillPeople();
         _root.Children.Add(Card(_people));
+    }
+
+    /// <summary>Заголовок страницы и перенос словаря в файл и из файла.</summary>
+    private Grid Header()
+    {
+        var header = new Grid();
+        header.Children.Add(Ui.Title(L.S.NavDictionary));
+
+        var import = new Button { Content = L.S.DictionaryImport, Margin = new Thickness(0, 0, Tokens.Space2, 0) };
+        import.Click += (_, _) => Import();
+        var export = new Button { Content = L.S.DictionaryExport };
+        export.Click += (_, _) => Export();
+
+        header.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { import, export },
+        });
+        return header;
     }
 
     private static void Detach(FrameworkElement element)
@@ -204,80 +274,249 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private static Border Card(UIElement child) => Ui.Card(child);
 
+    /// <summary>Кнопка удаления строки — одна и та же у замен и у людей.</summary>
+    private static Button DeleteButton() => new()
+    {
+        Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
+        Appearance = ControlAppearance.Transparent,
+        VerticalAlignment = VerticalAlignment.Top,
+        Margin = new Thickness(Tokens.Space2, 0, 0, 0),
+        ToolTip = L.S.ButtonDelete,
+    };
+
     // --- замены --------------------------------------------------------------
+
+    /// <summary>
+    /// Строка замены: несколько вариантов «как услышано» → одно «как надо».
+    /// </summary>
+    /// <remarks>
+    /// Хранятся замены по-прежнему парами (так их применяет распознавание),
+    /// а показываются по правильному слову. Модель коверкает одно название
+    /// на пять ладов, и пять одинаковых строк «… → YouGile» превращали
+    /// словарь в простыню, где правильное слово повторялось, а варианты
+    /// терялись.
+    /// </remarks>
+    private sealed class ReplacementRow
+    {
+        public required Grid Root { get; init; }
+
+        public required WrapPanel Variants { get; init; }
+
+        public required TextBox NewVariant { get; init; }
+
+        public required TextBox Correct { get; init; }
+
+        public List<string> Heard { get; } = [];
+
+        public bool Matches(string query) =>
+            query.Length == 0
+            || Correct.Text.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+            || Heard.Any(h => h.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+    }
 
     private void FillReplacements()
     {
         _replacements.Children.Clear();
-        foreach (KeyValuePair<string, string> pair in Settings.Replacements.OrderBy(p => p.Key, StringComparer.CurrentCultureIgnoreCase))
+        _rows.Clear();
+
+        IEnumerable<IGrouping<string, KeyValuePair<string, string>>> groups = Settings.Replacements
+            .GroupBy(p => p.Value, StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (IGrouping<string, KeyValuePair<string, string>> group in groups)
         {
-            AddReplacementRow(pair.Key, pair.Value);
+            AddReplacementRow(
+                [.. group.Select(p => p.Key).Order(StringComparer.CurrentCultureIgnoreCase)],
+                group.Key,
+                atTop: false);
         }
     }
 
-    /// <summary>Строка «услышано → правильно» с кнопкой удаления.</summary>
-    /// <returns>Поле «услышано» — чтобы поставить в него курсор.</returns>
-    private TextBox AddReplacementRow(string heard, string correct)
+    private ReplacementRow AddReplacementRow(IReadOnlyList<string> heard, string correct, bool atTop)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var from = new TextBox { Text = heard, PlaceholderText = L.S.DictionaryHeardPlaceholder };
-        var to = new TextBox { Text = correct, PlaceholderText = L.S.DictionaryCorrectPlaceholder };
+        var variants = new WrapPanel();
+        var newVariant = new TextBox
+        {
+            MinWidth = 140,
+            ClearButtonEnabled = false,
+            Margin = new Thickness(0, 0, 0, Tokens.Space1),
+        };
+        variants.Children.Add(newVariant);
+
         var arrow = new SymbolIcon
         {
             Symbol = SymbolRegular.ArrowRight16,
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 9, 0, 0),
         };
-        var remove = new Button
-        {
-            Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
-            Appearance = ControlAppearance.Transparent,
-            Margin = new Thickness(Tokens.Space2, 0, 0, 0),
-            ToolTip = L.S.ButtonDelete,
-        };
-
         arrow.SetResourceReference(ForegroundProperty, "TextFillColorTertiaryBrush");
+
+        var to = new TextBox
+        {
+            Text = correct,
+            PlaceholderText = L.S.DictionaryCorrectPlaceholder,
+            ClearButtonEnabled = false,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        Button remove = DeleteButton();
+
         Grid.SetColumn(arrow, 1);
         Grid.SetColumn(to, 2);
         Grid.SetColumn(remove, 3);
-        row.Children.Add(from);
-        row.Children.Add(arrow);
-        row.Children.Add(to);
-        row.Children.Add(remove);
+        grid.Children.Add(variants);
+        grid.Children.Add(arrow);
+        grid.Children.Add(to);
+        grid.Children.Add(remove);
 
-        from.LostFocus += (_, _) => SaveReplacements();
+        var row = new ReplacementRow { Root = grid, Variants = variants, NewVariant = newVariant, Correct = to };
+        foreach (string h in heard)
+        {
+            AddVariantChip(row, h);
+        }
+
+        UpdateVariantPlaceholder(row);
+
+        newVariant.KeyDown += (_, e) => OnNewVariantKey(row, e);
+        newVariant.LostFocus += (_, _) => CommitNewVariant(row);
         to.LostFocus += (_, _) => SaveReplacements();
         remove.Click += (_, _) =>
         {
-            _replacements.Children.Remove(row);
+            _replacements.Children.Remove(grid);
+            _rows.Remove(row);
+            SaveReplacements();
+            ApplyFilter();
+        };
+
+        if (atTop)
+        {
+            _replacements.Children.Insert(0, grid);
+            _rows.Insert(0, row);
+        }
+        else
+        {
+            _replacements.Children.Add(grid);
+            _rows.Add(row);
+        }
+
+        return row;
+    }
+
+    /// <summary>
+    /// Enter в поле варианта — принять вариант и остаться в поле: вариантов
+    /// обычно несколько, и набирать их хочется подряд.
+    /// </summary>
+    private void OnNewVariantKey(ReplacementRow row, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CommitNewVariant(row);
+    }
+
+    /// <summary>
+    /// Принять набранное в поле варианта.
+    /// </summary>
+    /// <remarks>
+    /// Запятая разделяет варианты: список, скопированный откуда-то целиком,
+    /// должен лечь чипами, а не одним странным вариантом «ugel, ugl».
+    /// </remarks>
+    private void CommitNewVariant(ReplacementRow row)
+    {
+        string[] typed = row.NewVariant.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (typed.Length == 0)
+        {
+            return;
+        }
+
+        foreach (string variant in typed)
+        {
+            // Замены применяются без учёта регистра, так что «Ugel» и «ugel» —
+            // один и тот же вариант, и второй чип был бы обманом.
+            if (!row.Heard.Contains(variant, StringComparer.OrdinalIgnoreCase))
+            {
+                AddVariantChip(row, variant);
+            }
+        }
+
+        row.NewVariant.Text = string.Empty;
+        UpdateVariantPlaceholder(row);
+        SaveReplacements();
+    }
+
+    private static void UpdateVariantPlaceholder(ReplacementRow row) =>
+        row.NewVariant.PlaceholderText = row.Heard.Count == 0 ? L.S.DictionaryHeardPlaceholder : L.S.DictionaryAnotherVariant;
+
+    private void AddVariantChip(ReplacementRow row, string variant)
+    {
+        var dismiss = new Button
+        {
+            Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss12 },
+            Appearance = ControlAppearance.Transparent,
+            Padding = new Thickness(6),
+            Margin = new Thickness(Tokens.Space1, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = L.S.ButtonDelete,
+        };
+
+        TextBlock text = Ui.Body(variant);
+        text.VerticalAlignment = VerticalAlignment.Center;
+        text.TextWrapping = TextWrapping.NoWrap;
+
+        var chip = new Border
+        {
+            Height = 32,
+            Padding = new Thickness(Tokens.Space3, 0, 2, 0),
+            Margin = new Thickness(0, 0, Tokens.Space1 + 2, Tokens.Space1),
+            CornerRadius = Tokens.ControlRadius,
+            BorderThickness = new Thickness(1),
+            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { text, dismiss } },
+        };
+        chip.SetResourceReference(Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
+        chip.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+
+        dismiss.Click += (_, _) =>
+        {
+            row.Variants.Children.Remove(chip);
+            row.Heard.Remove(variant);
+            UpdateVariantPlaceholder(row);
             SaveReplacements();
         };
 
-        _replacements.Children.Add(row);
-        return from;
+        // Перед полем ввода: оно всегда последнее в ряду.
+        row.Variants.Children.Insert(row.Variants.Children.Count - 1, chip);
+        row.Heard.Add(variant);
     }
 
     /// <summary>
     /// Собрать замены из строк и записать.
     /// </summary>
     /// <remarks>
-    /// Пустое «услышано» пропускаем, а не удаляем строку: человек мог
-    /// заполнить правую половину первой. Строка исчезнет при следующей
-    /// сборке страницы, если так и останется пустой.
+    /// Строка без правильного слова или без вариантов пропускается, а не
+    /// удаляется: человек мог начать с любой половины. Исчезнет она при
+    /// следующей сборке страницы, если так и останется недописанной.
     /// </remarks>
     private void SaveReplacements()
     {
         var map = new Dictionary<string, string>();
-        foreach (Grid row in _replacements.Children.OfType<Grid>())
+        foreach (ReplacementRow row in _rows)
         {
-            string heard = ((TextBox)row.Children[0]).Text.Trim();
-            string correct = ((TextBox)row.Children[2]).Text.Trim();
-            if (heard.Length > 0 && correct.Length > 0)
+            string correct = row.Correct.Text.Trim();
+            if (correct.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (string heard in row.Heard)
             {
                 map[heard] = correct;
             }
@@ -291,14 +530,38 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         }
     }
 
+    private void ApplyFilter()
+    {
+        string query = _search.Text.Trim();
+        _search.Visibility = _rows.Count >= SearchFrom || query.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        int shown = 0;
+        foreach (ReplacementRow row in _rows)
+        {
+            bool match = row.Matches(query);
+            row.Root.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+            shown += match ? 1 : 0;
+        }
+
+        _noMatches.Visibility = query.Length > 0 && shown == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // --- люди ----------------------------------------------------------------
 
     /// <summary>
     /// Знакомые имена: переименовать или убрать.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Раньше список можно было только пополнять. Имя с опечаткой жило в
     /// чипах, пока его не вытеснят шестьдесят других, — то есть годами.
+    /// </para>
+    /// <para>
+    /// Строками, как замены, а не плиткой. В плитке крестик «удалить» стоял
+    /// вплотную к полю, у поля в фокусе появлялся свой крестик «очистить»,
+    /// а «голос запомнен» с кнопкой висел между людьми — и было непонятно,
+    /// к кому из соседей он относится.
+    /// </para>
     /// </remarks>
     private void FillPeople()
     {
@@ -310,26 +573,21 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             return;
         }
 
-        var wrap = new WrapPanel();
         foreach (string name in Settings.KnownParticipants)
         {
-            wrap.Children.Add(PersonRow(name));
+            _people.Children.Add(PersonRow(name));
         }
-
-        _people.Children.Add(wrap);
     }
 
-    private StackPanel PersonRow(string name)
+    private Grid PersonRow(string name)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, Tokens.Space4, Tokens.Space2) };
-        var box = new TextBox { Text = name, Width = 170 };
-        var remove = new Button
-        {
-            Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss16 },
-            Appearance = ControlAppearance.Transparent,
-            Padding = new Thickness(6),
-            ToolTip = L.S.ButtonDelete,
-        };
+        var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var box = new TextBox { Text = name, ClearButtonEnabled = false };
+        Button remove = DeleteButton();
 
         box.LostFocus += (_, _) =>
         {
@@ -363,27 +621,146 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         };
 
         row.Children.Add(box);
-        row.Children.Add(remove);
-
         if (_voices.PrintsOf(name) > 0)
         {
-            TextBlock known = Ui.Caption(L.S.DictionaryVoiceKnown);
-            known.VerticalAlignment = VerticalAlignment.Center;
-            known.Margin = new Thickness(Tokens.Space1, 0, Tokens.Space1, 0);
-
-            var forget = new Button
-            {
-                Icon = new SymbolIcon { Symbol = SymbolRegular.PersonVoice24 },
-                Appearance = ControlAppearance.Transparent,
-                Padding = new Thickness(6),
-                ToolTip = L.S.DictionaryForgetVoice,
-            };
-            forget.Click += (_, _) => _voices.Forget(name);
-
-            row.Children.Add(known);
-            row.Children.Add(forget);
+            UIElement voice = VoiceStatus(name);
+            Grid.SetColumn(voice, 1);
+            row.Children.Add(voice);
         }
 
+        Grid.SetColumn(remove, 2);
+        row.Children.Add(remove);
         return row;
+    }
+
+    /// <summary>«Голос запомнен · Забыть голос» — справа от имени, в его строке.</summary>
+    private StackPanel VoiceStatus(string name)
+    {
+        var icon = new SymbolIcon
+        {
+            Symbol = SymbolRegular.PersonVoice20,
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, Tokens.Space2, 0),
+        };
+        icon.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");
+
+        TextBlock known = Ui.Caption(L.S.DictionaryVoiceKnown);
+        known.VerticalAlignment = VerticalAlignment.Center;
+
+        System.Windows.Controls.Button forget = Ui.Link(L.S.DictionaryForgetVoice);
+        forget.VerticalAlignment = VerticalAlignment.Center;
+        forget.Margin = new Thickness(Tokens.Space3, 0, 0, 0);
+        forget.Click += (_, _) => _voices.Forget(name);
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(Tokens.Space4, 0, 0, 0),
+            Children = { icon, known, forget },
+        };
+    }
+
+    // --- перенос в файл -------------------------------------------------------
+
+    private void ShowStatus(string text)
+    {
+        _status.Text = text;
+        _status.Visibility = Visibility.Visible;
+    }
+
+    private void Export()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = L.S.DictionaryFileName + ".json",
+            DefaultExt = ".json",
+            Filter = L.S.DictionaryFileFilter,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            DictionaryFile file = DictionaryTransfer.Export(Settings, _voices.Snapshot(), DateTimeOffset.Now);
+            File.WriteAllText(dialog.FileName, DictionaryTransfer.Serialize(file));
+            ShowStatus(string.Format(L.S.Formatting, L.S.DictionaryExported, dialog.FileName));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("Не удалось выгрузить словарь.", ex);
+            ShowStatus(string.Format(L.S.Formatting, L.S.DictionaryFileFailed, ex.Message));
+        }
+    }
+
+    private void Import()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = L.S.DictionaryFileFilter };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+        {
+            return;
+        }
+
+        DictionaryFile file;
+        try
+        {
+            file = DictionaryTransfer.Parse(File.ReadAllText(dialog.FileName));
+        }
+        catch (InvalidDataException)
+        {
+            ShowStatus(L.S.DictionaryNotADictionary);
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("Не удалось прочитать файл словаря.", ex);
+            ShowStatus(string.Format(L.S.Formatting, L.S.DictionaryFileFailed, ex.Message));
+            return;
+        }
+
+        DictionaryMerge merge = DictionaryTransfer.Merge(Settings, file);
+        _settings.Update(s => DictionaryTransfer.Merge(s, file).Settings);
+
+        var report = new List<string>();
+        int voices = 0;
+        if (file.Voices.Count > 0)
+        {
+            if (DictionaryTransfer.VoicesFit(file, Settings))
+            {
+                voices = _voices.Import(file.Voices);
+            }
+            else
+            {
+                report.Add(Settings.RememberVoices ? L.S.DictionaryVoicesOtherModel : L.S.DictionaryVoicesOff);
+            }
+        }
+
+        bool anything = merge.ReplacementsAdded + merge.ReplacementsChanged + merge.PeopleAdded + voices > 0 || merge.PromptTaken;
+        if (anything)
+        {
+            report.Insert(0, string.Format(
+                L.S.Formatting, L.S.DictionaryImported, merge.ReplacementsAdded, merge.ReplacementsChanged, merge.PeopleAdded));
+            if (voices > 0)
+            {
+                report.Insert(1, string.Format(L.S.Formatting, L.S.DictionaryImportedVoices, voices));
+            }
+
+            if (merge.PromptTaken)
+            {
+                report.Add(L.S.DictionaryImportedPrompt);
+            }
+        }
+        else
+        {
+            report.Insert(0, L.S.DictionaryImportedNothing);
+        }
+
+        // Фокус сейчас на кнопке этой страницы, и сама она по смене настроек
+        // не перестроится — пересобираем явно.
+        Build();
+        ShowStatus(string.Join(' ', report));
     }
 }
