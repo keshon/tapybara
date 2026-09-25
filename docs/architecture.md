@@ -149,7 +149,10 @@ someone different:
   timings, text and, on the far channel, a voice letter (`A`, `B`…) in order
   of first appearance. Written by `CallTranscriber`.
 - `meta.json` — what the person knows: who was on the call, the call's title,
-  and which name each voice letter carries. Written by the windows, always
+  and which name each voice letter carries. A name is a person: several
+  letters may carry one name, and `@me` marks the owner's own voice leaking
+  into the far track. `CallPeople` folds voices into people for the window.
+  Written by the windows, always
   through `CallMeta.Update`, which re-reads the file under a lock so that one
   writer's stale snapshot does not erase another's fields.
 - `transcript.md` — a rendering of the two, rebuilt by

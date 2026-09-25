@@ -103,42 +103,79 @@ public sealed class CallTranscriptTests : IDisposable
         Assert.Equal(["A", "B"], transcript.Voices);
     }
 
-    // --- сводка -------------------------------------------------------------
+    // --- люди ---------------------------------------------------------------
+
+    private static CallTranscript FourVoices() => new()
+    {
+        Lines =
+        [
+            Theirs(0, 3, "Установщик собирается, но подпись не проходит", "A"),
+            Theirs(3, 4, "да", "A"),
+            Theirs(10, 12, "Я продлила сертификат вчера вечером, он в хранилище", "B"),
+            Theirs(20, 21, "Слышно меня? Я в машине, пишите в чат", "C"),
+            Theirs(22, 24, "Эхо моего же голоса из динамиков ноутбука", "D"),
+            Mine(30, 40, "своя речь тоже часть звонка"),
+        ],
+    };
 
     [Fact]
-    public void Summarize_SharesAddUpAndQuotesAreTheLongestInTimeOrder()
+    public void People_MeFirst_SharesOfTheWholeCallAddUp()
     {
-        var transcript = new CallTranscript
-        {
-            Lines =
-            [
-                Theirs(0, 3, "Установщик собирается, но подпись не проходит", "A"),
-                Theirs(3, 4, "да", "A"),
-                Theirs(10, 12, "Я продлила сертификат вчера вечером, он в хранилище", "B"),
-                Theirs(20, 21, "Слышно меня? Я в машине, пишите в чат", "B"),
-                Mine(30, 40, "своя речь в долю собеседников не входит"),
-            ],
-        };
+        IReadOnlyList<CallPerson> people = CallPeople.Of(Session(voices: ["A", "B", "C", "D"]), FourVoices());
 
-        IReadOnlyList<VoiceSummary> voices = CallVoices.Summarize(transcript);
-
-        Assert.Equal(["A", "B"], voices.Select(v => v.Id));
-        Assert.Equal(1.0, voices.Sum(v => v.Share), precision: 6);
-        Assert.Equal(S(4), voices[0].Speech);
+        Assert.True(people[0].IsMe);
+        Assert.Equal(S(10), people[0].Speech);
+        Assert.Equal(1.0, people.Sum(p => p.Share), precision: 6);
 
         // «да» в цитаты не попадает: по нему никого не узнать.
-        Assert.Single(voices[0].Quotes);
-        Assert.Equal([S(10), S(20)], voices[1].Quotes.Select(q => q.Start));
+        Assert.Single(people[1].Quotes);
+    }
+
+    /// <summary>
+    /// Два голоса с одним именем — один человек, а не имя, отнятое у первого.
+    /// </summary>
+    [Fact]
+    public void People_VoicesWithOneNameAreOnePerson()
+    {
+        CallSession session = Session(
+            voices: ["A", "B", "C", "D"],
+            names: new() { ["A"] = "Павел", ["C"] = "павел" });
+
+        IReadOnlyList<CallPerson> people = CallPeople.Of(session, FourVoices());
+
+        CallPerson pavel = people.Single(p => p.Name == "Павел");
+        Assert.Equal(["A", "C"], pavel.Voices);
+        Assert.Equal(S(5), pavel.Speech);
+        Assert.Equal(0, pavel.Color);
+        Assert.Equal(["B", "D"], people.Where(p => p.Name is null && !p.IsMe).Select(p => p.Voices[0]));
+        Assert.Equal(0, CallPeople.Colors(people)["C"]);
+    }
+
+    /// <summary>Свой голос, попавший в чужую дорожку, считается своим.</summary>
+    [Fact]
+    public void People_VoiceNamedMeCountsAsMine()
+    {
+        CallSession session = Session(voices: ["A", "B", "C", "D"], names: new() { ["D"] = CallSpeakers.Me });
+
+        IReadOnlyList<CallPerson> people = CallPeople.Of(session, FourVoices());
+
+        Assert.Equal(["D"], people[0].Voices);
+        Assert.Equal(S(12), people[0].Speech);
+        Assert.Equal(4, people.Count);
+        Assert.Equal("Иннокентий", Label(Theirs(22, 24, "эхо", "D"), session, 4));
     }
 
     [Fact]
-    public void Merge_MovesEveryLineOfOneVoiceToAnother()
+    public void People_UnsplitOtherSideIsOnePerson()
     {
-        var transcript = new CallTranscript { Lines = [Theirs(0, 1, "a", "A"), Theirs(1, 2, "b", "B")] };
+        var transcript = new CallTranscript { Lines = [Theirs(0, 4, "без разделения"), Mine(4, 8, "я")] };
 
-        CallTranscript merged = CallVoices.Merge(transcript, from: "B", into: "A");
+        IReadOnlyList<CallPerson> people = CallPeople.Of(Session(participants: ["Кирилл"]), transcript);
 
-        Assert.Equal(["A"], merged.Voices);
+        Assert.Equal(2, people.Count);
+        Assert.Equal("Кирилл", people[1].Name);
+        Assert.Equal([CallVoices.WholeOtherSide], people[1].Voices);
+        Assert.Equal(0.5, people[1].Share, precision: 6);
     }
 
     [Fact]
@@ -274,13 +311,17 @@ public sealed class CallTranscriptTests : IDisposable
     [Fact]
     public void Render_ListsVoiceNamesAmongParticipants()
     {
-        CallSession session = Session(voices: ["A", "B"], names: new() { ["A"] = "Дима" });
-        var transcript = new CallTranscript { Lines = [Theirs(0, 1, "x", "A"), Theirs(2, 3, "y", "B")] };
+        CallSession session = Session(
+            voices: ["A", "B", "C"],
+            names: new() { ["A"] = "Дима", ["B"] = CallSpeakers.Me, ["C"] = "Дима" });
+        var transcript = new CallTranscript { Lines = [Theirs(0, 1, "x", "A"), Theirs(2, 3, "y", "B"), Theirs(4, 5, "z", "C")] };
 
         string markdown = CallTranscriptRenderer.Render(
             session, transcript, "Иннокентий", "Собеседник", CallTranscriptLabels.Default);
 
-        Assert.Contains("- Participants: Иннокентий, Дима", markdown, StringComparison.Ordinal);
+        // Себя второй раз не пишем, а голоса Димы — это один Дима.
+        Assert.Contains("- Participants: Иннокентий, Дима\n", markdown.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains("**[0:02] Иннокентий:** y", markdown, StringComparison.Ordinal);
     }
 
     // --- файлы --------------------------------------------------------------

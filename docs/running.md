@@ -261,20 +261,31 @@ what state each is in, and lets you fix names or transcribe again later.
 
 ### Naming the voices
 
-The calls window shows the transcript itself, not a link to a file. Each voice
-has its own colour, and a panel beside the transcript lists the voices found:
-how much each one spoke, three quotes, and a ▶ that plays that line from the
-far track alone. The quotes are the lines that sound most surely like that
-voice, one from each part of the call — not the longest ones, because a long
-line is exactly where a change of speaker hides. Pick a name under a voice and it goes into every
-one of its lines at once — `transcript.md` is rebuilt in the same moment.
+The calls window shows the transcript itself, not a link to a file. Beside it,
+**People** lists everyone on the call — you first, then the others — with how
+long each spoke and their share of the whole call. Each person has a colour,
+the same as the dot beside their lines.
+
+A voice without a name is a **Who is this?** card: three quotes, a ▶ that plays
+each from the far track alone, and chips with names. The quotes are the lines
+that sound most surely like that voice, one from each part of the call — not
+the longest ones, because a long line is exactly where a change of speaker
+hides. Pick a name and it goes into every one of its lines at once —
+`transcript.md` is rebuilt in the same moment.
+
+A name is a person. The chips with a coloured dot are people already on the
+call: pick one and the voice joins them — the usual fix when the split tore one
+person into two voices. **That's me** is for your own voice leaking into the
+far track through speakers. A named person is one line; open it to see the
+quotes, the voices it is made of and **Detach** by each, and **Change** to
+rename. Two people with one name are one person to Tapybara, so give namesakes
+different names — "Sasha K.", "Sasha M.".
 
 When a quote is not that person, **Not this person** under it gives the line
-to another voice or to a new one, and the next best quote takes its place.
-When a line in the transcript landed on the wrong voice, click the name above
-it and give it to another. When one person was split into two voices, "Same person as…" merges
-them. When the split found the wrong number of people, tell it the right number
-and only the split runs again.
+to someone else, and the next best quote takes its place. When a line in the
+transcript landed on the wrong person, click the name above it. When the split
+found the wrong number of people, **⋯ › Split the voices again…** takes the
+right number and runs only the split.
 
 A timestamp plays the call from that line.
 

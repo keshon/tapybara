@@ -274,7 +274,7 @@ public sealed record UiStrings
     public required string UnitKilobytes { get; init; }
     public required string CallUntitled { get; init; }
     public required string VoiceChange { get; init; }
-    public required string VoicesResplitLink { get; init; }
+    public required string VoicesResplitMenu { get; init; }
     public required string FieldRememberVoices { get; init; }
     public required string FieldRememberVoicesHint { get; init; }
     public required string ButtonForgetVoices { get; init; }
@@ -379,12 +379,11 @@ public sealed record UiStrings
     public required string BannerTranscribing { get; init; }
     public required string BannerRecording { get; init; }
     public required string BannerDamaged { get; init; }
-    public required string VoicesHeader { get; init; }
-    public required string VoicesFound { get; init; }
-    public required string VoiceUnnamed { get; init; }
+    public required string PeopleHeader { get; init; }
+    public required string VoiceItsMe { get; init; }
+    public required string VoiceDetach { get; init; }
     public required string VoiceWho { get; init; }
     public required string VoiceOtherName { get; init; }
-    public required string VoiceSameAs { get; init; }
     public required string VoicePlayQuote { get; init; }
     public required string VoiceMe { get; init; }
     public required string DictationNoModel { get; init; }
@@ -445,7 +444,6 @@ public sealed record UiStrings
     public required string RecordStop { get; init; }
     public required string RecordTranscribing { get; init; }
     public required string DictateHint { get; init; }
-    public required string VoiceTheOtherSide { get; init; }
     public required string VoiceNamePlaceholder { get; init; }
     public required string LineSaidBy { get; init; }
     public required string LinePlayFrom { get; init; }
@@ -896,7 +894,7 @@ public sealed record UiStrings
         UnitKilobytes = "{0} KB",
         CallUntitled = "Call",
         VoiceChange = "Change",
-        VoicesResplitLink = "Voices split wrong?",
+        VoicesResplitMenu = "Split the voices again…",
         FieldRememberVoices = "Remember voices",
         FieldRememberVoicesHint = "When you name a voice, its voiceprint is kept on this computer, and on later calls Tapybara suggests who is speaking. A voiceprint is biometric data; it never leaves this computer.",
         ButtonForgetVoices = "Forget all voices",
@@ -1001,12 +999,11 @@ public sealed record UiStrings
         BannerTranscribing = "Transcribing… {0}%",
         BannerRecording = "The recording is still going.",
         BannerDamaged = "There is no audio in this recording.",
-        VoicesHeader = "Voices",
-        VoicesFound = "{0} found · you separately",
-        VoiceUnnamed = "{0} — no name",
+        PeopleHeader = "People · {0}",
+        VoiceItsMe = "That's me",
+        VoiceDetach = "Detach",
         VoiceWho = "Who is this?",
         VoiceOtherName = "other…",
-        VoiceSameAs = "Same person as…",
         VoicePlayQuote = "Listen to this quote",
         DictationNoModel = "Dictation needs a recognition model, and none is downloaded yet.",
         DictationDownloadModel = "Download a model",
@@ -1066,8 +1063,7 @@ public sealed record UiStrings
         RecordStop = "Stop",
         RecordTranscribing = "Transcribing…",
         DictateHint = "Dictate here: the text lands in this list and in the clipboard. To type straight into another app, put the caret there and press the hotkey.",
-        VoiceMe = "This is you: your own microphone, so there is nothing to name. The name is set in Settings › Calls.",
-        VoiceTheOtherSide = "The other side",
+        VoiceMe = "your microphone",
         VoiceNamePlaceholder = "Name",
         LineSaidBy = "Said by",
         LinePlayFrom = "Listen from {0}",
@@ -1370,7 +1366,7 @@ public sealed record UiStrings
         UnitKilobytes = "{0} КБ",
         CallUntitled = "Звонок",
         VoiceChange = "Изменить",
-        VoicesResplitLink = "Голоса разделены неверно?",
+        VoicesResplitMenu = "Разделить голоса заново…",
         FieldRememberVoices = "Запоминать голоса",
         FieldRememberVoicesHint = "Когда вы называете голос, его слепок сохраняется на этом компьютере, и на следующих звонках Tapybara подсказывает, кто говорит. Слепок голоса — биометрия; он не покидает этот компьютер.",
         ButtonForgetVoices = "Забыть все голоса",
@@ -1475,12 +1471,11 @@ public sealed record UiStrings
         BannerTranscribing = "Распознаю… {0}%",
         BannerRecording = "Запись ещё идёт.",
         BannerDamaged = "В этой записи нет звука.",
-        VoicesHeader = "Голоса",
-        VoicesFound = "нашлось {0} · вы — отдельно",
-        VoiceUnnamed = "{0} — без имени",
+        PeopleHeader = "Участники · {0}",
+        VoiceItsMe = "Это я",
+        VoiceDetach = "Отделить",
         VoiceWho = "Кто это?",
         VoiceOtherName = "другое…",
-        VoiceSameAs = "Это тот же человек, что…",
         VoicePlayQuote = "Послушать цитату",
         DictationNoModel = "Для диктовки нужна модель распознавания, а она ещё не скачана.",
         DictationDownloadModel = "Скачать модель",
@@ -1540,8 +1535,7 @@ public sealed record UiStrings
         RecordStop = "Стоп",
         RecordTranscribing = "Распознаю…",
         DictateHint = "Диктовка сюда: текст появится в этом списке и в буфере обмена. Чтобы печатать сразу в другое приложение, поставьте туда курсор и нажмите горячую клавишу.",
-        VoiceMe = "Это вы: ваш собственный микрофон, называть здесь некого. Имя задаётся в «Настройки › Звонки».",
-        VoiceTheOtherSide = "Собеседник",
+        VoiceMe = "ваш микрофон",
         VoiceNamePlaceholder = "Имя",
         LineSaidBy = "Эту реплику сказал",
         LinePlayFrom = "Слушать с {0}",

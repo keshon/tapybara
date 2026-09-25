@@ -465,7 +465,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     /// <summary>Кто был на звонке — отмеченные и названные голоса.</summary>
     private static string PeopleOf(CallSession session) =>
-        string.Join(", ", session.Participants.Concat(session.VoiceNames.Values).Distinct(StringComparer.OrdinalIgnoreCase));
+        string.Join(", ", session.Participants
+            .Concat(session.VoiceNames.Values.Where(n => n != CallSpeakers.Me))
+            .Distinct(StringComparer.OrdinalIgnoreCase));
 
     /// <summary>Как называется звонок.</summary>
     private static string TitleOf(CallSession session) =>
@@ -801,9 +803,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// Кого книга голосов узнаёт среди неназванных голосов этого звонка.
     /// </summary>
     /// <remarks>
-    /// Одно имя — одному голосу: если два голоса похожи на Кирилла, имя
-    /// получает более похожий, а второму подсказки нет. Имена, уже данные
-    /// голосам этого звонка, не предлагаются вовсе.
+    /// Имя — это человек, а не голос: два неназванных голоса, похожих на
+    /// Кирилла, — скорее всего, два куска Кирилла, и подсказка обоим верна.
+    /// Раньше имя получал только более похожий, а уже данные на звонке имена
+    /// не предлагались вовсе — и после «Разделить заново» знакомого человека,
+    /// разваленного на два голоса, приходилось собирать по памяти.
     /// </remarks>
     private Dictionary<string, VoiceMatch> Suggest()
     {
@@ -813,24 +817,14 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return result;
         }
 
-        List<string> taken = [.. _session.VoiceNames.Values];
         IEnumerable<string> unnamed = _transcript.Voices.Count == 0
             ? (_session.Participants.Count == 0 ? [CallVoices.WholeOtherSide] : [])
             : _transcript.Voices.Where(v => CallSpeakers.NameOf(_session, v) is null);
 
-        List<(string Voice, VoiceMatch Match)> candidates = [];
         foreach (string voice in unnamed)
         {
             if (_transcript.VoicePrints.TryGetValue(voice, out float[]? print)
-                && _services.Voices.Match(print, taken) is { } match)
-            {
-                candidates.Add((voice, match));
-            }
-        }
-
-        foreach ((string voice, VoiceMatch match) in candidates.OrderByDescending(c => c.Match.Score))
-        {
-            if (!result.Values.Any(m => string.Equals(m.Name, match.Name, StringComparison.OrdinalIgnoreCase)))
+                && _services.Voices.Match(print) is { } match)
             {
                 result[voice] = match;
             }
@@ -850,7 +844,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             }
             else
             {
-                SetVoiceName(voice, match.Name);
+                SetNames([voice], match.Name);
             }
         }
     }
@@ -930,6 +924,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
 
         IReadOnlyList<string> voices = _transcript.Voices;
+        IReadOnlyDictionary<string, int> colors = CallPeople.Colors(People());
         string myName = Settings.EffectiveMyName;
         Brush primary = Resource("TextFillColorPrimaryBrush", Colors.Black);
         Brush secondary = Resource("TextFillColorSecondaryBrush", Colors.Gray);
@@ -949,7 +944,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 Line = line,
                 Stamp = CallTranscriptRenderer.Stamp(line.Start),
                 Speaker = speaker,
-                SpeakerBrush = BrushOf(line, voices),
+                SpeakerBrush = BrushOf(line, colors),
                 SpeakerForeground = named ? primary : secondary,
                 SpeakerFontStyle = named ? FontStyles.Normal : FontStyles.Italic,
                 SpeakerVisibility = speaker == previous ? Visibility.Collapsed : Visibility.Visible,
@@ -961,7 +956,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
     }
 
-    private static Brush BrushOf(CallLine line, IReadOnlyList<string> voices)
+    /// <summary>Цвет реплики — цвет её человека: у голосов одного человека он общий.</summary>
+    private static Brush BrushOf(CallLine line, IReadOnlyDictionary<string, int> colors)
     {
         if (line.Channel == CallChannel.Mine)
         {
@@ -969,23 +965,14 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
 
         // Реплика без голоса — это собеседник, чьи голоса не разделялись:
-        // цвет первого голоса, как у его карточки в панели голосов.
-        int index = line.Voice is null ? 0 : IndexOf(voices, line.Voice);
-        return VoicePalette.For(Math.Max(index, 0));
+        // цвет первого голоса, как у его карточки в панели.
+        int color = line.Voice is { } voice && colors.TryGetValue(voice, out int known) ? known : 0;
+        return color < 0 ? VoicePalette.Me : VoicePalette.For(color);
     }
 
-    private static int IndexOf(IReadOnlyList<string> voices, string voice)
-    {
-        for (int i = 0; i < voices.Count; i++)
-        {
-            if (voices[i] == voice)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
+    /// <summary>Участники открытого звонка — вы, названные и неназванные.</summary>
+    private IReadOnlyList<CallPerson> People() =>
+        _transcript is null || _session is null ? [] : CallPeople.Of(_session, _transcript);
 
     /// <summary>Как подписан собеседник, когда имён нет.</summary>
     internal static string OtherSideLabel(AppSettings settings) =>
@@ -1053,7 +1040,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     }
 
     /// <summary>
-    /// Собрать панель голосов: у каждого — доля речи, цитаты и выбор имени.
+    /// Собрать панель участников: вы и собеседники — людьми, а не голосами.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1062,9 +1049,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// сложить построителем, чем шаблоном с полудюжиной вложенных привязок.
     /// </para>
     /// <para>
-    /// Карточка одна на все случаи. Собеседник, голоса которого не
-    /// разделялись, раньше получал другую, беднее — без доли речи и цитат,
-    /// зато с «Кто это?» и шестью чипами, хотя имя было давно известно.
+    /// Названный человек свёрнут в строку с долей: внимание остаётся на
+    /// карточках «Кто это?». Цитаты, его голоса и смена имени — по щелчку.
     /// </para>
     /// </remarks>
     private void ShowVoices()
@@ -1079,56 +1065,66 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         ShowVoicesPane(true);
 
-        IReadOnlyList<VoiceSummary> voices = CallVoices.Summarize(_transcript);
-
-        var header = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
-        header.Children.Add(Ui.BodyStrong(L.S.VoicesHeader));
-        if (voices.Count > 1)
-        {
-            TextBlock found = Ui.Caption(string.Format(L.S.Formatting, L.S.VoicesFound, voices.Count));
-            found.HorizontalAlignment = HorizontalAlignment.Right;
-            found.VerticalAlignment = VerticalAlignment.Center;
-            header.Children.Add(found);
-        }
-
-        VoicesHost.Children.Add(header);
-
         // Пока над звонком идёт работа — разделение, сверка, — предлагать
         // разделить ещё раз незачем: второе нажатие встало бы в очередь следом.
         bool busy = _services.LiveState(_session.Directory) is not null;
-        if (!busy && VoiceCheck.MoreVoicesLikely(_transcript, out TimeSpan doubtful))
-        {
-            VoicesHost.Children.Add(MoreVoicesCard(doubtful, Math.Max(voices.Count, 1)));
-        }
+        IReadOnlyList<CallPerson> people = People();
 
-        if (voices.Count == 0)
-        {
-            // Голоса не разделялись: весь чужой канал — один человек.
-            string? name = _session.Participants.Count == 1 ? _session.Participants[0] : null;
-            VoicesHost.Children.Add(VoiceCard(WholeSide(), 0, name, single: true, SetOtherSideName));
-        }
-        else
-        {
-            for (int i = 0; i < voices.Count; i++)
-            {
-                VoiceSummary voice = voices[i];
-                VoicesHost.Children.Add(VoiceCard(
-                    voice,
-                    i,
-                    CallSpeakers.NameOf(_session, voice.Id),
-                    single: voices.Count == 1,
-                    picked => SetVoiceName(voice.Id, picked)));
-            }
-        }
+        VoicesHost.Children.Add(PeopleHeader(people.Count, canResplit: !busy && _services.CanSplitVoices()));
 
-        VoicesHost.Children.Add(MeCard());
-
-        // Переразделять есть что, только если голоса разделялись. На звонке
-        // с одним отмеченным участником этот блок был загадкой без контекста.
-        if (_services.CanSplitVoices() && _transcript.VoicesSplit)
+        if (!busy && _resplitOpen && _services.CanSplitVoices())
         {
             VoicesHost.Children.Add(ResplitRow());
         }
+
+        if (!busy && VoiceCheck.MoreVoicesLikely(_transcript, out TimeSpan doubtful))
+        {
+            VoicesHost.Children.Add(MoreVoicesCard(doubtful, Math.Max(_transcript.Voices.Count, 1)));
+        }
+
+        foreach (CallPerson person in people)
+        {
+            VoicesHost.Children.Add(PersonCard(person, people));
+        }
+    }
+
+    /// <summary>«Участники · 3» и меню «⋯».</summary>
+    /// <remarks>
+    /// «Разделить заново» нужно редко, а постоянной ссылкой внизу панели
+    /// читалось загадкой без контекста. Живёт в меню, как и у звонка.
+    /// </remarks>
+    private Grid PeopleHeader(int count, bool canResplit)
+    {
+        var header = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
+        TextBlock title = Ui.BodyStrong(string.Format(L.S.Formatting, L.S.PeopleHeader, count));
+        title.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(title);
+
+        if (canResplit)
+        {
+            var more = new Wpf.Ui.Controls.Button
+            {
+                Icon = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24 },
+                ToolTip = L.S.CallsMore,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            more.Click += (_, _) =>
+            {
+                var menu = new ContextMenu { PlacementTarget = more, Placement = PlacementMode.Bottom };
+                var resplit = new MenuItem { Header = L.S.VoicesResplitMenu };
+                resplit.Click += (_, _) =>
+                {
+                    _resplitOpen = true;
+                    ShowVoices();
+                };
+                menu.Items.Add(resplit);
+                menu.IsOpen = true;
+            };
+            header.Children.Add(more);
+        }
+
+        return header;
     }
 
     /// <summary>
@@ -1185,20 +1181,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         return card;
     }
 
-    /// <summary>Сводка по чужому каналу целиком — когда голоса не разделялись.</summary>
-    private VoiceSummary WholeSide()
-    {
-        var whole = new CallTranscript
-        {
-            Lines = [.. _transcript!.Lines.Where(l => l.Channel == CallChannel.Theirs).Select(l => l with { Voice = CallVoices.WholeOtherSide })],
-        };
-
-        IReadOnlyList<VoiceSummary> summary = CallVoices.Summarize(whole);
-        return summary.Count > 0 ? summary[0] : new VoiceSummary(CallVoices.WholeOtherSide, TimeSpan.Zero, 1, []);
-    }
-
-    /// <summary>Какие карточки голосов открыты для смены имени.</summary>
+    /// <summary>У кого из людей открыт выбор имени — по <see cref="KeyOf"/>.</summary>
     private readonly HashSet<string> _renaming = [];
+
+    /// <summary>Какие карточки названных людей раскрыты — по <see cref="KeyOf"/>.</summary>
+    private readonly HashSet<string> _expanded = [];
 
     /// <summary>Звонки, сверку которых уже попросили, — чтобы не просить на каждом обновлении.</summary>
     private readonly HashSet<string> _verifyAsked = new(StringComparer.OrdinalIgnoreCase);
@@ -1215,106 +1202,127 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Раскрыт ли выбор числа голосов для переразделения.</summary>
     private bool _resplitOpen;
 
-    /// <summary>Карточка одного голоса.</summary>
-    /// <param name="voice">Сводка: доля речи и цитаты.</param>
-    /// <param name="index">Порядок появления — от него цвет.</param>
-    /// <param name="name">Имя, если известно.</param>
-    /// <param name="single">Голос на той стороне один: доля речи и «тот же человек» не нужны.</param>
-    /// <param name="pick">Что сделать с выбранным именем.</param>
-    private Border VoiceCard(VoiceSummary voice, int index, string? name, bool single, Action<string?> pick)
+    /// <summary>Чем карточка человека помнит, раскрыта ли она, — между перерисовками.</summary>
+    /// <remarks>Имя, а не голос: присоединили голос — человек тот же, и карточка тоже.</remarks>
+    private static string KeyOf(CallPerson person) =>
+        person.IsMe ? CallSpeakers.Me : person.Name?.ToUpperInvariant() ?? person.Voices[0];
+
+    private static bool IsWholeSide(CallPerson person) => person.Voices is [CallVoices.WholeOtherSide];
+
+    private static Brush ColorOf(CallPerson person) =>
+        person.IsMe ? VoicePalette.Me : VoicePalette.For(Math.Max(person.Color, 0));
+
+    /// <summary>Карточка одного участника.</summary>
+    /// <param name="person">Кто: вы, названный человек или неназванный голос.</param>
+    /// <param name="people">Все на звонке — для чипов «уже здесь».</param>
+    private Border PersonCard(CallPerson person, IReadOnlyList<CallPerson> people)
     {
+        string key = KeyOf(person);
+        bool whole = IsWholeSide(person);
+        bool unnamed = !person.IsMe && person.Name is null;
+        bool waiting = unnamed && !whole;
+        bool renaming = _renaming.Contains(key);
+
+        // Своё раскрывать есть что, только если к вам отнесли голоса с той
+        // стороны; у собеседника — цитаты и имя.
+        bool expandable = !unnamed && (!person.IsMe || person.Voices.Count > 0);
+        bool open = unnamed || renaming || (expandable && _expanded.Contains(key));
+
         var body = new StackPanel();
 
-        // Заголовок: цвет, имя, сколько говорил.
+        // Заголовок: цвет, имя, сколько говорил, доля от всего звонка.
         var title = new Grid();
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        title.Children.Add(Dot(VoicePalette.For(index), 10));
+        title.Children.Add(Dot(ColorOf(person), 10));
 
-        TextBlock nameText = name is null
-            ? Ui.BodySecondary(single
-                ? L.S.VoiceTheOtherSide
-                : string.Format(L.S.Formatting, L.S.VoiceUnnamed, $"{L.S.TranscriptVoice} {voice.Id}"))
-            : Ui.BodyStrong(name);
+        TextBlock nameText = person switch
+        {
+            { IsMe: true } => Ui.BodyStrong(Settings.EffectiveMyName),
+            { Name: { } name } => Ui.BodyStrong(name),
+            _ when whole => Ui.BodySecondary(OtherSideLabel(Settings)),
+            _ => Ui.BodySecondary(L.S.VoiceWho),
+        };
+        if (waiting)
+        {
+            nameText.FontStyle = FontStyles.Italic;
+        }
+
         nameText.TextWrapping = TextWrapping.NoWrap;
         nameText.TextTrimming = TextTrimming.CharacterEllipsis;
         nameText.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(nameText, 1);
         title.Children.Add(nameText);
 
-        TextBlock stats = Ui.Caption(single
-            ? L.S.Duration(voice.Speech)
-            : $"{L.S.Duration(voice.Speech)} · {Math.Round(voice.Share * 100).ToString(L.S.Formatting)}%");
+        TextBlock stats = Ui.Caption($"{L.S.Duration(person.Speech)} · {Math.Round(person.Share * 100).ToString(L.S.Formatting)}%");
         stats.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
         stats.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(stats, 2);
         title.Children.Add(stats);
-        body.Children.Add(title);
 
-        if (!single)
+        if (expandable && !renaming)
         {
-            body.Children.Add(ShareBar(voice.Share, VoicePalette.For(index)));
-        }
-
-        if (_rejected.GetValueOrDefault(voice.Id) >= 2 && !single)
-        {
-            body.Children.Add(RejectedHint());
-        }
-
-        if (name is null && _suggestions.TryGetValue(voice.Id, out VoiceMatch? suggested))
-        {
-            body.Children.Add(SuggestionRow(suggested, () => pick(suggested.Name)));
-        }
-
-        if (voice.Quotes.Count > 0)
-        {
-            var quotes = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
-            foreach (CallLine quote in voice.Quotes)
+            var chevron = new SymbolIcon
             {
-                quotes.Children.Add(QuoteRow(quote, voice.Id));
-            }
+                Symbol = open ? SymbolRegular.ChevronUp16 : SymbolRegular.ChevronDown16,
+                FontSize = 12,
+                Margin = new Thickness(Tokens.Space2, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            chevron.SetResourceReference(ForegroundProperty, "TextFillColorTertiaryBrush");
+            Grid.SetColumn(chevron, 3);
+            title.Children.Add(chevron);
 
-            body.Children.Add(quotes);
         }
 
-        // Имя уже есть — выбор свёрнут в «Изменить»: шесть чипов под
-        // названным человеком — это шум, а не помощь.
-        if (name is not null && !_renaming.Contains(voice.Id))
+        // Заголовок — кнопка, а не щелчок по сетке: раскрыть карточку должно
+        // быть можно и с клавиатуры, и экранным диктором.
+        if (expandable && !renaming)
         {
-            Button change = Ui.Link(L.S.VoiceChange);
-            change.Margin = new Thickness(0, Tokens.Space1, 0, 0);
-            change.HorizontalAlignment = HorizontalAlignment.Left;
-            change.Click += (_, _) =>
+            Button toggle = Ui.Link(string.Empty);
+            toggle.Content = title;
+            toggle.Padding = new Thickness(Tokens.Space1);
+            toggle.Margin = new Thickness(-Tokens.Space1);
+            toggle.HorizontalAlignment = HorizontalAlignment.Stretch;
+            toggle.SetResourceReference(ForegroundProperty, "TextFillColorPrimaryBrush");
+            System.Windows.Automation.AutomationProperties.SetName(toggle, nameText.Text);
+            toggle.Click += (_, _) =>
             {
-                _renaming.Add(voice.Id);
+                if (!_expanded.Remove(key))
+                {
+                    _expanded.Add(key);
+                }
+
                 ShowVoices();
             };
-            body.Children.Add(change);
+            body.Children.Add(toggle);
         }
         else
         {
-            TextBlock who = Ui.Caption(L.S.VoiceWho);
-            who.Margin = new Thickness(0, Tokens.Space2, 0, Tokens.Space2);
-            body.Children.Add(who);
-            body.Children.Add(NameChips(name, picked =>
-            {
-                _renaming.Remove(voice.Id);
-                pick(picked);
-            }));
+            body.Children.Add(title);
+        }
+        body.Children.Add(ShareBar(person.Share, ColorOf(person)));
 
-            if (!single)
-            {
-                body.Children.Add(MergeLink(voice.Id));
-            }
+        if (person.IsMe)
+        {
+            TextBlock mine = Ui.Caption(L.S.VoiceMe);
+            mine.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+            body.Children.Add(mine);
+        }
+
+        if (open)
+        {
+            AddPersonDetails(body, person, people, key, unnamed, renaming);
         }
 
         Border card = Ui.Card(body);
         card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
 
         // Голос ждёт имени — рамка акцентом: это то, ради чего сюда пришли.
-        if (name is null && !single)
+        if (waiting)
         {
             card.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
         }
@@ -1322,27 +1330,99 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         return card;
     }
 
-    /// <summary>«Это тот же человек, что…» — склеить голоса.</summary>
-    private Button MergeLink(string voice)
+    /// <summary>Раскрытая часть карточки: подсказка, цитаты, голоса, выбор имени.</summary>
+    private void AddPersonDetails(
+        StackPanel body,
+        CallPerson person,
+        IReadOnlyList<CallPerson> people,
+        string key,
+        bool unnamed,
+        bool renaming)
     {
-        Button merge = Ui.Link(L.S.VoiceSameAs);
-        merge.Margin = new Thickness(0, Tokens.Space1, 0, 0);
-        merge.HorizontalAlignment = HorizontalAlignment.Left;
-        merge.Click += (_, _) =>
+        string first = person.Voices.Count > 0 ? person.Voices[0] : string.Empty;
+
+        if (unnamed && _rejected.GetValueOrDefault(first) >= 2 && !IsWholeSide(person))
         {
-            var menu = new ContextMenu { PlacementTarget = merge };
-            foreach (string other in _transcript!.Voices.Where(v => v != voice))
+            body.Children.Add(RejectedHint());
+        }
+
+        if (unnamed && _suggestions.TryGetValue(first, out VoiceMatch? suggested))
+        {
+            body.Children.Add(SuggestionRow(suggested, () => NamePerson(person, suggested.Name, people)));
+        }
+
+        if (person.Quotes.Count > 0)
+        {
+            var quotes = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
+            foreach (CallLine quote in person.Quotes)
             {
-                string otherName = CallSpeakers.NameOf(_session!, other) ?? $"{L.S.TranscriptVoice} {other}";
-                var item = new MenuItem { Header = otherName };
-                item.Click += (_, _) => MergeVoices(voice, other);
-                menu.Items.Add(item);
+                quotes.Children.Add(QuoteRow(quote));
             }
 
-            menu.IsOpen = true;
-        };
+            body.Children.Add(quotes);
+        }
 
-        return merge;
+        // Из каких голосов человек собран — и «отделить» у каждого: промах
+        // чипом исправляется одним щелчком, а не повторным разделением.
+        if (person.Voices.Count > (person.IsMe ? 0 : 1))
+        {
+            var pieces = new StackPanel { Margin = new Thickness(0, Tokens.Space2, 0, 0) };
+            foreach (string voice in person.Voices)
+            {
+                pieces.Children.Add(VoicePiece(voice));
+            }
+
+            body.Children.Add(pieces);
+        }
+
+        if (person.IsMe)
+        {
+            return;
+        }
+
+        if (unnamed || renaming)
+        {
+            WrapPanel chips = NameChips(person, people, picked =>
+            {
+                _renaming.Remove(key);
+                NamePerson(person, picked, people);
+            });
+            chips.Margin = new Thickness(0, Tokens.Space3, 0, 0);
+            body.Children.Add(chips);
+            return;
+        }
+
+        // Имя уже есть — выбор свёрнут в «Изменить»: шесть чипов под
+        // названным человеком — это шум, а не помощь.
+        Button change = Ui.Link(L.S.VoiceChange);
+        change.Margin = new Thickness(0, Tokens.Space1, 0, 0);
+        change.HorizontalAlignment = HorizontalAlignment.Left;
+        change.Click += (_, _) =>
+        {
+            _renaming.Add(key);
+            ShowVoices();
+        };
+        body.Children.Add(change);
+    }
+
+    /// <summary>«Голос B · 12 с   Отделить».</summary>
+    private StackPanel VoicePiece(string voice)
+    {
+        TimeSpan speech = TimeSpan.FromSeconds(_transcript!.Lines
+            .Where(l => l.Voice == voice)
+            .Sum(l => Math.Max(0, (l.End - l.Start).TotalSeconds)));
+
+        TextBlock label = Ui.Caption($"{L.S.TranscriptVoice} {voice} · {L.S.Duration(speech)}");
+        label.VerticalAlignment = VerticalAlignment.Center;
+
+        Button detach = Ui.Link(L.S.VoiceDetach);
+        detach.FontSize = Tokens.Caption;
+        detach.Padding = new Thickness(4, 0, 4, 0);
+        detach.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
+        detach.VerticalAlignment = VerticalAlignment.Center;
+        detach.Click += (_, _) => SetNames([voice], null);
+
+        return new StackPanel { Orientation = Orientation.Horizontal, Children = { label, detach } };
     }
 
     private static System.Windows.Shapes.Ellipse Dot(Brush color, double size) => new()
@@ -1398,7 +1478,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// Если голоса не разделялись, переселять цитату некуда — остаётся
     /// разделить голоса.
     /// </remarks>
-    private void ShowNotThisMenu(FrameworkElement anchor, CallLine quote, string voice)
+    private void ShowNotThisMenu(FrameworkElement anchor, CallLine quote)
     {
         if (_transcript is null || _session is null)
         {
@@ -1406,50 +1486,108 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
 
         var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
-        IReadOnlyList<string> voices = _transcript.Voices;
-
-        if (voices.Count == 0)
+        if (_transcript.Voices.Count == 0)
         {
             menu.Items.Add(SplitOrGetModelItem(_session.Directory));
         }
         else
         {
-            foreach (string other in voices.Where(v => v != voice))
-            {
-                string target = other;
-                var item = new MenuItem
-                {
-                    Header = CallSpeakers.NameOf(_session, other) ?? $"{L.S.TranscriptVoice} {other}",
-                    Icon = new System.Windows.Shapes.Ellipse
-                    {
-                        Width = 9,
-                        Height = 9,
-                        Fill = VoicePalette.For(IndexOf(voices, other)),
-                    },
-                };
-                item.Click += (_, _) => RejectQuote(quote, voice, target);
-                menu.Items.Add(item);
-            }
-
-            if (menu.Items.Count > 0)
-            {
-                menu.Items.Add(new Separator());
-            }
-
-            // Новый голос — следующая свободная буква: реплика станет
-            // отдельной карточкой, которую можно назвать.
-            string fresh = CallVoices.Letter(voices.Count);
-            for (int i = voices.Count; voices.Contains(fresh); i++)
-            {
-                fresh = CallVoices.Letter(i + 1);
-            }
-
-            var someone = new MenuItem { Header = L.S.VoiceSomeoneElse };
-            someone.Click += (_, _) => RejectQuote(quote, voice, fresh);
-            menu.Items.Add(someone);
+            AddSaidBy(menu, quote, reject: true);
         }
 
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Кому отдать реплику: люди на звонке, вы, кто-то другой.
+    /// </summary>
+    /// <param name="menu">Куда добавить пункты.</param>
+    /// <param name="line">Реплика собеседника.</param>
+    /// <param name="reject">
+    /// Из «Не этот человек» под цитатой: текущего человека в списке нет, и
+    /// отказ считается — два отказа из одного голоса подсказывают, что в нём
+    /// двое.
+    /// </param>
+    private void AddSaidBy(ItemsControl menu, CallLine line, bool reject)
+    {
+        foreach (CallPerson person in People())
+        {
+            bool current = line.Voice is { } voice && person.Voices.Contains(voice);
+            if (reject && current)
+            {
+                continue;
+            }
+
+            string header = person switch
+            {
+                { IsMe: true } => Settings.EffectiveMyName,
+                { Name: { } name } => name,
+                _ => $"{L.S.TranscriptVoice} {person.Voices[0]}",
+            };
+
+            var item = new MenuItem
+            {
+                Header = header,
+                IsCheckable = !reject,
+                IsChecked = current,
+                Icon = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = ColorOf(person) },
+            };
+
+            CallPerson target = person;
+            item.Click += (_, _) =>
+            {
+                if (current)
+                {
+                    return;
+                }
+
+                if (reject && line.Voice is { } from)
+                {
+                    _rejected[from] = _rejected.GetValueOrDefault(from) + 1;
+                }
+
+                // Своих голосов на той стороне может ещё не быть — тогда
+                // реплика становится новым голосом, сразу названным «я».
+                if (target.Voices.Count > 0)
+                {
+                    ReassignLine(line, target.Voices[0]);
+                }
+                else
+                {
+                    ReassignLine(line, FreshVoice(), CallSpeakers.Me);
+                }
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+
+        // Новый голос — следующая свободная буква: реплика станет отдельной
+        // карточкой «Кто это?».
+        var someone = new MenuItem { Header = L.S.VoiceSomeoneElse };
+        someone.Click += (_, _) =>
+        {
+            if (reject && line.Voice is { } from)
+            {
+                _rejected[from] = _rejected.GetValueOrDefault(from) + 1;
+            }
+
+            ReassignLine(line, FreshVoice());
+        };
+        menu.Items.Add(someone);
+    }
+
+    /// <summary>Следующая свободная буква голоса.</summary>
+    private string FreshVoice()
+    {
+        IReadOnlyList<string> voices = _transcript!.Voices;
+        string fresh = CallVoices.Letter(voices.Count);
+        for (int i = voices.Count; voices.Contains(fresh); i++)
+        {
+            fresh = CallVoices.Letter(i + 1);
+        }
+
+        return fresh;
     }
 
     /// <summary>
@@ -1477,13 +1615,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         return get;
     }
 
-    private void RejectQuote(CallLine quote, string voice, string target)
-    {
-        _rejected[voice] = _rejected.GetValueOrDefault(voice) + 1;
-        ReassignLine(quote, target);
-    }
-
-    private Grid QuoteRow(CallLine quote, string voice)
+    private Grid QuoteRow(CallLine quote)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
@@ -1517,7 +1649,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         notThis.Padding = new Thickness(4, 0, 4, 0);
         notThis.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
         notThis.VerticalAlignment = VerticalAlignment.Center;
-        notThis.Click += (_, _) => ShowNotThisMenu(notThis, quote, voice);
+        notThis.Click += (_, _) => ShowNotThisMenu(notThis, quote);
 
         text.Children.Add(new StackPanel
         {
@@ -1533,58 +1665,86 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// Чипы имён: кто подходит на этот голос.
     /// </summary>
     /// <remarks>
-    /// Сначала отмеченные на карточке после звонка, потом знакомые — свежие
-    /// первыми. Искать нужное имя среди шестидесяти незачем: на звонке были
-    /// те, кого отметили, а если нет — «другое…» открывает поле.
+    /// <para>
+    /// Первыми — подсказанные книгой голосов и те, кто уже есть на звонке, с
+    /// цветной точкой: выбрать такого — значит присоединить голос к нему.
+    /// «Это я» — для своего голоса, попавшего в чужую дорожку через динамики.
+    /// </para>
+    /// <para>
+    /// Дальше отмеченные на карточке после звонка и знакомые — свежие первыми.
+    /// Искать нужное имя среди шестидесяти незачем: а если его нет,
+    /// «другое…» открывает поле.
+    /// </para>
     /// </remarks>
-    private WrapPanel NameChips(string? current, Action<string?> pick)
+    private WrapPanel NameChips(CallPerson person, IReadOnlyList<CallPerson> people, Action<string?> pick)
     {
         var chips = new WrapPanel();
         Style style = Ui.ChipStyle();
+        var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        List<string> names = [.. _session!.Participants];
-        foreach (string known in _session.VoiceNames.Values.Concat(Settings.KnownParticipants))
+        void Add(string name, string label, Brush? dot)
         {
-            if (names.Count >= _session.Participants.Count + SuggestedNames)
+            if (!shown.Add(name))
             {
-                break;
+                return;
             }
 
-            if (!names.Contains(known, StringComparer.OrdinalIgnoreCase))
+            object content = label;
+            if (dot is not null)
             {
-                names.Add(known);
+                System.Windows.Shapes.Ellipse mark = Dot(dot, 8);
+                mark.Margin = new Thickness(0, 0, Tokens.Space2, 0);
+                content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children = { mark, new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } },
+                };
             }
-        }
 
-        if (current is not null && !names.Contains(current, StringComparer.OrdinalIgnoreCase))
-        {
-            names.Insert(0, current);
-        }
-
-        // Подсказанные книгой голосов — первыми: их и выберут чаще всего.
-        foreach (string hinted in _suggestions.Values.Select(m => m.Name).Reverse())
-        {
-            if (!names.Contains(hinted, StringComparer.OrdinalIgnoreCase))
-            {
-                names.Insert(0, hinted);
-            }
-        }
-
-        foreach (string name in names)
-        {
-            bool selected = string.Equals(name, current, StringComparison.OrdinalIgnoreCase);
             var chip = new ToggleButton
             {
-                Content = name,
-                IsChecked = selected,
+                Content = content,
+                IsChecked = string.Equals(name, person.Name, StringComparison.OrdinalIgnoreCase),
                 Style = style,
             };
+            System.Windows.Automation.AutomationProperties.SetName(chip, label);
             // Checked/Unchecked, а не Click: щелчок — лишь один из способов
             // переключить чип. Экранный диктор и UI Automation переключают
             // его через TogglePattern, и Click при этом не приходит вовсе.
             chip.Checked += (_, _) => pick(name);
             chip.Unchecked += (_, _) => pick(null);
             chips.Children.Add(chip);
+        }
+
+        if (person.Name is { } own)
+        {
+            Add(own, own, ColorOf(person));
+        }
+
+        foreach (string hinted in person.Voices.Where(_suggestions.ContainsKey).Select(v => _suggestions[v].Name))
+        {
+            Add(hinted, hinted, people.FirstOrDefault(p => string.Equals(p.Name, hinted, StringComparison.OrdinalIgnoreCase)) is { } there ? ColorOf(there) : null);
+        }
+
+        foreach (CallPerson there in people.Where(p => p.Name is not null))
+        {
+            Add(there.Name!, there.Name!, ColorOf(there));
+        }
+
+        if (!IsWholeSide(person))
+        {
+            Add(CallSpeakers.Me, L.S.VoiceItsMe, VoicePalette.Me);
+        }
+
+        int limit = shown.Count + _session!.Participants.Count + SuggestedNames;
+        foreach (string known in _session.Participants.Concat(Settings.KnownParticipants))
+        {
+            if (shown.Count >= limit)
+            {
+                break;
+            }
+
+            Add(known, known, null);
         }
 
         var other = new ToggleButton
@@ -1633,50 +1793,6 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     }
 
     /// <summary>
-    /// Карточка своей дорожки — такая же, как у голосов собеседников.
-    /// </summary>
-    /// <remarks>
-    /// Здесь была подпись мелким шрифтом под карточками: «keshon — your
-    /// microphone, 3 min». Голоса стоят карточками, а себя человек находил
-    /// строчкой без рамки и не понимал, что она значит. Теперь это такая же
-    /// карточка с тем же заголовком — цвет, имя, сколько говорил, — и прямым
-    /// текстом: это вы, называть некого.
-    /// </remarks>
-    private Border MeCard()
-    {
-        TimeSpan mine = TimeSpan.FromSeconds(_transcript!.Lines
-            .Where(l => l.Channel == CallChannel.Mine)
-            .Sum(l => Math.Max(0, (l.End - l.Start).TotalSeconds)));
-
-        var title = new Grid();
-        title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        title.Children.Add(Dot(VoicePalette.Me, 10));
-
-        TextBlock name = Ui.BodyStrong(Settings.EffectiveMyName);
-        name.TextWrapping = TextWrapping.NoWrap;
-        name.TextTrimming = TextTrimming.CharacterEllipsis;
-        name.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(name, 1);
-        title.Children.Add(name);
-
-        TextBlock stats = Ui.Caption(L.S.Duration(mine));
-        stats.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
-        stats.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(stats, 2);
-        title.Children.Add(stats);
-
-        TextBlock hint = Ui.Caption(L.S.VoiceMe);
-        hint.Margin = new Thickness(0, Tokens.Space2, 0, 0);
-
-        Border card = Ui.Card(new StackPanel { Children = { title, hint } });
-        card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
-        return card;
-    }
-
-    /// <summary>
     /// «Разделено неверно? Искать голосов: 2 3 4 5».
     /// </summary>
     /// <remarks>
@@ -1687,22 +1803,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// </remarks>
     private StackPanel ResplitRow()
     {
-        var panel = new StackPanel { Margin = new Thickness(0, Tokens.Space5, 0, 0) };
-
-        // Свёрнуто в ссылку: нужно редко, а в развёрнутом виде ряд цифр без
-        // объяснения читался загадкой.
-        if (!_resplitOpen)
-        {
-            Button open = Ui.Link(L.S.VoicesResplitLink);
-            open.HorizontalAlignment = HorizontalAlignment.Left;
-            open.Click += (_, _) =>
-            {
-                _resplitOpen = true;
-                ShowVoices();
-            };
-            panel.Children.Add(open);
-            return panel;
-        }
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
 
         // Выбор числа и отдельная кнопка — а не ряд цифр, где нажатие на
         // цифру сразу запускало разделение: передумать было нельзя, а
@@ -1711,7 +1812,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         hint.Margin = new Thickness(0, 0, 0, Tokens.Space1);
         panel.Children.Add(hint);
 
-        int found = _transcript!.Voices.Count;
+        int found = Math.Max(_transcript!.Voices.Count, 1);
         var count = new System.Windows.Controls.ComboBox { MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Left };
         for (int n = 2; n <= 8; n++)
         {
@@ -1755,15 +1856,38 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     }
 
     /// <summary>
-    /// Дать голосу имя — или забрать.
+    /// Назвать человека — все его голоса разом.
     /// </summary>
     /// <remarks>
-    /// Одно имя — один голос: названный «Кириллом» второй голос отнимает имя у
-    /// первого. Два голоса с одним именем — это не «Кирилл говорил двумя
-    /// голосами», а ошибка, которую человек сделал, промахнувшись чипом;
-    /// склеить голоса — отдельное действие «это тот же человек».
+    /// Имя — это человек. Имя того, кто уже есть на звонке, присоединяет
+    /// голос к нему; новое имя у названного — переименование на этом звонке.
+    /// Раньше второй голос с тем же именем отнимал имя у первого, а склеить
+    /// два куска одного человека можно было только безвозвратно.
     /// </remarks>
-    private void SetVoiceName(string voice, string? name)
+    private void NamePerson(CallPerson person, string? name, IReadOnlyList<CallPerson> people)
+    {
+        if (person.IsMe)
+        {
+            return;
+        }
+
+        // «павел» и «Павел» — один человек; пишем так, как он уже назван.
+        if (name is not null && people.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) is { Name: { } same })
+        {
+            name = same;
+        }
+
+        if (IsWholeSide(person))
+        {
+            SetOtherSideName(name);
+            return;
+        }
+
+        SetNames(person.Voices, name);
+    }
+
+    /// <summary>Дать голосам имя — или снять его, отделив голоса от человека.</summary>
+    private void SetNames(IReadOnlyList<string> voices, string? name)
     {
         if (_session is null)
         {
@@ -1774,29 +1898,30 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         _session = CallMeta.Update(directory, s =>
         {
             var names = new Dictionary<string, string>(s.VoiceNames);
-            foreach (string taken in names.Where(p => name is not null
-                                                      && p.Key != voice
-                                                      && string.Equals(p.Value, name, StringComparison.OrdinalIgnoreCase))
-                                          .Select(p => p.Key)
-                                          .ToList())
+            foreach (string voice in voices)
             {
-                names.Remove(taken);
-            }
-
-            if (name is null)
-            {
-                names.Remove(voice);
-            }
-            else
-            {
-                names[voice] = name;
+                if (name is null)
+                {
+                    names.Remove(voice);
+                }
+                else
+                {
+                    names[voice] = name;
+                }
             }
 
             return s with { VoiceNames = names };
         }) ?? _session;
 
-        RememberName(name);
-        LearnVoice(voice, name);
+        if (name != CallSpeakers.Me)
+        {
+            RememberName(name);
+            foreach (string voice in voices)
+            {
+                LearnVoice(voice, name);
+            }
+        }
+
         _services.Render(directory);
         RefreshAfterEdit();
     }
@@ -1829,39 +1954,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
     }
 
-    private void MergeVoices(string from, string into)
-    {
-        if (_session is null)
-        {
-            return;
-        }
-
-        string directory = _session.Directory;
-        CallTranscript? merged = CallTranscriptStore.Update(directory, t => CallVoices.Merge(t, from, into));
-        if (merged is null)
-        {
-            return;
-        }
-
-        _session = CallMeta.Update(directory, s =>
-        {
-            var names = new Dictionary<string, string>(s.VoiceNames);
-            if (names.TryGetValue(from, out string? carried) && !names.ContainsKey(into))
-            {
-                names[into] = carried;
-            }
-
-            names.Remove(from);
-            return s with { Voices = merged.Voices, VoiceNames = names };
-        }) ?? _session;
-
-        _services.Render(directory);
-        RefreshAfterEdit();
-        _ = _services.RefreshPrints(directory);
-    }
-
     /// <summary>Отдать реплику другому голосу.</summary>
-    private void ReassignLine(CallLine line, string voice)
+    /// <param name="line">Реплика.</param>
+    /// <param name="voice">Голос.</param>
+    /// <param name="name">Имя нового голоса — когда голос заводится ради этой реплики.</param>
+    private void ReassignLine(CallLine line, string voice, string? name = null)
     {
         if (_session is null)
         {
@@ -1875,7 +1972,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return;
         }
 
-        _session = CallMeta.Update(directory, s => s with { Voices = changed.Voices }) ?? _session;
+        _session = CallMeta.Update(directory, s => s with
+        {
+            Voices = changed.Voices,
+            VoiceNames = name is null ? s.VoiceNames : new Dictionary<string, string>(s.VoiceNames) { [voice] = name },
+        }) ?? _session;
         _services.Render(directory);
         RefreshAfterEdit();
 
@@ -1930,45 +2031,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     {
         var menu = new ContextMenu();
 
-        if (row.Line.Channel == CallChannel.Theirs && _transcript is { } transcript && transcript.Voices.Count > 1)
+        if (row.Line.Channel == CallChannel.Theirs && _transcript is { Voices.Count: > 0 })
         {
             menu.Items.Add(new MenuItem { Header = L.S.LineSaidBy, IsEnabled = false });
-            foreach (string voice in transcript.Voices)
-            {
-                string label = CallSpeakers.NameOf(_session!, voice) ?? $"{L.S.TranscriptVoice} {voice}";
-                var item = new MenuItem
-                {
-                    Header = label,
-                    IsCheckable = true,
-                    IsChecked = row.Line.Voice == voice,
-                    Icon = new System.Windows.Shapes.Ellipse
-                    {
-                        Width = 9,
-                        Height = 9,
-                        Fill = VoicePalette.For(IndexOf(transcript.Voices, voice)),
-                    },
-                };
-
-                string target = voice;
-                item.Click += (_, _) =>
-                {
-                    if (row.Line.Voice != target)
-                    {
-                        ReassignLine(row.Line, target);
-                    }
-                };
-                menu.Items.Add(item);
-            }
-
-            string fresh = CallVoices.Letter(transcript.Voices.Count);
-            for (int i = transcript.Voices.Count; transcript.Voices.Contains(fresh); i++)
-            {
-                fresh = CallVoices.Letter(i + 1);
-            }
-
-            var someone = new MenuItem { Header = L.S.VoiceSomeoneElse };
-            someone.Click += (_, _) => ReassignLine(row.Line, fresh);
-            menu.Items.Add(someone);
+            AddSaidBy(menu, row.Line, reject: false);
             menu.Items.Add(new Separator());
         }
         else if (row.Line.Channel == CallChannel.Theirs && _transcript is { Voices.Count: 0 } && _session is not null)
