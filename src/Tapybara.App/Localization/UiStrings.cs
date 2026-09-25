@@ -424,6 +424,19 @@ public sealed record UiStrings
     public required string LineEditText { get; init; }
     public required string LineFixSelection { get; init; }
     public required string CallsStopTranscribing { get; init; }
+    public required string PersonRenameEverywhere { get; init; }
+    public required string RenameTitle { get; init; }
+    public required string RenameBody { get; init; }
+    public required string RenameInCalls { get; init; }
+    public required string RenameMentions { get; init; }
+    public required string RenameGo { get; init; }
+    public required string CallsCopyAnonymized { get; init; }
+    public required string AnonymizeTitle { get; init; }
+    public required string AnonymizeBody { get; init; }
+    public required string AnonymizeMentions { get; init; }
+    public required string AnonymizeNumbered { get; init; }
+    public required string AnonymizeParticipant { get; init; }
+    public required string AnonymizeCopy { get; init; }
     public required string FixSimilar { get; init; }
     public required string FixRemember { get; init; }
     public required string FixReplaceAll { get; init; }
@@ -1036,6 +1049,19 @@ public sealed record UiStrings
         LineEditText = "Edit the line",
         LineFixSelection = "Fix “{0}”…",
         CallsStopTranscribing = "Stop",
+        PersonRenameEverywhere = "Rename everywhere…",
+        RenameTitle = "Rename {0}",
+        RenameBody = "Calls, the voice book and the list of people follow the new name. Nothing is transcribed again.",
+        RenameInCalls = "In calls: {0}",
+        RenameMentions = "Mentions in the text",
+        RenameGo = "Rename",
+        CallsCopyAnonymized = "Copy without names…",
+        AnonymizeTitle = "Copy without names",
+        AnonymizeBody = "Only the copy changes: the call keeps the real names.",
+        AnonymizeMentions = "Replace mentions in the text too",
+        AnonymizeNumbered = "Everyone — “Participant N”",
+        AnonymizeParticipant = "Participant {0}",
+        AnonymizeCopy = "Copy",
         FixSimilar = "Similar in this call",
         FixRemember = "Remember in the dictionary",
         FixReplaceAll = "Replace: {0}",
@@ -1501,6 +1527,19 @@ public sealed record UiStrings
         LineEditText = "Исправить реплику",
         LineFixSelection = "Исправить «{0}»…",
         CallsStopTranscribing = "Остановить",
+        PersonRenameEverywhere = "Переименовать везде…",
+        RenameTitle = "Переименовать: {0}",
+        RenameBody = "Звонки, книга голосов и список людей перейдут на новое имя. Заново ничего не распознаётся.",
+        RenameInCalls = "В звонках: {0}",
+        RenameMentions = "Упоминания в тексте",
+        RenameGo = "Переименовать",
+        CallsCopyAnonymized = "Копировать без имён…",
+        AnonymizeTitle = "Копия без имён",
+        AnonymizeBody = "Меняется только копия — в звонке остаются настоящие имена.",
+        AnonymizeMentions = "Заменить и упоминания в тексте",
+        AnonymizeNumbered = "Все — «Участник N»",
+        AnonymizeParticipant = "Участник {0}",
+        AnonymizeCopy = "Копировать",
         FixSimilar = "Похожие в этом звонке",
         FixRemember = "Запомнить в словаре",
         FixReplaceAll = "Заменить: {0}",

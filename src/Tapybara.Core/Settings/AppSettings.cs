@@ -227,6 +227,16 @@ public sealed record AppSettings
     public List<string> KnownParticipants { get; init; } = [];
 
     /// <summary>
+    /// Как подписывать людей в копии, которую отдают наружу: имя → псевдоним.
+    /// </summary>
+    /// <remarks>
+    /// Запоминается: однажды названный «Шерифом» для чужих глаз должен быть
+    /// им и в следующей выгрузке — иначе читатель двух копий путается, кто
+    /// есть кто.
+    /// </remarks>
+    public Dictionary<string, string> PersonAliases { get; init; } = [];
+
+    /// <summary>
     /// Как подписывать реплики из системного канала, когда участники не указаны.
     /// </summary>
     /// <remarks>
