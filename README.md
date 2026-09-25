@@ -33,15 +33,16 @@ somebody's server.
 - Escape cancels — and stays available to everything else. Cancelling watches
   the key through a hook rather than claiming it, so dialogs still close and
   menus still dismiss while a dictation runs.
-- Models are downloaded from inside the app, listed with their sizes, and
-  deletable. Drop one into the folder by hand and it appears without a restart.
+- Models are downloaded from inside the app — one list per kind, with sizes,
+  the one in use marked, a click to switch and a menu to delete. Drop one into
+  the folder by hand and it appears without a restart.
 - A speech detector finds where the speech actually is, so each line gets the
   position it was measured at rather than one the model guessed. It also
   removes the phrases Whisper invents on silence.
 - Names it keeps mangling get fixed by a dictionary of replacements — including
-  ones carrying punctuation, like `C#` and `.NET` — added right from a
-  transcript when you spot the mistake, and carried to a new computer as one
-  file.
+  ones carrying punctuation, like `C#` and `.NET` — that grows as you correct
+  transcripts, can be applied to calls transcribed before, and moves to a new
+  computer as one file.
 - Every dictation is kept, so one that went into the wrong window is never
   lost. Switch it off if you dictate passwords.
 - It stays out of the way: a tray icon, a floating indicator you can drag
@@ -49,12 +50,22 @@ somebody's server.
   calls, dictionary — and a settings window you visit once.
 - Calls are recorded as two separate tracks — your microphone and your system
   audio — and merged into one transcript. Transcription starts the moment the
-  recording stops. With more than one other person their voices are told
-  apart on your own machine, and you name each voice from its quotes and by
-  listening to it; the transcript follows at once, without transcribing again.
+  recording stops, and can be stopped.
+- With more than one other person their voices are told apart on your own
+  machine, and you name each voice from its quotes and by listening to it. A
+  name is a person: a voice the splitter tore off someone joins them when you
+  pick the same name, and detaches with a click. You are on the list too, with
+  your share of the call. Every line is checked against its voice, and the
+  ones that do not fit are marked.
 - Named voices are remembered, so on the next call Tapybara suggests who is
   speaking — a suggestion you accept, never a label it applies on its own. The
   voiceprints stay on this computer and are forgotten with one button.
+- A misheard word is fixed once for the whole call: double-click it, and every
+  way it was misheard is replaced together, in place, without transcribing
+  again. The playing line lights up as it sounds and the transcript follows.
+- A transcript can be copied without the names — everyone as an alias, the
+  mentions in the text included — while the call keeps the real ones. Renaming
+  someone for real changes them in every call at once.
 
 ## Getting started
 
@@ -155,6 +166,7 @@ src/Tapybara.Core/         engine, audio, settings, Win32 plumbing — no UI
 src/Tapybara.App/          WPF application: tray, overlay, main window, settings
 tests/Tapybara.Core.Tests/ unit tests for the pure logic in Core
 tools/Tapybara.Bench/      console harness for benchmarking and diagnostics
+tools/site/                demo data and the script that takes the site's screenshots
 ```
 
 All logic lives in `Core`, which has no dependency on the user interface. That
@@ -185,8 +197,8 @@ delta from the previous release, a fraction of a megabyte instead of a hundred
 — and installed copies pick it up from there:
 
 ```bash
-git tag -a --cleanup=verbatim v0.3.0 -F notes.md
-git push origin v0.3.0
+git tag -a --cleanup=verbatim v0.4.0 -F notes.md
+git push origin v0.4.0
 ```
 
 `--cleanup=verbatim` is not optional — see the release section of
