@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using Tapybara.App.Localization;
 using Tapybara.Core.Calls;
-using Tapybara.Core.Settings;
 using Wpf.Ui.Controls;
 
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -52,14 +51,33 @@ internal static class PersonRenamer
 
         // Упоминания ищутся во всех звонках, а не только в тех, где человек
         // был: о нём говорят и без него.
-        var transcripts = directories
-            .Select(d => (Directory: d, Transcript: CallTranscriptStore.Load(d)))
-            .Where(c => c.Transcript is not null)
-            .ToList();
-        IReadOnlyList<NameMention> mentions = PersonNames.Find(transcripts.Select(c => c.Transcript!), from);
-        List<string> withMentions = [.. transcripts
-            .Where(c => PersonNames.Find([c.Transcript!], from).Count > 0)
-            .Select(c => c.Directory)];
+        // Каждый транскрипт читается и просматривается один раз: формы и
+        // счёт складываются по звонкам.
+        var counts = new Dictionary<string, NameMention>(StringComparer.Ordinal);
+        var withMentions = new List<string>();
+        foreach (string directory in directories)
+        {
+            if (CallTranscriptStore.Load(directory) is not { } transcript)
+            {
+                continue;
+            }
+
+            IReadOnlyList<NameMention> found = PersonNames.Find([transcript], from);
+            if (found.Count == 0)
+            {
+                continue;
+            }
+
+            withMentions.Add(directory);
+            foreach (NameMention mention in found)
+            {
+                counts[mention.Form] = counts.TryGetValue(mention.Form, out NameMention? known)
+                    ? known with { Count = known.Count + mention.Count }
+                    : mention;
+            }
+        }
+
+        List<NameMention> mentions = [.. counts.Values.OrderBy(m => m.Case)];
 
         string newName;
         bool inCalls = withPerson.Count > 0;
@@ -89,9 +107,7 @@ internal static class PersonRenamer
             KnownParticipants = [.. s.KnownParticipants
                 .Select(n => string.Equals(n, from, StringComparison.OrdinalIgnoreCase) ? newName : n)
                 .Distinct(StringComparer.OrdinalIgnoreCase)],
-            PersonAliases = s.PersonAliases.ToDictionary(
-                p => string.Equals(p.Key, from, StringComparison.OrdinalIgnoreCase) ? newName : p.Key,
-                p => p.Value),
+            PersonAliases = RenameAlias(s.PersonAliases, from, newName),
         });
         voices.Rename(from, newName);
 
@@ -122,13 +138,27 @@ internal static class PersonRenamer
         return true;
     }
 
+    /// <summary>
+    /// Псевдоним переезжает с прежнего имени на новое — если у нового своего ещё нет.
+    /// </summary>
+    private static Dictionary<string, string> RenameAlias(Dictionary<string, string> aliases, string from, string to)
+    {
+        var renamed = new Dictionary<string, string>(aliases);
+        if (renamed.Remove(from, out string? alias) && !renamed.ContainsKey(to))
+        {
+            renamed[to] = alias;
+        }
+
+        return renamed;
+    }
+
     /// <summary>Окно вопроса: новое имя, звонки, упоминания.</summary>
     private static (string Name, bool InCalls, List<NameMention> Mentions)? Ask(
         Window? owner,
         string from,
         string? to,
         int calls,
-        IReadOnlyList<NameMention> mentions)
+        List<NameMention> mentions)
     {
         var window = new ConfirmWindow(
             string.Format(L.S.Formatting, L.S.RenameTitle, from),

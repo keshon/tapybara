@@ -49,6 +49,12 @@ public static class Tokens
     public const double Space5 = 24;
 
     /// <summary>Внутренний отступ карточки.</summary>
+    /// <summary>Цветная точка человека — у реплики, в чипе, в меню.</summary>
+    public const double Dot = 8;
+
+    /// <summary>Точка в заголовке карточки человека — рядом с полужирным именем.</summary>
+    public const double DotLarge = 10;
+
     public static Thickness CardPadding { get; } = new(Space4, Space3, Space4, Space3);
 
     /// <summary>Отступ содержимого страницы от краёв окна.</summary>
