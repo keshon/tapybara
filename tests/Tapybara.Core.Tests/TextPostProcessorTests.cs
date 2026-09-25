@@ -12,6 +12,7 @@ public class TextPostProcessorTests
     [InlineData("Продолжение следует...")]
     [InlineData("Спасибо за просмотр!")]
     [InlineData("Субтитры сделал DimaTorzok")]
+    [InlineData("Спасибо за субтитры Алексею Дубровскому!")]
     [InlineData("Thanks for watching")]
     [InlineData("[музыка]")]
     [InlineData("(Аплодисменты)")]

@@ -171,6 +171,20 @@ public sealed class TranscriptEditTests
         Assert.True(fixedCall.EditedByHand);
     }
 
+    [Fact]
+    public void RemoveLine_DropsOnlyThatLine_AndIgnoresAMissingOne()
+    {
+        CallTranscript call = Call("Buenas tardes.", "Добрый день.");
+
+        CallTranscript cleaned = TranscriptEdit.RemoveLine(call, call.Lines[0] with { Fit = 0.3 });
+
+        Assert.Equal(["Добрый день."], cleaned.Lines.Select(l => l.Text));
+        Assert.True(cleaned.EditedByHand);
+
+        CallTranscript untouched = TranscriptEdit.RemoveLine(call, call.Lines[0] with { Start = TimeSpan.FromMinutes(9) });
+        Assert.Same(call, untouched);
+    }
+
     [Theory]
     [InlineData("мы в рикстате", 7, 5, 8)]
     [InlineData("мы в рикстате", 5, 5, 8)]

@@ -423,6 +423,7 @@ public sealed record UiStrings
     public required string CardModelsMissing { get; init; }
     public required string LineFixWord { get; init; }
     public required string LineEditText { get; init; }
+    public required string LineDelete { get; init; }
     public required string LineFixSelection { get; init; }
     public required string CallsStopTranscribing { get; init; }
     public required string PersonRenameEverywhere { get; init; }
@@ -1049,6 +1050,7 @@ public sealed record UiStrings
         CardModelsMissing = "Missing: {0}.",
         LineFixWord = "Fix this word…",
         LineEditText = "Edit the line",
+        LineDelete = "Delete the line",
         LineFixSelection = "Fix “{0}”…",
         CallsStopTranscribing = "Stop",
         PersonRenameEverywhere = "Rename everywhere…",
@@ -1527,6 +1529,7 @@ public sealed record UiStrings
         CardModelsMissing = "Не хватает: {0}.",
         LineFixWord = "Исправить слово…",
         LineEditText = "Исправить реплику",
+        LineDelete = "Удалить реплику",
         LineFixSelection = "Исправить «{0}»…",
         CallsStopTranscribing = "Остановить",
         PersonRenameEverywhere = "Переименовать везде…",
