@@ -499,7 +499,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Кто был на звонке — отмеченные и названные голоса.</summary>
     private static string PeopleOf(CallSession session) =>
         string.Join(", ", session.Participants
-            .Concat(session.VoiceNames.Values.Where(n => n != CallSpeakers.Me))
+            .Concat(session.VoiceNames.Values.Where(n => n != CallSession.Me))
             .Distinct(StringComparer.OrdinalIgnoreCase));
 
     /// <summary>Как называется звонок.</summary>
@@ -1243,7 +1243,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Чем карточка человека помнит, раскрыта ли она, — между перерисовками.</summary>
     /// <remarks>Имя, а не голос: присоединили голос — человек тот же, и карточка тоже.</remarks>
     private static string KeyOf(CallPerson person) =>
-        person.IsMe ? CallSpeakers.Me : person.Name?.ToUpperInvariant() ?? person.Voices[0];
+        person.IsMe ? CallSession.Me : person.Name?.ToUpperInvariant() ?? person.Voices[0];
 
     private static bool IsWholeSide(CallPerson person) => person.Voices is [CallVoices.WholeOtherSide];
 
@@ -1608,7 +1608,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 }
                 else
                 {
-                    ReassignLine(line, FreshVoice(), CallSpeakers.Me);
+                    ReassignLine(line, FreshVoice(), CallSession.Me);
                 }
             };
             menu.Items.Add(item);
@@ -1797,7 +1797,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         if (!IsWholeSide(person))
         {
-            Add(CallSpeakers.Me, L.S.VoiceItsMe, VoicePalette.Me);
+            Add(CallSession.Me, L.S.VoiceItsMe, VoicePalette.Me);
         }
 
         int limit = shown.Count + _session!.Participants.Count + SuggestedNames;
@@ -1977,7 +1977,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return s with { VoiceNames = names };
         }) ?? _session;
 
-        if (name != CallSpeakers.Me)
+        if (name != CallSession.Me)
         {
             RememberName(name);
             foreach (string voice in voices)

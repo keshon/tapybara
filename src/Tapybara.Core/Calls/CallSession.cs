@@ -60,7 +60,22 @@ public sealed record CallSession
     /// <summary>
     /// Имена голосов: буква голоса → имя. Даёт их человек, по цитатам.
     /// </summary>
+    /// <remarks>
+    /// Одно имя у нескольких голосов — один человек (<see cref="CallPeople"/>).
+    /// Имя <see cref="Me"/> — сам владелец микрофона.
+    /// </remarks>
     public IReadOnlyDictionary<string, string> VoiceNames { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// Имя голоса чужой дорожки, который оказался владельцем микрофона.
+    /// </summary>
+    /// <remarks>
+    /// Без наушников свой голос попадает и в чужую дорожку — через динамики.
+    /// Такой голос человек называет «Это я». Не своим именем из настроек:
+    /// сменил имя в настройках — и старые звонки подписаны по-новому.
+    /// Записывается в <c>meta.json</c>, поэтому значение не меняется.
+    /// </remarks>
+    public const string Me = "@me";
 
     [JsonIgnore]
     public string MicPath => Path.Combine(Directory, MicFileName);

@@ -15,8 +15,10 @@ public sealed record ShelfModel(
     InstalledModel? Installed,
     bool InUse)
 {
+    /// <summary>Файл модели лежит в папке моделей.</summary>
     public bool IsInstalled => Installed is not null;
 
+    /// <summary>Файл положен руками, в каталоге его нет.</summary>
     public bool IsCustom => Catalog is null;
 }
 
@@ -25,11 +27,9 @@ public sealed record ShelfModel(
 /// </summary>
 /// <remarks>
 /// <para>
-/// Раньше модель распознавания выбиралась в карточке «Активная модель»,
-/// детектор и голосовые модели — выпадающими списками в «Дополнительно»,
-/// скачивались они в третьем месте, а удалялись в четвёртом, «Установлены»,
-/// куда голосовые модели не попадали вовсе. Состояние модели теперь одно:
-/// не скачана, скачана или используется, — и видно его в одной строке.
+/// У модели любого типа три состояния: не скачана, скачана, используется.
+/// Этого хватает, чтобы показать все типы одинаково и одинаково ими
+/// управлять — выбрать, скачать, удалить.
 /// </para>
 /// <para>
 /// Свои файлы — дообученная модель, положенная в папку руками, — стоят в
@@ -69,6 +69,24 @@ public static class ModelShelf
         return shelf;
     }
 
+    /// <summary>
+    /// Каких типов из <paramref name="kinds"/> нечем выполнить: ни одна модель типа не используется.
+    /// </summary>
+    /// <remarks>
+    /// По тому же правилу, по которому отмечается строка (<see cref="InUse"/>):
+    /// если распознавание работает запасной моделью, её не «не хватает», и
+    /// предлагать качать другую незачем.
+    /// </remarks>
+    public static IReadOnlyList<ModelKind> Missing(
+        AppSettings settings,
+        IReadOnlyList<ModelKind> kinds,
+        IReadOnlyList<InstalledModel> installed)
+    {
+        ArgumentNullException.ThrowIfNull(kinds);
+
+        return [.. kinds.Where(kind => !Of(kind, installed, settings).Any(m => m.InUse))];
+    }
+
     /// <summary>Какой файл этого типа выбран в настройках.</summary>
     public static string Chosen(AppSettings settings, ModelKind kind)
     {
@@ -76,10 +94,11 @@ public static class ModelShelf
 
         return kind switch
         {
+            ModelKind.Recognition => settings.ModelFileName ?? string.Empty,
+            ModelKind.SpeechDetector => settings.VadModelFileName ?? string.Empty,
             ModelKind.VoiceSegmentation => settings.VoiceSegmentationModelFileName,
             ModelKind.VoiceEmbedding => settings.VoiceEmbeddingModelFileName,
-            ModelKind.SpeechDetector => settings.VadModelFileName ?? string.Empty,
-            _ => settings.ModelFileName ?? string.Empty,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
         };
     }
 
@@ -90,10 +109,11 @@ public static class ModelShelf
 
         return kind switch
         {
+            ModelKind.Recognition => settings with { ModelFileName = fileName },
+            ModelKind.SpeechDetector => settings with { VadModelFileName = fileName },
             ModelKind.VoiceSegmentation => settings with { VoiceSegmentationModelFileName = fileName },
             ModelKind.VoiceEmbedding => settings with { VoiceEmbeddingModelFileName = fileName },
-            ModelKind.SpeechDetector => settings with { VadModelFileName = fileName },
-            _ => settings with { ModelFileName = fileName },
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
         };
     }
 

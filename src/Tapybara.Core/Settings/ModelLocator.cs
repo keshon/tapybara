@@ -1,4 +1,6 @@
-﻿namespace Tapybara.Core.Settings;
+using Tapybara.Core.Models;
+
+namespace Tapybara.Core.Settings;
 
 /// <summary>Поиск папки с моделями распознавания.</summary>
 /// <remarks>
@@ -125,21 +127,10 @@ public static class ModelLocator
         // Файлы Silero VAD лежат в той же папке и тоже называются ggml-*,
         // но моделью распознавания не являются — отсеиваем по имени.
         return Directory.EnumerateFiles(directory, "ggml-*.bin")
-            .Where(p => !Path.GetFileName(p).Contains("silero", StringComparison.OrdinalIgnoreCase))
+            .Where(p => !ModelStorage.IsSpeechDetector(p))
             .Order(StringComparer.Ordinal)
             .FirstOrDefault();
     }
-
-    /// <summary>
-    /// Модели детектора речи отличаются от моделей распознавания только именем.
-    /// </summary>
-    /// <remarks>
-    /// Лежат они в той же папке и тоже называются ggml-*, поэтому списки
-    /// приходится разделять по имени файла: silero в списке моделей
-    /// распознавания выглядел бы как выбор, который ничего не распознаёт.
-    /// </remarks>
-    private static bool IsVadModel(string path) =>
-        Path.GetFileName(path).Contains("silero", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Полный путь к модели детектора речи, или null.</summary>
     public static string? ResolveVadModel(string fileName, string? overrideDirectory = null)
@@ -158,7 +149,7 @@ public static class ModelLocator
 
         // Настроенной нет — берём любую доступную: детектор важнее того,
         // какая именно его версия используется.
-        return Directory.EnumerateFiles(directory, "ggml-*.bin").Where(IsVadModel).Order(StringComparer.Ordinal).FirstOrDefault();
+        return Directory.EnumerateFiles(directory, "ggml-*.bin").Where(ModelStorage.IsSpeechDetector).Order(StringComparer.Ordinal).FirstOrDefault();
     }
 
     /// <summary>Все доступные модели детектора речи.</summary>
@@ -168,10 +159,10 @@ public static class ModelLocator
         return directory is null
             ? []
             : [.. Directory.EnumerateFiles(directory, "ggml-*.bin")
-                .Where(IsVadModel)
+                .Where(ModelStorage.IsSpeechDetector)
                 .Select(Path.GetFileName)
                 .OfType<string>()
-                .Order()];
+                .Order(StringComparer.Ordinal)];
     }
 
     private static string? FindInRepository()

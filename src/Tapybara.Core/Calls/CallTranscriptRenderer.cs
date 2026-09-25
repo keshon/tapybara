@@ -23,16 +23,6 @@ namespace Tapybara.Core.Calls;
 public static class CallSpeakers
 {
     /// <summary>
-    /// Имя голоса чужой дорожки, который оказался владельцем микрофона.
-    /// </summary>
-    /// <remarks>
-    /// Без наушников свой голос попадает и в чужую дорожку — через динамики.
-    /// Такой голос человек называет «Это я». Не своим именем из настроек:
-    /// сменил имя в настройках — и старые звонки подписаны по-новому.
-    /// </remarks>
-    public const string Me = "@me";
-
-    /// <summary>
     /// Имя голоса, если оно известно, иначе <c>null</c>.
     /// </summary>
     /// <remarks>
@@ -59,7 +49,9 @@ public static class CallSpeakers
             return name;
         }
 
-        return session.Participants.Count == 1 && session.Voices.Count <= 1 ? session.Participants[0] : null;
+        // Свой голос, попавший в чужую дорожку, — не второй собеседник.
+        int others = session.Voices.Count(v => session.VoiceNames.GetValueOrDefault(v) != CallSession.Me);
+        return session.Participants.Count == 1 && others <= 1 ? session.Participants[0] : null;
     }
 
     /// <summary>
@@ -106,7 +98,7 @@ public static class CallSpeakers
             // слово: «Собеседник» на всех стёр бы то единственное, что машина
             // действительно знает, — что это разные люди.
             string? name = NameOf(session, voice);
-            return name == Me ? myName : name ?? (voiceCount > 1 ? $"{voiceWord} {voice}" : fallback);
+            return name == CallSession.Me ? myName : name ?? (voiceCount > 1 ? $"{voiceWord} {voice}" : fallback);
         }
 
         return session.Participants.Count == 1 ? session.Participants[0] : fallback;
@@ -249,7 +241,7 @@ public static class CallTranscriptRenderer
         var people = new List<string>(session.Participants);
         foreach (string name in session.VoiceNames.Values)
         {
-            if (!string.IsNullOrWhiteSpace(name) && name != CallSpeakers.Me && !people.Contains(name, StringComparer.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(name) && name != CallSession.Me && !people.Contains(name, StringComparer.OrdinalIgnoreCase))
             {
                 people.Add(name);
             }

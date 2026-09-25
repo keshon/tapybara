@@ -53,27 +53,28 @@ public static class CallPeople
 
         // Голоса по людям, в порядке первого голоса каждого: цвет человека —
         // цвет его первого голоса, и он не прыгает, когда к нему присоединяют.
-        var named = new List<(string Name, List<string> Voices)>();
-        var unnamed = new List<string>();
+        var named = new Dictionary<string, (int Color, List<string> Voices)>(StringComparer.OrdinalIgnoreCase);
+        var order = new List<string>();
+        var unnamed = new List<(int Color, string Voice)>();
         var mine = new List<string>();
-        foreach (string voice in voices)
+        for (int i = 0; i < voices.Count; i++)
         {
-            string? name = CallSpeakers.NameOf(session, voice);
-            if (name == CallSpeakers.Me)
+            string voice = voices[i];
+            switch (CallSpeakers.NameOf(session, voice))
             {
-                mine.Add(voice);
-            }
-            else if (name is null)
-            {
-                unnamed.Add(voice);
-            }
-            else if (named.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) is { Name: not null } person)
-            {
-                person.Voices.Add(voice);
-            }
-            else
-            {
-                named.Add((name, [voice]));
+                case CallSession.Me:
+                    mine.Add(voice);
+                    break;
+                case null:
+                    unnamed.Add((i, voice));
+                    break;
+                case string name when named.TryGetValue(name, out var person):
+                    person.Voices.Add(voice);
+                    break;
+                case string name:
+                    named[name] = (i, [voice]);
+                    order.Add(name);
+                    break;
             }
         }
 
@@ -85,8 +86,7 @@ public static class CallPeople
         if (voices.Count == 0)
         {
             // Голоса не разделялись: вся чужая дорожка — один человек.
-            List<CallLine> theirs = [.. transcript.Lines.Where(l => l.Channel == CallChannel.Theirs)];
-            if (theirs.Count > 0)
+            if (transcript.Lines.Any(l => l.Channel == CallChannel.Theirs))
             {
                 string? name = session.Participants.Count == 1 ? session.Participants[0] : null;
                 people.Add(Person(name, isMe: false, [CallVoices.WholeOtherSide], 0, transcript, total, l => l.Channel == CallChannel.Theirs));
@@ -95,14 +95,15 @@ public static class CallPeople
             return people;
         }
 
-        foreach ((string name, List<string> own) in named)
+        foreach (string name in order)
         {
-            people.Add(Person(name, isMe: false, own, IndexOf(voices, own[0]), transcript, total, l => l.Voice is { } v && own.Contains(v)));
+            (int color, List<string> own) = named[name];
+            people.Add(Person(name, isMe: false, own, color, transcript, total, l => l.Voice is { } v && own.Contains(v)));
         }
 
-        foreach (string voice in unnamed)
+        foreach ((int color, string voice) in unnamed)
         {
-            people.Add(Person(null, isMe: false, [voice], IndexOf(voices, voice), transcript, total, l => l.Voice == voice));
+            people.Add(Person(null, isMe: false, [voice], color, transcript, total, l => l.Voice == voice));
         }
 
         return people;
@@ -150,17 +151,4 @@ public static class CallPeople
     }
 
     private static double Seconds(CallLine line) => Math.Max(0, (line.End - line.Start).TotalSeconds);
-
-    private static int IndexOf(IReadOnlyList<string> voices, string voice)
-    {
-        for (int i = 0; i < voices.Count; i++)
-        {
-            if (voices[i] == voice)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
 }

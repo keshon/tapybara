@@ -34,8 +34,8 @@ public static class ModelStorage
 
         try
         {
-            // И голосовые модели (.onnx): раньше их здесь не было, и удалить
-            // или перенести их вместе с остальными приложение не могло.
+            // И голосовые модели (.onnx): их тоже удаляют и переносят вместе
+            // с папкой.
             return
             [
                 .. Directory.EnumerateFiles(directory, "ggml-*.bin")

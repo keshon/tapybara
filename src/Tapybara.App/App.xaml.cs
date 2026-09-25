@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -1242,7 +1242,7 @@ public partial class App : Application, IDisposable
         {
             // Свой голос в книгу собеседников не кладём: подсказывать «похоже
             // на вас» на чужой дорожке — не то, ради чего она есть.
-            if (name != CallSpeakers.Me && transcript.VoicePrints.TryGetValue(voice, out float[]? print))
+            if (name != CallSession.Me && transcript.VoicePrints.TryGetValue(voice, out float[]? print))
             {
                 _voiceBook.Learn(name, print);
             }

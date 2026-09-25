@@ -42,6 +42,20 @@ public sealed record CallLine(
     /// Голос реплики под сомнением: слепок не похож на голос, которому она отдана.
     /// </summary>
     public bool IsDoubtful => Fit < VoiceCheck.Sure;
+
+    /// <summary>
+    /// Та же реплика — по дорожке и началу, а не по всем полям.
+    /// </summary>
+    /// <remarks>
+    /// Окно держит реплику, какой её прочитало. Пока человек правил в ней
+    /// слово, сверка голосов в фоне могла переписать <see cref="Fit"/>, и
+    /// сравнение записей целиком уже не находило её: правка молча терялась.
+    /// </remarks>
+    public bool IsSameAs(CallLine other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Channel == other.Channel && Start == other.Start;
+    }
 }
 
 /// <summary>
@@ -306,7 +320,7 @@ public static class CallVoices
     /// Три — примерно столько нужно, чтобы узнать человека по словам, а не
     /// по одному обрывку. Больше не помещается в панель рядом с транскриптом.
     /// </remarks>
-    public const int QuotesPerVoice = 3;
+    private const int QuotesPerVoice = 3;
 
     /// <summary>
     /// Короче этого реплика в цитаты не годится.
@@ -383,7 +397,7 @@ public static class CallVoices
     /// Показываются в порядке времени — так их легче сопоставить с ходом
     /// разговора. Какие именно — решает <see cref="PickQuotes"/>.
     /// </remarks>
-    public static IReadOnlyList<CallLine> QuotesOf(IReadOnlyList<CallLine> own)
+    internal static IReadOnlyList<CallLine> QuotesOf(IReadOnlyList<CallLine> own)
     {
         ArgumentNullException.ThrowIfNull(own);
 
@@ -477,8 +491,22 @@ public static class CallVoices
         {
             // Голос назначил человек — это вернее любого замера, и сомнение
             // с реплики снимается.
-            Lines = [.. transcript.Lines.Select(l => l == line ? l with { Voice = voice, Fit = null } : l)],
+            Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line) ? l with { Voice = voice, Fit = null } : l)],
         };
+    }
+
+    /// <summary>Следующая свободная буква голоса — для реплики, отданной «кому-то другому».</summary>
+    public static string NextFree(IReadOnlyList<string> voices)
+    {
+        ArgumentNullException.ThrowIfNull(voices);
+
+        int index = voices.Count;
+        while (voices.Contains(Letter(index)))
+        {
+            index++;
+        }
+
+        return Letter(index);
     }
 
     private static Dictionary<int, string> Letters(IReadOnlyList<SpeakerSpan> spans)
