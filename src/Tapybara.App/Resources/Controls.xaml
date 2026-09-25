@@ -185,54 +185,6 @@
         </Setter>
     </Style>
 
-    <!--
-        Чип участника звонка: имя, которое включается и выключается
-        щелчком. Нужен в карточке после звонка и в панели голосов.
-
-        Форма — капсула. Это не украшение: капсула читается как
-        «элемент списка, который можно снять», а прямоугольник со
-        скруглением — как кнопка, то есть как действие.
-    -->
-    <Style x:Key="ParticipantChipStyle" TargetType="ToggleButton">
-        <Setter Property="Margin" Value="0,0,6,6" />
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="FontSize" Value="{x:Static app:Tokens.Body}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Pill"
-                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="{x:Static app:Tokens.PillRadius}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter VerticalAlignment="Center" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Pill" Property="Background"
-                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
-                        </Trigger>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Pill" Property="Background"
-                                    Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                            <Setter TargetName="Pill" Property="BorderBrush"
-                                    Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                            <Setter Property="Foreground"
-                                    Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.55" />
-                            <Setter Property="Cursor" Value="Arrow" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <!-- === поля ========================================================== -->
 
     <!--

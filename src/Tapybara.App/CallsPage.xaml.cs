@@ -47,6 +47,7 @@ namespace Tapybara.App;
 /// <param name="Delete">Удалить звонок, отменив работу над ним.</param>
 /// <param name="ToggleRecording">Начать или закончить запись звонка.</param>
 /// <param name="CanSplitVoices">Есть ли чем разделять голоса.</param>
+/// <param name="FetchModel">Скачать недостающую модель этого типа.</param>
 /// <param name="Voices">Книга голосов — для подсказок «похоже на…» и чтобы запоминать названные.</param>
 /// <param name="Live">Что сейчас пишется — для кнопки записи.</param>
 public sealed record CallsServices(
@@ -63,6 +64,7 @@ public sealed record CallsServices(
     Action<string> Delete,
     Action ToggleRecording,
     Func<bool> CanSplitVoices,
+    Action<Tapybara.Core.Models.ModelKind> FetchModel,
     VoiceBook Voices,
     LiveActivity Live);
 
@@ -1159,6 +1161,23 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             split.Click += (_, _) => _ = _services.Resplit(directory, found + 1);
             body.Children.Add(split);
         }
+        else if (ModelNeeds.Missing(Settings, ModelNeeds.SplitVoices) is { Count: > 0 } missing)
+        {
+            // Сказать, что кто-то ещё был, и не дать ничего сделать, — тупик:
+            // так и было, пока модели разделения не хватало.
+            TextBlock need = Ui.Caption(string.Format(L.S.Formatting, L.S.VoicesNeedModels, L.S.KindNames(missing)));
+            need.Margin = new Thickness(0, Tokens.Space2, 0, 0);
+            body.Children.Add(need);
+
+            var get = new Wpf.Ui.Controls.Button
+            {
+                Content = L.S.VoicesOpenModels,
+                Appearance = ControlAppearance.Primary,
+                Margin = new Thickness(0, Tokens.Space2, 0, 0),
+            };
+            get.Click += (_, _) => _services.FetchModel(missing[0]);
+            body.Children.Add(get);
+        }
 
         Border card = Ui.Card(body);
         card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
@@ -1391,10 +1410,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         if (voices.Count == 0)
         {
-            var split = new MenuItem { Header = L.S.VoiceSomeoneElseSplit, IsEnabled = _services.CanSplitVoices() };
-            string directory = _session.Directory;
-            split.Click += (_, _) => _ = _services.Resplit(directory, 2);
-            menu.Items.Add(split);
+            menu.Items.Add(SplitOrGetModelItem(_session.Directory));
         }
         else
         {
@@ -1434,6 +1450,31 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
 
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Пункт «Кто-то другой» там, где голоса не разделялись: разделить —
+    /// или, если нечем, скачать чем.
+    /// </summary>
+    /// <remarks>
+    /// Раньше без модели разделения пункт был просто серым. Человек видел,
+    /// что кто-то ещё был на звонке, и не мог узнать, почему с этим ничего
+    /// нельзя сделать.
+    /// </remarks>
+    private MenuItem SplitOrGetModelItem(string directory)
+    {
+        if (_services.CanSplitVoices())
+        {
+            var split = new MenuItem { Header = L.S.VoiceSomeoneElseSplit };
+            split.Click += (_, _) => _ = _services.Resplit(directory, 2);
+            return split;
+        }
+
+        var get = new MenuItem { Header = L.S.VoiceSomeoneElseGetModel };
+        IReadOnlyList<Tapybara.Core.Models.ModelKind> missing = ModelNeeds.Missing(Settings, ModelNeeds.SplitVoices);
+        get.IsEnabled = missing.Count > 0;
+        get.Click += (_, _) => _services.FetchModel(missing[0]);
+        return get;
     }
 
     private void RejectQuote(CallLine quote, string voice, string target)
@@ -1499,7 +1540,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private WrapPanel NameChips(string? current, Action<string?> pick)
     {
         var chips = new WrapPanel();
-        Style style = (Style)FindResource("ParticipantChipStyle");
+        Style style = Ui.ChipStyle();
 
         List<string> names = [.. _session!.Participants];
         foreach (string known in _session.VoiceNames.Values.Concat(Settings.KnownParticipants))
@@ -1663,40 +1704,53 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return panel;
         }
 
-        TextBlock hint = Ui.Caption(L.S.VoicesResplit);
-        hint.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        // Выбор числа и отдельная кнопка — а не ряд цифр, где нажатие на
+        // цифру сразу запускало разделение: передумать было нельзя, а
+        // промахнуться — легко. «Отмена» сворачивает всё обратно в ссылку.
+        TextBlock hint = Ui.Caption(L.S.VoicesResplitCount);
+        hint.Margin = new Thickness(0, 0, 0, Tokens.Space1);
         panel.Children.Add(hint);
 
-        var chips = new WrapPanel();
-        Style style = (Style)FindResource("ParticipantChipStyle");
         int found = _transcript!.Voices.Count;
-
-        for (int count = 2; count <= 5; count++)
+        var count = new System.Windows.Controls.ComboBox { MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Left };
+        for (int n = 2; n <= 8; n++)
         {
-            int wanted = count;
-            var chip = new ToggleButton
-            {
-                Content = wanted.ToString(L.S.Formatting),
-                IsChecked = wanted == found,
-                Style = style,
-                MinWidth = 36,
-            };
-
-            chip.Click += (_, _) =>
-            {
-                chip.IsChecked = wanted == found;
-                if (wanted != found && _session is not null)
-                {
-                    _resplitOpen = false;
-                    _ = _services.Resplit(_session.Directory, wanted);
-                    Reload(keepSelection: true);
-                }
-            };
-
-            chips.Children.Add(chip);
+            count.Items.Add(n);
         }
 
-        panel.Children.Add(chips);
+        count.SelectedItem = Math.Clamp(found + 1, 2, 8);
+        panel.Children.Add(count);
+
+        var go = new Wpf.Ui.Controls.Button
+        {
+            Content = L.S.VoicesResplitGo,
+            Appearance = ControlAppearance.Primary,
+            Margin = new Thickness(0, 0, Tokens.Space2, 0),
+        };
+        go.Click += (_, _) =>
+        {
+            if (count.SelectedItem is int wanted && _session is not null)
+            {
+                _resplitOpen = false;
+                _ = _services.Resplit(_session.Directory, wanted);
+                Reload(keepSelection: true);
+            }
+        };
+
+        var cancel = new Wpf.Ui.Controls.Button { Content = L.S.ButtonCancel };
+        cancel.Click += (_, _) =>
+        {
+            _resplitOpen = false;
+            ShowVoices();
+        };
+
+        panel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, Tokens.Space3, 0, 0),
+            Children = { go, cancel },
+        });
+
         return panel;
     }
 
@@ -1921,10 +1975,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         {
             // Голоса не разделялись — отдать реплику некому, кроме как
             // разделив голоса: «кто-то другой» здесь и значит «их было больше».
-            string directory = _session.Directory;
-            var split = new MenuItem { Header = L.S.VoiceSomeoneElseSplit, IsEnabled = _services.CanSplitVoices() };
-            split.Click += (_, _) => _ = _services.Resplit(directory, 2);
-            menu.Items.Add(split);
+            menu.Items.Add(SplitOrGetModelItem(_session.Directory));
             menu.Items.Add(new Separator());
         }
         else if (row.Line.Channel == CallChannel.Mine)

@@ -1278,6 +1278,17 @@ public partial class App : Application, IDisposable
         AppSettings settings = _settings.Current;
 
         var window = new CallReviewWindow(session, settings.EffectiveMyName, settings.KnownParticipants);
+        window.OfferSplitModels(
+            () => _settings.Current.SplitVoices && ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices).Count > 0,
+            () => L.S.KindNames(ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices)),
+            () =>
+            {
+                IReadOnlyList<ModelKind> missing = ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices);
+                if (missing.Count > 0)
+                {
+                    FetchModel(missing[0]);
+                }
+            });
         _reviewCards[session.Directory] = window;
 
         window.Closed += (_, _) =>
@@ -1748,6 +1759,7 @@ public partial class App : Application, IDisposable
             DeleteCall,
             () => _ = ToggleCallRecordingAsync(),
             CanSplitVoices,
+            FetchModel,
             _voiceBook,
             _live),
             _journal,
@@ -1867,6 +1879,13 @@ public partial class App : Application, IDisposable
             : null;
 
     private void OpenSettings() => OpenSettings(SettingsSection.General);
+
+    /// <summary>Скачать недостающую модель этого типа — из любого места приложения.</summary>
+    private void FetchModel(ModelKind kind)
+    {
+        OpenSettings(SettingsSection.Models);
+        _settingsWindow?.FetchModel(kind);
+    }
 
     private void OpenSettings(SettingsSection section)
     {

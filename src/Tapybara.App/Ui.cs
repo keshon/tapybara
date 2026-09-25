@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 
 using Application = System.Windows.Application;
@@ -39,6 +40,28 @@ internal static class Ui
     public static Button Link(string text) => new() { Content = text, Style = StyleOf("FlatLinkButton") };
 
     public static Style StyleOf(string key) => (Style)Application.Current.FindResource(key);
+
+    /// <summary>
+    /// Чип — штатная кнопка-переключатель WPF-UI, только плотнее.
+    /// </summary>
+    /// <remarks>
+    /// Раньше у чипов был свой шаблон — пилюля с собственной заливкой, — и
+    /// рядом с кнопками Windows 11 они выглядели самодельными. Теперь это та
+    /// же кнопка, что и везде, а выбранная — с акцентом, как положено.
+    /// Стиль собирается здесь, а не в Controls.xaml: оттуда стиль WPF-UI при
+    /// загрузке не виден, и BasedOn упал бы.
+    /// </remarks>
+    public static Style ChipStyle() => _chip ??= new Style(typeof(ToggleButton), (Style)Application.Current.FindResource(typeof(ToggleButton)))
+    {
+        Setters =
+        {
+            new Setter(FrameworkElement.MarginProperty, new Thickness(0, 0, 6, 6)),
+            new Setter(System.Windows.Controls.Control.PaddingProperty, new Thickness(12, 5, 12, 6)),
+            new Setter(FrameworkElement.MinWidthProperty, 0.0),
+        },
+    };
+
+    private static Style? _chip;
 
     private static TextBlock Styled(string key, string text) => new() { Text = text, Style = StyleOf(key) };
 }
