@@ -561,7 +561,8 @@ public sealed record UiStrings
     public string KindNames(IEnumerable<Tapybara.Core.Models.ModelKind> kinds) =>
         string.Join(", ", kinds.Select(k => Quote(KindName(k))));
 
-    private string Quote(string text) => string.Format(Formatting, QuoteFormat, text);
+    /// <summary>Текст в кавычках этого языка: «так» или “so”.</summary>
+    public string Quote(string text) => string.Format(Formatting, QuoteFormat, text);
 
     public string Describe(ModelTier tier) => tier switch
     {

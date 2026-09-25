@@ -768,7 +768,7 @@ public partial class CallsPage
         row.Children.Add(play);
 
         var text = new StackPanel();
-        text.Children.Add(Ui.Body($"«{quote.Text}»"));
+        text.Children.Add(Ui.Body(L.S.Quote(quote.Text)));
         TextBlock stamp = Ui.Caption(CallTranscriptRenderer.Stamp(quote.Start));
         stamp.FontFamily = new FontFamily("Cascadia Mono, Consolas");
         stamp.VerticalAlignment = VerticalAlignment.Center;
