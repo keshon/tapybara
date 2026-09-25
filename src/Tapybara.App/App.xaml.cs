@@ -1898,7 +1898,7 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        var window = new SettingsWindow(_settings, AvailableModels, DeleteModelAsync, _journal, _voiceBook, _updater!, RestartToUpdate);
+        var window = new SettingsWindow(_settings, DeleteModelAsync, _journal, _voiceBook, _updater!, RestartToUpdate);
         window.HotkeyCaptureChanged += OnHotkeyCaptureChanged;
         window.ModelsChanged += OnModelsChanged;
         window.Closed += (_, _) => _settingsWindow = null;

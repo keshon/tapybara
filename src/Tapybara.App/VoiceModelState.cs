@@ -28,15 +28,6 @@ internal static class ModelNeeds
     public static IReadOnlyList<ModelKind> Missing(AppSettings settings, IReadOnlyList<ModelKind> kinds)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return [.. kinds.Where(kind => ModelLocator.Resolve(ChosenFile(settings, kind), settings.ModelsDirectory) is null)];
+        return [.. kinds.Where(kind => ModelLocator.Resolve(ModelShelf.Chosen(settings, kind), settings.ModelsDirectory) is null)];
     }
-
-    /// <summary>Какой файл этого типа выбран в настройках.</summary>
-    private static string ChosenFile(AppSettings settings, ModelKind kind) => kind switch
-    {
-        ModelKind.VoiceSegmentation => settings.VoiceSegmentationModelFileName,
-        ModelKind.VoiceEmbedding => settings.VoiceEmbeddingModelFileName,
-        ModelKind.SpeechDetector => settings.VadModelFileName ?? string.Empty,
-        _ => settings.ModelFileName ?? string.Empty,
-    };
 }

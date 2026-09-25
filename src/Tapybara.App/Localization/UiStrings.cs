@@ -100,7 +100,6 @@ public sealed record UiStrings
     public required string GroupLimits { get; init; }
     public required string GroupSpeechDetection { get; init; }
     public required string GroupModelsFolder { get; init; }
-    public required string GroupDownload { get; init; }
     public required string GroupParagraphs { get; init; }
     public required string GroupReplacements { get; init; }
     public required string GroupRecording { get; init; }
@@ -108,7 +107,6 @@ public sealed record UiStrings
     public required string GroupPrivacy { get; init; }
 
     // --- окно настроек: поля ---
-    public required string FieldModelHint { get; init; }
     public required string FieldDecoding { get; init; }
     public required string FieldDecodingHint { get; init; }
     public required string DecodingFast { get; init; }
@@ -146,7 +144,6 @@ public sealed record UiStrings
     public required string ThemeLight { get; init; }
     public required string ThemeDark { get; init; }
     public required string FieldModelsFolder { get; init; }
-    public required string FieldModelsFolderHint { get; init; }
     public required string FieldPortable { get; init; }
     public required string FieldPortableHint { get; init; }
     public required string FieldIdleUnload { get; init; }
@@ -174,19 +171,15 @@ public sealed record UiStrings
 
     // --- загрузка моделей ---
     public required string ModelsIntro { get; init; }
-    public required string ModelsInstalled { get; init; }
-    public required string ModelsNothingInstalled { get; init; }
     public required string ModelsFullListLink { get; init; }
     public required string ModelsRecognitionHeader { get; init; }
     public required string ModelsDetectorHeader { get; init; }
-    public required string ModelsDetectorNote { get; init; }
     public required string TierBest { get; init; }
     public required string TierRecommended { get; init; }
     public required string TierCompact { get; init; }
     public required string TierMinimal { get; init; }
     public required string ButtonDownload { get; init; }
     public required string ButtonCancelDownload { get; init; }
-    public required string LabelInstalled { get; init; }
     public required string DownloadProgress { get; init; }
     public required string DownloadFailed { get; init; }
     public required string DownloadCancelled { get; init; }
@@ -357,7 +350,6 @@ public sealed record UiStrings
     public required string GroupStorage { get; init; }
     public required string GroupRecognition { get; init; }
     public required string GroupStartup { get; init; }
-    public required string FieldActiveModel { get; init; }
     public required string FieldKeepHistory { get; init; }
     public required string FieldKeepHistoryHint { get; init; }
     public required string ButtonClearHistory { get; init; }
@@ -418,9 +410,9 @@ public sealed record UiStrings
     public required string VoiceRejectedHint { get; init; }
     public required string LineDoubtful { get; init; }
     public required string ModelsSegmentationHeader { get; init; }
-    public required string ModelsSegmentationNote { get; init; }
     public required string ModelsEmbeddingHeader { get; init; }
-    public required string ModelsEmbeddingNote { get; init; }
+    public required string ModelsForCalls { get; init; }
+    public required string ModelsCustom { get; init; }
     public required string VoicesOpenModels { get; init; }
     public required string VoiceSomeoneElseGetModel { get; init; }
     public required string VoicesResplitCount { get; init; }
@@ -469,10 +461,6 @@ public sealed record UiStrings
     public required string GroupVoices { get; init; }
     public required string FieldSplitVoices { get; init; }
     public required string FieldSplitVoicesHint { get; init; }
-    public required string FieldVoiceEmbeddingModel { get; init; }
-    public required string FieldVoiceEmbeddingModelHint { get; init; }
-    public required string FieldVoiceSegmentationModel { get; init; }
-    public required string FieldVoiceSegmentationModelHint { get; init; }
     public required string FieldVoiceThreshold { get; init; }
     public required string FieldVoiceThresholdHint { get; init; }
 
@@ -730,14 +718,12 @@ public sealed record UiStrings
         GroupLimits = "Safety limits",
         GroupSpeechDetection = "Speech detection",
         GroupModelsFolder = "Where models are kept",
-        GroupDownload = "Download a model",
         GroupParagraphs = "Paragraphs",
         GroupReplacements = "Replacements",
         GroupRecording = "Recording",
         GroupAppearance = "Appearance",
         GroupPrivacy = "Privacy",
 
-        FieldModelHint = "Only models already in your models folder are listed",
         FieldDecoding = "Decoding",
         FieldDecodingHint = "How many wordings the model weighs before settling on one. Five by default",
         DecodingFast = "Fast — 1 wording",
@@ -775,7 +761,6 @@ public sealed record UiStrings
         ThemeLight = "Light",
         ThemeDark = "Dark",
         FieldModelsFolder = "Models folder",
-        FieldModelsFolderHint = "Models are large. Keep them wherever you have room.",
         FieldPortable = "Portable mode",
         FieldPortableHint = "Keep settings and models next to the program instead of in AppData. Existing files are not moved.",
         FieldIdleUnload = "Unload the model after",
@@ -802,19 +787,15 @@ public sealed record UiStrings
         FieldTrayPreviewHint = "Off by default: the tray tooltip is the one place dictated text stays on screen, and people dictate passwords and private messages.",
 
         ModelsIntro = "Tapybara needs a Whisper model to recognise speech. Nothing is bundled — models are hundreds of megabytes and the right one depends on your machine. Download one here; it goes straight into your models folder.",
-        ModelsInstalled = "Installed",
-        ModelsNothingInstalled = "Nothing installed yet",
         ModelsFullListLink = "Browse every model on Hugging Face",
         ModelsRecognitionHeader = "Recognition models",
         ModelsDetectorHeader = "Speech detector",
-        ModelsDetectorNote = "A second, tiny model that finds where speech is. Under a megabyte, and it improves timings and removes silence hallucinations.",
         TierBest = "Best quality",
         TierRecommended = "Recommended",
         TierCompact = "Smaller",
         TierMinimal = "Fastest, least accurate",
         ButtonDownload = "Download",
         ButtonCancelDownload = "Cancel",
-        LabelInstalled = "Installed",
         DownloadProgress = "{0} of {1} · {2}/s",
         DownloadFailed = "Download failed: {0}",
         DownloadCancelled = "Download cancelled",
@@ -981,7 +962,6 @@ public sealed record UiStrings
         GroupStorage = "Storage",
         GroupRecognition = "Recognition",
         GroupStartup = "Startup",
-        FieldActiveModel = "Active model",
         FieldKeepHistory = "Keep dictation history",
         FieldKeepHistoryHint = "Everything you dictate is kept on this computer, in Tapybara › Dictations. Turn it off if you dictate passwords.",
         ButtonClearHistory = "Clear history",
@@ -1041,9 +1021,9 @@ public sealed record UiStrings
         VoiceRejectedHint = "Two quotes from here turned out to be someone else. This may be two people in one voice.",
         LineDoubtful = "Not sure this is the right person: the voice doesn't match well. Click to choose who said it.",
         ModelsSegmentationHeader = "Voice splitting",
-        ModelsSegmentationNote = "Finds where the speaker changes. Needed only for calls with more than one other person, together with a voiceprint model below.",
         ModelsEmbeddingHeader = "Voiceprints",
-        ModelsEmbeddingNote = "Tells whose voice it is: sorts the pieces of speech into people, checks every line of a call, and recognises people on later calls. One is enough.",
+        ModelsForCalls = "for calls",
+        ModelsCustom = "your file",
         VoicesOpenModels = "Get the model",
         VoiceSomeoneElseGetModel = "Someone else — get the model to split voices…",
         VoicesResplitCount = "Voices to look for",
@@ -1093,10 +1073,6 @@ public sealed record UiStrings
         GroupVoices = "Telling voices apart",
         FieldSplitVoices = "Tell the other side's voices apart",
         FieldSplitVoicesHint = "Only the other channel: yours is your own microphone. Adds minutes to a long call",
-        FieldVoiceEmbeddingModel = "Voiceprint model",
-        FieldVoiceEmbeddingModelHint = "What turns a stretch of speech into something comparable",
-        FieldVoiceSegmentationModel = "Segmentation model",
-        FieldVoiceSegmentationModelHint = "What finds the moment the speaker changes",
         FieldVoiceThreshold = "How different voices must be",
         FieldVoiceThresholdHint = "Only used when you have not named the participants. Naming them is far more accurate",
 
@@ -1206,14 +1182,12 @@ public sealed record UiStrings
         GroupLimits = "Предохранители",
         GroupSpeechDetection = "Поиск речи",
         GroupModelsFolder = "Где лежат модели",
-        GroupDownload = "Скачать модель",
         GroupParagraphs = "Абзацы",
         GroupReplacements = "Замены",
         GroupRecording = "Запись",
         GroupAppearance = "Внешний вид",
         GroupPrivacy = "Приватность",
 
-        FieldModelHint = "В списке только то, что уже лежит в папке моделей",
         FieldDecoding = "Декодирование",
         FieldDecodingHint = "Сколько вариантов фразы модель взвешивает, прежде чем выбрать один. По умолчанию пять",
         DecodingFast = "Быстро — 1 вариант",
@@ -1251,7 +1225,6 @@ public sealed record UiStrings
         ThemeLight = "Светлая",
         ThemeDark = "Тёмная",
         FieldModelsFolder = "Папка моделей",
-        FieldModelsFolderHint = "Модели большие. Держите их там, где есть место.",
         FieldPortable = "Портативный режим",
         FieldPortableHint = "Хранить настройки и модели рядом с программой, а не в AppData. Существующие файлы не переносятся.",
         FieldIdleUnload = "Выгружать модель через",
@@ -1278,19 +1251,15 @@ public sealed record UiStrings
         FieldTrayPreviewHint = "По умолчанию выключено: подсказка трея — единственное место, где надиктованное надолго остаётся на экране, а диктуют в том числе пароли и переписку.",
 
         ModelsIntro = "Tapybara нужна модель Whisper, чтобы распознавать речь. В комплект она не входит: модели весят сотни мегабайт, и подходящая зависит от вашей машины. Скачайте её здесь — она сразу попадёт в папку моделей.",
-        ModelsInstalled = "Установлены",
-        ModelsNothingInstalled = "Пока ничего не установлено",
         ModelsFullListLink = "Посмотреть все модели на Hugging Face",
         ModelsRecognitionHeader = "Модели распознавания",
         ModelsDetectorHeader = "Детектор речи",
-        ModelsDetectorNote = "Вторая, крошечная модель: находит, где речь. Меньше мегабайта, а тайминги становятся точнее и исчезают галлюцинации на тишине.",
         TierBest = "Лучшее качество",
         TierRecommended = "Рекомендуется",
         TierCompact = "Компактнее",
         TierMinimal = "Быстрее всего, точность ниже",
         ButtonDownload = "Скачать",
         ButtonCancelDownload = "Отменить",
-        LabelInstalled = "Установлена",
         DownloadProgress = "{0} из {1} · {2}/с",
         DownloadFailed = "Скачать не удалось: {0}",
         DownloadCancelled = "Скачивание отменено",
@@ -1457,7 +1426,6 @@ public sealed record UiStrings
         GroupStorage = "Хранение",
         GroupRecognition = "Распознавание",
         GroupStartup = "Запуск",
-        FieldActiveModel = "Активная модель",
         FieldKeepHistory = "Хранить историю диктовок",
         FieldKeepHistoryHint = "Всё надиктованное хранится на этом компьютере, в Tapybara › Диктовки. Выключите, если диктуете пароли.",
         ButtonClearHistory = "Очистить историю",
@@ -1517,9 +1485,9 @@ public sealed record UiStrings
         VoiceRejectedHint = "Две цитаты отсюда оказались чужими. Возможно, в этом голосе два человека.",
         LineDoubtful = "Не уверен, что это тот человек: голос не очень похож. Нажмите, чтобы выбрать, кто это сказал.",
         ModelsSegmentationHeader = "Разделение голосов",
-        ModelsSegmentationNote = "Находит, где сменился говорящий. Нужна только для звонков, где собеседников больше одного, — вместе с моделью слепков ниже.",
         ModelsEmbeddingHeader = "Слепки голоса",
-        ModelsEmbeddingNote = "Определяет, чей это голос: собирает куски речи в людей, проверяет каждую реплику звонка и узнаёт людей на следующих звонках. Достаточно одной.",
+        ModelsForCalls = "для звонков",
+        ModelsCustom = "свой файл",
         VoicesOpenModels = "Скачать модель",
         VoiceSomeoneElseGetModel = "Кто-то другой — скачать модель для разделения…",
         VoicesResplitCount = "Сколько голосов искать",
@@ -1569,10 +1537,6 @@ public sealed record UiStrings
         GroupVoices = "Разделение голосов",
         FieldSplitVoices = "Разделять голоса собеседников",
         FieldSplitVoicesHint = "Только чужой канал: свой — это ваш микрофон. На длинном звонке добавляет минуты",
-        FieldVoiceEmbeddingModel = "Модель слепков голоса",
-        FieldVoiceEmbeddingModelHint = "Превращает кусок речи в то, что можно сравнивать",
-        FieldVoiceSegmentationModel = "Модель сегментации",
-        FieldVoiceSegmentationModelHint = "Находит момент, когда говорящий сменился",
         FieldVoiceThreshold = "Насколько голоса должны различаться",
         FieldVoiceThresholdHint = "Работает, только если участники не названы. Назвать их — заметно точнее",
 

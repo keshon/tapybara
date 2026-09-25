@@ -126,7 +126,7 @@ public static class ModelLocator
         // но моделью распознавания не являются — отсеиваем по имени.
         return Directory.EnumerateFiles(directory, "ggml-*.bin")
             .Where(p => !Path.GetFileName(p).Contains("silero", StringComparison.OrdinalIgnoreCase))
-            .Order()
+            .Order(StringComparer.Ordinal)
             .FirstOrDefault();
     }
 
@@ -158,7 +158,7 @@ public static class ModelLocator
 
         // Настроенной нет — берём любую доступную: детектор важнее того,
         // какая именно его версия используется.
-        return Directory.EnumerateFiles(directory, "ggml-*.bin").Where(IsVadModel).Order().FirstOrDefault();
+        return Directory.EnumerateFiles(directory, "ggml-*.bin").Where(IsVadModel).Order(StringComparer.Ordinal).FirstOrDefault();
     }
 
     /// <summary>Все доступные модели детектора речи.</summary>
@@ -172,37 +172,6 @@ public static class ModelLocator
                 .Select(Path.GetFileName)
                 .OfType<string>()
                 .Order()];
-    }
-
-    /// <summary>
-    /// Модели разделения голосов: сегментация отдельно, слепки отдельно.
-    /// </summary>
-    /// <remarks>
-    /// Различаются по подстроке «segmentation» в имени — тем же способом, что
-    /// и модели детектора речи по «silero». Способ грубый, зато не требует
-    /// открывать файл и читать заголовок ONNX ради выпадающего списка.
-    /// <para>
-    /// Перепутать их местами не даёт сама природа моделей: сегментация в роли
-    /// слепков не запустится, и нативная сторона скажет об этом сразу, а не
-    /// молча выдаст ерунду.
-    /// </para>
-    /// </remarks>
-    public static IReadOnlyList<string> ListVoiceModels(bool segmentation, string? overrideDirectory = null)
-    {
-        string? directory = FindModelsDirectory(overrideDirectory);
-        if (directory is null)
-        {
-            return [];
-        }
-
-        return
-        [
-            .. Directory.EnumerateFiles(directory, "*.onnx")
-                .Select(Path.GetFileName)
-                .OfType<string>()
-                .Where(name => name.Contains("segmentation", StringComparison.OrdinalIgnoreCase) == segmentation)
-                .Order(),
-        ];
     }
 
     private static string? FindInRepository()
