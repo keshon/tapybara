@@ -298,7 +298,9 @@ right number and runs only the split.
 Point at a line and a ▶ appears by its time: click it to play the call from
 there. The playing line is marked with a bar on the left and fills as it
 sounds, and the transcript scrolls along — unless you have scrolled away to
-read something else. Settings › Calls › **Show what is playing** turns the
+read something else. The ▶ of the playing line turns into ■, which stops it.
+Click a line while nothing plays and the bar moves there: **Listen** starts
+from it. Settings › Calls › **Show what is playing** turns the
 fill off and keeps only the bar.
 
 ### Fixing words

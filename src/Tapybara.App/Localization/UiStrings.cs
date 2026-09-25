@@ -423,6 +423,7 @@ public sealed record UiStrings
     public required string LineFixWord { get; init; }
     public required string LineEditText { get; init; }
     public required string LineFixSelection { get; init; }
+    public required string CallsStopTranscribing { get; init; }
     public required string FixSimilar { get; init; }
     public required string FixRemember { get; init; }
     public required string FixReplaceAll { get; init; }
@@ -1034,6 +1035,7 @@ public sealed record UiStrings
         LineFixWord = "Fix this word…",
         LineEditText = "Edit the line",
         LineFixSelection = "Fix “{0}”…",
+        CallsStopTranscribing = "Stop",
         FixSimilar = "Similar in this call",
         FixRemember = "Remember in the dictionary",
         FixReplaceAll = "Replace: {0}",
@@ -1498,6 +1500,7 @@ public sealed record UiStrings
         LineFixWord = "Исправить слово…",
         LineEditText = "Исправить реплику",
         LineFixSelection = "Исправить «{0}»…",
+        CallsStopTranscribing = "Остановить",
         FixSimilar = "Похожие в этом звонке",
         FixRemember = "Запомнить в словаре",
         FixReplaceAll = "Заменить: {0}",

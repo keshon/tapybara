@@ -21,7 +21,7 @@
         не расходится с реальностью после падения приложения и переживает
         правку папки руками — а папку правят, это её назначение.
     -->
-    <Grid Margin="{x:Static app:Tokens.PagePadding}">
+    <Grid x:Name="PageRoot" Margin="{x:Static app:Tokens.PagePadding}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300" />
             <ColumnDefinition Width="*" MinWidth="420" />
@@ -264,7 +264,8 @@
                                     <Border x:Name="LineFill"
                                             CornerRadius="{x:Static app:Tokens.ControlRadius}"
                                             Margin="{Binding Spacing}"
-                                            Background="Transparent">
+                                            Background="Transparent"
+                                            PreviewMouseLeftButtonDown="OnLinePressed">
                                         <Grid>
                                         <!--
                                             Звучащая реплика: заливка бежит по строке вместе со
@@ -383,6 +384,10 @@
                                             <Setter TargetName="StampText" Property="Foreground"
                                                     Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                                         </Trigger>
+                                        <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                            <Setter TargetName="StampPlay" Property="Symbol" Value="Stop16" />
+                                            <Setter TargetName="StampPlay" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                             <Setter TargetName="Sweep" Property="Visibility" Value="Visible" />
                                             <Setter TargetName="NowBar" Property="Visibility" Value="Visible" />
