@@ -47,13 +47,28 @@ public static partial class TranscriptEdit
     /// Написания в звонке, похожие на <paramref name="word"/>: оно само и его искажения.
     /// </summary>
     /// <returns>Само слово первым, дальше — чаще встречающиеся раньше.</returns>
+    /// <remarks>
+    /// <para>
+    /// <paramref name="word"/> может быть и несколькими словами. Whisper
+    /// режет незнакомое слово на два — «рек стат», «рек стады», — а в другом
+    /// месте того же звонка пишет слитно. Поэтому сравниваются куски текста
+    /// на слово короче и длиннее искомого, склеенные без пробелов: «Рикстат»
+    /// находит и «рек стат», и «рекстата».
+    /// </para>
+    /// <para>
+    /// Из пересекающихся кусков одной реплики берётся самый похожий: иначе
+    /// «рекстат не» считался бы наравне с «рекстат».
+    /// </para>
+    /// </remarks>
     public static IReadOnlyList<WordForm> SimilarForms(CallTranscript transcript, string word)
     {
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(word);
 
-        string target = Fold(word.Trim());
-        if (target.Length == 0)
+        int size = WordPattern().Matches(word).Count;
+        string self = Fold(word.Trim());
+        string target = Glued(word);
+        if (size == 0 || target.Length == 0)
         {
             return [];
         }
@@ -61,28 +76,108 @@ public static partial class TranscriptEdit
         var found = new Dictionary<string, (string Form, int Count)>(StringComparer.Ordinal);
         foreach (CallLine line in transcript.Lines)
         {
-            foreach (Match match in WordPattern().Matches(line.Text))
+            foreach (string piece in Pieces(line.Text, target, size))
             {
-                string folded = Fold(match.Value);
-                if (!IsSimilar(target, folded))
-                {
-                    continue;
-                }
-
+                string folded = Fold(piece);
                 found[folded] = found.TryGetValue(folded, out var known)
                     ? (known.Form, known.Count + 1)
-                    : (match.Value.ToLower(CultureInfo.InvariantCulture), 1);
+                    : (piece.ToLower(CultureInfo.InvariantCulture), 1);
             }
         }
 
         return
         [
             .. found
-                .OrderByDescending(f => f.Key == target)
+                .OrderByDescending(f => f.Key == self)
                 .ThenByDescending(f => f.Value.Count)
                 .ThenBy(f => f.Key, StringComparer.Ordinal)
                 .Select(f => new WordForm(f.Value.Form, f.Value.Count)),
         ];
+    }
+
+    /// <summary>Куски реплики, похожие на искомое, — без пересечений.</summary>
+    private static IEnumerable<string> Pieces(string text, string target, int size)
+    {
+        MatchCollection words = WordPattern().Matches(text);
+        var candidates = new List<(int From, int To, int Distance, int Extra)>();
+
+        for (int from = 0; from < words.Count; from++)
+        {
+            for (int count = Math.Max(1, size - 1); count <= size + 1 && from + count <= words.Count; count++)
+            {
+                int to = from + count - 1;
+
+                // Кусок — слова подряд через пробел. Запятая или точка между
+                // ними — это уже два разных места фразы, а не одно слово.
+                bool joined = true;
+                for (int i = from; i < to && joined; i++)
+                {
+                    int gap = words[i].Index + words[i].Length;
+                    joined = string.IsNullOrWhiteSpace(text[gap..words[i + 1].Index]);
+                }
+
+                if (!joined)
+                {
+                    break;
+                }
+
+                string glued = string.Concat(Enumerable.Range(from, count).Select(i => Fold(words[i].Value)));
+
+                // Несколько слов и искомое похожи, только если начинаются
+                // одинаково: «в битре» — не «битре», хоть и в одну букву.
+                if ((count > 1 || size > 1) && glued[0] != target[0])
+                {
+                    continue;
+                }
+
+                if (IsSimilar(target, glued))
+                {
+                    candidates.Add((from, to, Distance(target, glued), Math.Abs(count - size)));
+                }
+            }
+        }
+
+        var taken = new List<(int From, int To)>();
+        foreach (var c in candidates.OrderBy(c => c.Distance).ThenBy(c => c.Extra).ThenBy(c => c.To - c.From))
+        {
+            if (taken.Any(t => c.From <= t.To && t.From <= c.To))
+            {
+                continue;
+            }
+
+            taken.Add((c.From, c.To));
+            int start = words[c.From].Index;
+            yield return text[start..(words[c.To].Index + words[c.To].Length)];
+        }
+    }
+
+    /// <summary>Слова подряд, без пробелов, в сложенном виде: «Рек стат» → «рекстат».</summary>
+    private static string Glued(string text) =>
+        string.Concat(WordPattern().Matches(text).Select(m => Fold(m.Value)));
+
+    /// <summary>
+    /// Целые слова, которых касается выделение, — для правки нескольких слов сразу.
+    /// </summary>
+    /// <returns>Начало и длина, или <c>null</c>, если слов там нет.</returns>
+    /// <remarks>Выделение редко ложится ровно по словам: полслова справа — всё равно это слово.</remarks>
+    public static (int Start, int Length)? PhraseAt(string text, int start, int length)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (length <= 0)
+        {
+            return WordAt(text, start);
+        }
+
+        int end = start + length;
+        List<Match> touched = [.. WordPattern().Matches(text).Where(m => m.Index < end && m.Index + m.Length > start)];
+        if (touched.Count == 0)
+        {
+            return null;
+        }
+
+        int from = touched[0].Index;
+        return (from, touched[^1].Index + touched[^1].Length - from);
     }
 
     /// <summary>

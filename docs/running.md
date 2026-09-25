@@ -287,7 +287,13 @@ transcript landed on the wrong person, click the name above it. When the split
 found the wrong number of people, **⋯ › Split the voices again…** takes the
 right number and runs only the split.
 
-A timestamp plays the call from that line.
+### Listening
+
+Point at a line and a ▶ appears by its time: click it to play the call from
+there. The playing line is marked with a bar on the left and fills as it
+sounds, and the transcript scrolls along — unless you have scrolled away to
+read something else. Settings › Calls › **Show what is playing** turns the
+fill off and keeps only the bar.
 
 ### Fixing words
 
@@ -296,7 +302,13 @@ came out in this call — misspelled or declined, "битре", "битра", "�
 all ticked: type the right word and **Replace** changes them at once, or
 **Only here** changes just that one place. **Remember in the dictionary** (on by
 default) adds the ticked spellings as replacements, so later calls come out
-right. To rewrite a whole line, right-click it › **Edit the line**: Enter saves,
+right.
+
+Recognition often cuts an unfamiliar word in two — "рек стат" — and spells it
+whole elsewhere in the same call. The card finds those too. When a double-click
+catches only half, select both words and right-click › **Fix "рек стат"…**.
+
+To rewrite a whole line, right-click it › **Edit the line**: Enter saves,
 Esc cancels.
 
 Edits change the text only — nothing is transcribed again. Transcribing an

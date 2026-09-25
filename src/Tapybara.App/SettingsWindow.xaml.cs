@@ -1263,6 +1263,15 @@ public partial class SettingsWindow : FluentWindow
             L.S.FieldOtherSideLanguageHint,
             LanguageCombo(() => Settings.OtherSideLanguage, code => Apply(s => s with { OtherSideLanguage = code })));
 
+        AddGroup(L.S.GroupListening);
+
+        AddToggleCard(
+            SymbolRegular.Play24,
+            L.S.FieldPlayingProgress,
+            L.S.FieldPlayingProgressHint,
+            () => Settings.ShowPlayingProgress,
+            value => Apply(s => s with { ShowPlayingProgress = value }));
+
         AddGroup(L.S.GroupStorage);
 
         var callsFolderBox = new TextBox

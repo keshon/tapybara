@@ -43,6 +43,60 @@ public sealed class TranscriptEditTests
         Assert.Equal(["битре", "битра", "битры"], forms.Select(f => f.Form));
     }
 
+    /// <summary>
+    /// Слово, разрезанное распознаванием надвое, находится и по слитному написанию.
+    /// </summary>
+    [Fact]
+    public void SimilarForms_FindsWordsSplitInTwo()
+    {
+        CallTranscript call = Call(
+            "Сегменты в рек стат и про сегменты в рек стады.",
+            "Рикстат не отдаёт, а в рекстата пусто.",
+            "Рек, статусы потом.");
+
+        IReadOnlyList<TranscriptEdit.WordForm> forms = TranscriptEdit.SimilarForms(call, "Рикстат");
+
+        Assert.Equal("рикстат", forms[0].Form);
+        Assert.Contains(forms, f => f.Form == "рек стат");
+        Assert.Contains(forms, f => f.Form == "рекстата");
+
+        // «Рикстат не» похоже не хуже, но «Рикстат» без лишнего слова — ближе;
+        // через запятую — уже не одно слово.
+        Assert.DoesNotContain(forms, f => f.Form.Contains(" не", StringComparison.Ordinal) || f.Form.Contains(',', StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SimilarForms_TakesSeveralWords()
+    {
+        CallTranscript call = Call("Про рек стады и рекстат, по поводу рек стати.");
+
+        IReadOnlyList<TranscriptEdit.WordForm> forms = TranscriptEdit.SimilarForms(call, "рек стады");
+
+        Assert.Equal(["рек стады", "рек стати", "рекстат"], forms.Select(f => f.Form));
+    }
+
+    [Fact]
+    public void Replace_ChangesPhrases()
+    {
+        CallTranscript call = Call("Про рек стады и рекстат.");
+
+        (CallTranscript fixedCall, int replaced) = TranscriptEdit.Replace(call, ["рек стады", "рекстат"], "Regstat");
+
+        Assert.Equal(2, replaced);
+        Assert.Equal("Про Regstat и Regstat.", fixedCall.Lines[0].Text);
+    }
+
+    [Theory]
+    [InlineData(4, 0, 4, 3)]  // без выделения — слово под курсором
+    [InlineData(5, 6, 4, 9)]  // «ек ст» — оба слова целиком
+    [InlineData(3, 1, null, null)] // пробел — не слово
+    public void PhraseAt_ExtendsSelectionToWholeWords(int start, int length, int? from, int? size)
+    {
+        (int Start, int Length)? phrase = TranscriptEdit.PhraseAt("Про рек стады", start, length);
+
+        Assert.Equal(from is null ? null : (from.Value, size!.Value), phrase);
+    }
+
     [Fact]
     public void SimilarForms_KeepsShortWordsExact()
     {

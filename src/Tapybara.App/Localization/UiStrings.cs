@@ -276,6 +276,9 @@ public sealed record UiStrings
     public required string VoiceChange { get; init; }
     public required string VoicesResplitMenu { get; init; }
     public required string FieldRememberVoices { get; init; }
+    public required string GroupListening { get; init; }
+    public required string FieldPlayingProgress { get; init; }
+    public required string FieldPlayingProgressHint { get; init; }
     public required string FieldRememberVoicesHint { get; init; }
     public required string ButtonForgetVoices { get; init; }
     public required string ForgetVoicesTitle { get; init; }
@@ -427,6 +430,7 @@ public sealed record UiStrings
     public required string CardModelsMissing { get; init; }
     public required string LineFixWord { get; init; }
     public required string LineEditText { get; init; }
+    public required string LineFixSelection { get; init; }
     public required string FixSimilar { get; init; }
     public required string FixRemember { get; init; }
     public required string FixReplaceAll { get; init; }
@@ -896,6 +900,9 @@ public sealed record UiStrings
         VoiceChange = "Change",
         VoicesResplitMenu = "Split the voices again…",
         FieldRememberVoices = "Remember voices",
+        GroupListening = "Listening",
+        FieldPlayingProgress = "Show what is playing",
+        FieldPlayingProgressHint = "The playing line fills as it sounds.",
         FieldRememberVoicesHint = "When you name a voice, its voiceprint is kept on this computer, and on later calls Tapybara suggests who is speaking. A voiceprint is biometric data; it never leaves this computer.",
         ButtonForgetVoices = "Forget all voices",
         ForgetVoicesTitle = "Forget all voices?",
@@ -1046,6 +1053,7 @@ public sealed record UiStrings
         CardModelsMissing = "Telling these voices apart needs models that are not installed yet: {0}.",
         LineFixWord = "Fix this word…",
         LineEditText = "Edit the line",
+        LineFixSelection = "Fix “{0}”…",
         FixSimilar = "Similar in this call",
         FixRemember = "Remember in the dictionary",
         FixReplaceAll = "Replace: {0}",
@@ -1368,6 +1376,9 @@ public sealed record UiStrings
         VoiceChange = "Изменить",
         VoicesResplitMenu = "Разделить голоса заново…",
         FieldRememberVoices = "Запоминать голоса",
+        GroupListening = "Прослушивание",
+        FieldPlayingProgress = "Показывать, что звучит",
+        FieldPlayingProgressHint = "Звучащая реплика заливается по ходу звука.",
         FieldRememberVoicesHint = "Когда вы называете голос, его слепок сохраняется на этом компьютере, и на следующих звонках Tapybara подсказывает, кто говорит. Слепок голоса — биометрия; он не покидает этот компьютер.",
         ButtonForgetVoices = "Забыть все голоса",
         ForgetVoicesTitle = "Забыть все голоса?",
@@ -1518,6 +1529,7 @@ public sealed record UiStrings
         CardModelsMissing = "Чтобы различить эти голоса, нужны модели, которые ещё не скачаны: {0}.",
         LineFixWord = "Исправить слово…",
         LineEditText = "Исправить реплику",
+        LineFixSelection = "Исправить «{0}»…",
         FixSimilar = "Похожие в этом звонке",
         FixRemember = "Запомнить в словаре",
         FixReplaceAll = "Заменить: {0}",
