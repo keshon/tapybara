@@ -80,6 +80,17 @@
         у прозрачной кнопки WPF-UI рамка остаётся, и «ссылка» выглядела
         кнопкой второго сорта.
     -->
+    <!--
+        Заливка звучащей реплики. Акцент — потому что это «сейчас играет»,
+        а не выделение; двенадцать процентов — чтобы текст поверх читался
+        в обеих темах так же, как без заливки.
+    -->
+    <Style x:Key="PlayingLineFill" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="Opacity" Value="0.12" />
+        <Setter Property="CornerRadius" Value="{x:Static app:Tokens.ControlRadius}" />
+    </Style>
+
     <Style x:Key="FlatLinkButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Background" Value="Transparent" />

@@ -7,7 +7,6 @@ using Tapybara.Core.Calls;
 // Проект включает и WPF, и WinForms (иконка в трее — форменная), поэтому
 // добрая половина имён неоднозначна. Псевдонимы, а не полные имена в коде:
 // так видно один раз наверху, из какого мира каждый тип.
-using Application = System.Windows.Application;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using UiTextBox = Wpf.Ui.Controls.TextBox;
 using TextBlock = System.Windows.Controls.TextBlock;
