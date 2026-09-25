@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Tapybara.Core.Speech;
 
 namespace Tapybara.Core.Calls;
 
@@ -8,10 +9,9 @@ namespace Tapybara.Core.Calls;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Раньше исправить слово в звонке можно было только заменой в словаре, а
-/// к самому звонку она не применялась: окно предлагало распознать звонок
-/// заново — минуты работы Whisper ради одного слова. Текст уже есть в
-/// <c>transcript.json</c>; правка — это правка текста.
+/// Текст уже есть в <c>transcript.json</c>; исправить слово — значит
+/// исправить текст, а не запускать Whisper заново на минуты ради одного
+/// слова.
 /// </para>
 /// <para>
 /// Модель коверкает редкое слово по-разному на протяжении одного звонка —
@@ -21,7 +21,7 @@ namespace Tapybara.Core.Calls;
 /// меняется разом.
 /// </para>
 /// </remarks>
-public static partial class TranscriptEdit
+public static class TranscriptEdit
 {
     /// <summary>Написание слова в звонке и сколько раз оно встречается.</summary>
     public sealed record WordForm(string Form, int Count);
@@ -40,8 +40,8 @@ public static partial class TranscriptEdit
     /// <remarks>У «кот» и «код» одна буква разницы, и это разные слова.</remarks>
     private const int MinSimilarLength = 4;
 
-    [GeneratedRegex(@"[\p{L}\p{N}][\p{L}\p{N}'’\-]*", RegexOptions.CultureInvariant)]
-    private static partial Regex WordPattern();
+    /// <summary>Длиннее этого слово в кусок из нескольких слов не входит само по себе: «и», «в», «не».</summary>
+    private const int MaxFunctionWord = 2;
 
     /// <summary>
     /// Написания в звонке, похожие на <paramref name="word"/>: оно само и его искажения.
@@ -56,8 +56,9 @@ public static partial class TranscriptEdit
     /// находит и «рек стат», и «рекстата».
     /// </para>
     /// <para>
-    /// Из пересекающихся кусков одной реплики берётся самый похожий: иначе
-    /// «рекстат не» считался бы наравне с «рекстат».
+    /// Из пересекающихся кусков одной реплики берётся кусок того же размера,
+    /// что и искомое, а из них — самый похожий: иначе «рекстат не» считался
+    /// бы наравне с «рекстат».
     /// </para>
     /// </remarks>
     public static IReadOnlyList<WordForm> SimilarForms(CallTranscript transcript, string word)
@@ -65,23 +66,22 @@ public static partial class TranscriptEdit
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(word);
 
-        int size = WordPattern().Matches(word).Count;
-        string self = Fold(word.Trim());
-        string target = Glued(word);
-        if (size == 0 || target.Length == 0)
+        string[] target = [.. Words.Pattern().Matches(word).Select(m => Words.Fold(m.Value))];
+        if (target.Length == 0)
         {
             return [];
         }
 
-        var found = new Dictionary<string, (string Form, int Count)>(StringComparer.Ordinal);
+        string self = string.Join(' ', target);
+        var found = new Dictionary<string, WordForm>(StringComparer.Ordinal);
         foreach (CallLine line in transcript.Lines)
         {
-            foreach (string piece in Pieces(line.Text, target, size))
+            foreach (string piece in Pieces(line.Text, string.Concat(target), target.Length))
             {
-                string folded = Fold(piece);
-                found[folded] = found.TryGetValue(folded, out var known)
-                    ? (known.Form, known.Count + 1)
-                    : (piece.ToLower(CultureInfo.InvariantCulture), 1);
+                string key = Words.Fold(piece);
+                found[key] = found.TryGetValue(key, out WordForm? known)
+                    ? known with { Count = known.Count + 1 }
+                    : new WordForm(piece.ToLower(CultureInfo.InvariantCulture), 1);
             }
         }
 
@@ -91,32 +91,30 @@ public static partial class TranscriptEdit
                 .OrderByDescending(f => f.Key == self)
                 .ThenByDescending(f => f.Value.Count)
                 .ThenBy(f => f.Key, StringComparer.Ordinal)
-                .Select(f => new WordForm(f.Value.Form, f.Value.Count)),
+                .Select(f => f.Value),
         ];
     }
 
     /// <summary>Куски реплики, похожие на искомое, — без пересечений.</summary>
+    /// <param name="text">Текст реплики.</param>
+    /// <param name="target">Искомое, сложенное и склеенное без пробелов.</param>
+    /// <param name="size">Сколько в искомом слов.</param>
     private static IEnumerable<string> Pieces(string text, string target, int size)
     {
-        MatchCollection words = WordPattern().Matches(text);
+        Match[] words = Words.Pattern().Matches(text).ToArray();
+        string[] folded = [.. words.Select(w => Words.Fold(w.Value))];
+        bool[] spaced = [.. words.Skip(1).Select((right, i) => IsWhiteSpaceBetween(text, words[i], right))];
         var candidates = new List<(int From, int To, int Distance, int Extra)>();
 
-        for (int from = 0; from < words.Count; from++)
+        for (int from = 0; from < words.Length; from++)
         {
-            for (int count = Math.Max(1, size - 1); count <= size + 1 && from + count <= words.Count; count++)
+            for (int count = Math.Max(1, size - 1); count <= size + 1 && from + count <= words.Length; count++)
             {
                 int to = from + count - 1;
 
                 // Кусок — слова подряд через пробел. Запятая или точка между
                 // ними — это уже два разных места фразы, а не одно слово.
-                bool joined = true;
-                for (int i = from; i < to && joined; i++)
-                {
-                    int gap = words[i].Index + words[i].Length;
-                    joined = string.IsNullOrWhiteSpace(text[gap..words[i + 1].Index]);
-                }
-
-                if (!joined)
+                if (!spaced[from..to].All(s => s))
                 {
                     break;
                 }
@@ -124,12 +122,12 @@ public static partial class TranscriptEdit
                 // «и», «в», «не» в кусок из нескольких слов не входят: «рекстат и»
                 // на букву ближе к «Рикстати», чем «рекстат», но заменить его
                 // значило бы съесть союз.
-                if (count > 1 && Enumerable.Range(from, count).Any(i => words[i].Length <= 2))
+                if (count > 1 && folded[from..(to + 1)].Any(w => w.Length <= MaxFunctionWord))
                 {
                     continue;
                 }
 
-                string glued = string.Concat(Enumerable.Range(from, count).Select(i => Fold(words[i].Value)));
+                string glued = string.Concat(folded[from..(to + 1)]);
 
                 // Несколько слов и искомое похожи, только если начинаются
                 // одинаково: «в битре» — не «битре», хоть и в одну букву.
@@ -138,32 +136,26 @@ public static partial class TranscriptEdit
                     continue;
                 }
 
-                if (IsSimilar(target, glued))
+                if (DistanceIfSimilar(target, glued) is { } distance)
                 {
-                    candidates.Add((from, to, Distance(target, glued), Math.Abs(count - size)));
+                    candidates.Add((from, to, distance, Math.Abs(count - size)));
                 }
             }
         }
 
         var taken = new List<(int From, int To)>();
-        // Сначала куски в столько же слов, сколько в искомом, потом — самые
-        // похожие: лишнее слово берётся, только если без него похожего нет.
         foreach (var c in candidates.OrderBy(c => c.Extra).ThenBy(c => c.Distance).ThenBy(c => c.To - c.From))
         {
-            if (taken.Any(t => c.From <= t.To && t.From <= c.To))
+            if (!taken.Any(t => c.From <= t.To && t.From <= c.To))
             {
-                continue;
+                taken.Add((c.From, c.To));
+                yield return text[words[c.From].Index..(words[c.To].Index + words[c.To].Length)];
             }
-
-            taken.Add((c.From, c.To));
-            int start = words[c.From].Index;
-            yield return text[start..(words[c.To].Index + words[c.To].Length)];
         }
     }
 
-    /// <summary>Слова подряд, без пробелов, в сложенном виде: «Рек стат» → «рекстат».</summary>
-    private static string Glued(string text) =>
-        string.Concat(WordPattern().Matches(text).Select(m => Fold(m.Value)));
+    private static bool IsWhiteSpaceBetween(string text, Match left, Match right) =>
+        string.IsNullOrWhiteSpace(text[(left.Index + left.Length)..right.Index]);
 
     /// <summary>
     /// Целые слова, которых касается выделение, — для правки нескольких слов сразу.
@@ -180,7 +172,7 @@ public static partial class TranscriptEdit
         }
 
         int end = start + length;
-        List<Match> touched = [.. WordPattern().Matches(text).Where(m => m.Index < end && m.Index + m.Length > start)];
+        List<Match> touched = [.. Words.Pattern().Matches(text).Where(m => m.Index < end && m.Index + m.Length > start)];
         if (touched.Count == 0)
         {
             return null;
@@ -191,10 +183,10 @@ public static partial class TranscriptEdit
     }
 
     /// <summary>
-    /// Заменить написания во всём звонке — целыми словами, без учёта регистра.
+    /// Заменить написания во всём звонке — целыми словами, без учёта регистра и «ё».
     /// </summary>
     /// <returns>Новый транскрипт и сколько вхождений заменено.</returns>
-    /// <remarks>Так же, как применяется словарь замен, — чтобы звонок и словарь не расходились.</remarks>
+    /// <remarks>Тем же шаблоном, что и словарь замен в диктовках (<see cref="Words.AnyOf"/>).</remarks>
     public static (CallTranscript Transcript, int Replaced) Replace(
         CallTranscript transcript,
         IReadOnlyCollection<string> forms,
@@ -204,33 +196,29 @@ public static partial class TranscriptEdit
         ArgumentNullException.ThrowIfNull(forms);
         ArgumentException.ThrowIfNullOrWhiteSpace(replacement);
 
-        List<Regex> patterns =
-        [
-            .. forms
-                .Where(f => !string.IsNullOrWhiteSpace(f))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(f => f.Length) // длинное первым: «рекстата» раньше «рекстат»
-                .Select(Whole),
-        ];
+        List<string> wanted = [.. forms.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase)];
+        return wanted.Count == 0
+            ? (transcript, 0)
+            : ReplaceAll(transcript, Words.AnyOf(wanted), _ => replacement);
+    }
 
+    /// <summary>Заменить в репликах всё, что находит шаблон; отметить звонок правленым.</summary>
+    internal static (CallTranscript Transcript, int Replaced) ReplaceAll(
+        CallTranscript transcript,
+        Regex pattern,
+        Func<string, string> replacementFor)
+    {
         int replaced = 0;
-        List<CallLine> lines =
-        [
-            .. transcript.Lines.Select(line =>
+        var lines = new List<CallLine>(transcript.Lines.Count);
+        foreach (CallLine line in transcript.Lines)
+        {
+            string text = pattern.Replace(line.Text, match =>
             {
-                string text = line.Text;
-                foreach (Regex pattern in patterns)
-                {
-                    text = pattern.Replace(text, _ =>
-                    {
-                        replaced++;
-                        return replacement;
-                    });
-                }
-
-                return text == line.Text ? line : line with { Text = text };
-            }),
-        ];
+                replaced++;
+                return replacementFor(match.Value);
+            });
+            lines.Add(text == line.Text ? line : line with { Text = text });
+        }
 
         return replaced == 0
             ? (transcript, 0)
@@ -238,13 +226,10 @@ public static partial class TranscriptEdit
     }
 
     /// <summary>
-    /// Применить словарь замен к готовому транскрипту.
+    /// Применить словарь замен к готовому транскрипту — к звонкам, распознанным
+    /// до того, как слово попало в словарь.
     /// </summary>
     /// <returns>Новый транскрипт и сколько вхождений исправлено.</returns>
-    /// <remarks>
-    /// Для звонков, распознанных до того, как слово попало в словарь.
-    /// Раньше единственным способом было распознать звонок заново.
-    /// </remarks>
     public static (CallTranscript Transcript, int Replaced) ApplyDictionary(
         CallTranscript transcript,
         IReadOnlyDictionary<string, string> replacements)
@@ -269,7 +254,7 @@ public static partial class TranscriptEdit
 
     /// <summary>Заменить одно место одной реплики — «только здесь».</summary>
     /// <param name="transcript">Транскрипт.</param>
-    /// <param name="line">Реплика, как она лежит в транскрипте.</param>
+    /// <param name="line">Реплика, как её видит окно.</param>
     /// <param name="start">С какого символа текста реплики.</param>
     /// <param name="length">Сколько символов.</param>
     /// <param name="replacement">Чем заменить.</param>
@@ -277,12 +262,14 @@ public static partial class TranscriptEdit
     {
         ArgumentNullException.ThrowIfNull(line);
         ArgumentOutOfRangeException.ThrowIfNegative(start);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(start + length, line.Text.Length);
 
         return EditLine(transcript, line, line.Text[..start] + replacement + line.Text[(start + length)..]);
     }
 
     /// <summary>Заменить текст реплики целиком.</summary>
+    /// <remarks>Реплики нет — транскрипт не меняется и правленым не отмечается.</remarks>
     public static CallTranscript EditLine(CallTranscript transcript, CallLine line, string text)
     {
         ArgumentNullException.ThrowIfNull(transcript);
@@ -290,14 +277,14 @@ public static partial class TranscriptEdit
         ArgumentNullException.ThrowIfNull(text);
 
         string trimmed = text.Trim();
-        if (trimmed == line.Text)
+        if (trimmed == line.Text || !transcript.Lines.Any(l => l.IsSameAs(line)))
         {
             return transcript;
         }
 
         return transcript with
         {
-            Lines = [.. transcript.Lines.Select(l => l == line ? l with { Text = trimmed } : l)],
+            Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line) ? l with { Text = trimmed } : l)],
             EditedByHand = true,
         };
     }
@@ -308,27 +295,23 @@ public static partial class TranscriptEdit
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        foreach (Match match in WordPattern().Matches(text))
-        {
-            if (index >= match.Index && index <= match.Index + match.Length)
-            {
-                return (match.Index, match.Length);
-            }
-        }
-
-        return null;
+        return Words.Pattern().Matches(text)
+            .Where(m => index >= m.Index && index <= m.Index + m.Length)
+            .Select(m => ((int, int)?)(m.Index, m.Length))
+            .FirstOrDefault();
     }
 
-    internal static bool IsSimilar(string a, string b)
+    /// <summary>Сколько правок отделяет похожее слово; <c>null</c> — не похоже.</summary>
+    private static int? DistanceIfSimilar(string a, string b)
     {
         if (a == b)
         {
-            return true;
+            return 0;
         }
 
         if (Math.Min(a.Length, b.Length) < MinSimilarLength)
         {
-            return false;
+            return null;
         }
 
         // Искажения и падежи меняют середину и конец слова, а не начало:
@@ -337,11 +320,17 @@ public static partial class TranscriptEdit
         int allowed = a[0] == b[0]
             ? Math.Max(1, (int)Math.Round(Math.Max(a.Length, b.Length) * SimilarShare))
             : 1;
-        return Math.Abs(a.Length - b.Length) <= allowed && Distance(a, b) <= allowed;
+        if (Math.Abs(a.Length - b.Length) > allowed)
+        {
+            return null;
+        }
+
+        int distance = Distance(a, b);
+        return distance <= allowed ? distance : null;
     }
 
     /// <summary>Сколько букв поменять, вставить или удалить, чтобы получить одно слово из другого.</summary>
-    internal static int Distance(string a, string b)
+    private static int Distance(string a, string b)
     {
         var previous = new int[b.Length + 1];
         var current = new int[b.Length + 1];
@@ -364,13 +353,4 @@ public static partial class TranscriptEdit
 
         return previous[b.Length];
     }
-
-    /// <summary>Регистр и «ё» не делают слово другим.</summary>
-    private static string Fold(string word) =>
-        word.ToLower(CultureInfo.InvariantCulture).Replace('ё', 'е');
-
-    private static Regex Whole(string form) => new(
-        $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(form)}(?![\p{{L}}\p{{N}}])",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        TimeSpan.FromSeconds(1));
 }

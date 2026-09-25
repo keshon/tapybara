@@ -155,7 +155,7 @@ public sealed class CallTranscriptTests : IDisposable
     [Fact]
     public void People_VoiceNamedMeCountsAsMine()
     {
-        CallSession session = Session(voices: ["A", "B", "C", "D"], names: new() { ["D"] = CallSpeakers.Me });
+        CallSession session = Session(voices: ["A", "B", "C", "D"], names: new() { ["D"] = CallSession.Me });
 
         IReadOnlyList<CallPerson> people = CallPeople.Of(session, FourVoices());
 
@@ -313,7 +313,7 @@ public sealed class CallTranscriptTests : IDisposable
     {
         CallSession session = Session(
             voices: ["A", "B", "C"],
-            names: new() { ["A"] = "Дима", ["B"] = CallSpeakers.Me, ["C"] = "Дима" });
+            names: new() { ["A"] = "Дима", ["B"] = CallSession.Me, ["C"] = "Дима" });
         var transcript = new CallTranscript { Lines = [Theirs(0, 1, "x", "A"), Theirs(2, 3, "y", "B"), Theirs(4, 5, "z", "C")] };
 
         string markdown = CallTranscriptRenderer.Render(

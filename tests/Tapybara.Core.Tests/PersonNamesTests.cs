@@ -11,19 +11,31 @@ public sealed class PersonNamesTests
         Lines = [.. lines.Select((t, i) => new CallLine(CallChannel.Theirs, TimeSpan.FromSeconds(i), TimeSpan.FromSeconds(i + 1), t, "A"))],
     };
 
+    private static CallSession Session(Dictionary<string, string> names, params string[] participants) => new()
+    {
+        Directory = @"C:\calls\x",
+        StartedAt = DateTimeOffset.Now,
+        Participants = participants,
+        VoiceNames = names,
+    };
+
     [Theory]
-    [InlineData("Кирилл", 2, "Кириллу")]
-    [InlineData("Кирилл", 4, "Кириллом")]
-    [InlineData("Павел", 1, "Павла")]
-    [InlineData("Павел", 0, "Павел")]
-    [InlineData("Витя", 3, "Витю")]
-    [InlineData("Саша", 1, "Саши")]
-    [InlineData("Маша", 4, "Машей")]
-    [InlineData("Андрей", 2, "Андрею")]
-    [InlineData("Игорь", 4, "Игорем")]
-    [InlineData("Участник 2", 2, "Участник 2")]
-    [InlineData("John", 2, "John")]
-    public void Inflect_DeclinesRussianNamesAndLeavesTheRest(string name, int grammaticalCase, string expected) =>
+    [InlineData("Кирилл", GrammaticalCase.Dative, "Кириллу")]
+    [InlineData("Кирилл", GrammaticalCase.Instrumental, "Кириллом")]
+    [InlineData("Павел", GrammaticalCase.Genitive, "Павла")]
+    [InlineData("Павел", GrammaticalCase.Nominative, "Павел")]
+    [InlineData("Лев", GrammaticalCase.Dative, "Льву")]
+    [InlineData("Витя", GrammaticalCase.Accusative, "Витю")]
+    [InlineData("Мария", GrammaticalCase.Dative, "Марии")]
+    [InlineData("Мария", GrammaticalCase.Prepositional, "Марии")]
+    [InlineData("Саша", GrammaticalCase.Genitive, "Саши")]
+    [InlineData("Маша", GrammaticalCase.Instrumental, "Машей")]
+    [InlineData("Андрей", GrammaticalCase.Prepositional, "Андрее")]
+    [InlineData("Дмитрий", GrammaticalCase.Prepositional, "Дмитрии")]
+    [InlineData("Игорь", GrammaticalCase.Instrumental, "Игорем")]
+    [InlineData("Участник 2", GrammaticalCase.Dative, "Участник 2")]
+    [InlineData("John", GrammaticalCase.Dative, "John")]
+    public void Inflect_DeclinesRussianNamesAndLeavesTheRest(string name, GrammaticalCase grammaticalCase, string expected) =>
         Assert.Equal(expected, PersonNames.Inflect(name, grammaticalCase));
 
     [Fact]
@@ -47,6 +59,14 @@ public sealed class PersonNamesTests
     }
 
     [Fact]
+    public void Find_FindsNamesOfSeveralWords()
+    {
+        IReadOnlyList<NameMention> mentions = PersonNames.Find([Call("Участник 2 не пришёл, Участник 22 тоже.")], "Участник 2");
+
+        Assert.Equal(1, Assert.Single(mentions).Count);
+    }
+
+    [Fact]
     public void Replace_PutsTheNewNameInTheSameCase()
     {
         CallTranscript call = Call("Скажу Кириллу, что с кириллом всё решили.");
@@ -58,16 +78,21 @@ public sealed class PersonNamesTests
         Assert.True(renamed.EditedByHand);
     }
 
+    /// <summary>Регрессия: форма, только что вставленная заменой, не переписывается следующей.</summary>
+    [Fact]
+    public void Replace_DoesNotRewriteWhatItJustWrote()
+    {
+        CallTranscript call = Call("Ян сказал, что у Яна всё готово.");
+
+        (CallTranscript renamed, _) = PersonNames.Replace(call, PersonNames.Find([call], "Ян"), "Яна");
+
+        Assert.Equal("Яна сказал, что у Яны всё готово.", renamed.Lines[0].Text);
+    }
+
     [Fact]
     public void Rename_ChangesParticipantsAndVoices_AndMergesWithSomeoneAlreadyThere()
     {
-        var session = new CallSession
-        {
-            Directory = @"C:\calls\x",
-            StartedAt = DateTimeOffset.Now,
-            Participants = ["Кирилл", "Витя"],
-            VoiceNames = new Dictionary<string, string> { ["A"] = "кирилл", ["B"] = "Витя" },
-        };
+        CallSession session = Session(new() { ["A"] = "кирилл", ["B"] = "Витя" }, "Кирилл", "Витя");
 
         CallSession renamed = PersonNames.Rename(session, "Кирилл", "Витя");
 
@@ -78,13 +103,7 @@ public sealed class PersonNamesTests
     [Fact]
     public void Anonymize_ChangesNamesAndMentions_ButNotTheOriginal()
     {
-        var session = new CallSession
-        {
-            Directory = @"C:\calls\x",
-            StartedAt = DateTimeOffset.Now,
-            Title = "Созвон с Кириллом",
-            VoiceNames = new Dictionary<string, string> { ["A"] = "Кирилл" },
-        };
+        CallSession session = Session(new() { ["A"] = "Кирилл" }) with { Title = "Созвон с Кириллом" };
         CallTranscript call = Call("Кириллу я уже писал.");
 
         (CallSession outSession, CallTranscript outCall) = PersonNames.Anonymize(
@@ -94,5 +113,31 @@ public sealed class PersonNamesTests
         Assert.Equal("Созвон с Шерифом", outSession.Title);
         Assert.Equal("Шерифу я уже писал.", outCall.Lines[0].Text);
         Assert.Equal("Кириллу я уже писал.", call.Lines[0].Text);
+    }
+
+    /// <summary>Регрессия: обмен двух имён не сливает людей в одного.</summary>
+    [Fact]
+    public void Anonymize_SwapsNamesAtOnce()
+    {
+        CallSession session = Session(new() { ["A"] = "Кирилл", ["B"] = "Павел" }, "Кирилл", "Павел");
+
+        (CallSession outSession, CallTranscript outCall) = PersonNames.Anonymize(
+            session,
+            Call("Кирилл и Павел"),
+            new Dictionary<string, string> { ["Кирилл"] = "Павел", ["Павел"] = "Кирилл" },
+            mentions: true);
+
+        Assert.Equal(["Павел", "Кирилл"], outSession.Participants);
+        Assert.Equal("Павел и Кирилл", outCall.Lines[0].Text);
+    }
+
+    /// <summary>Свой голос в чужой дорожке не мешает подписать единственного собеседника.</summary>
+    [Fact]
+    public void NameOf_DoesNotCountTheOwnersVoiceAsAnotherPerson()
+    {
+        CallSession session = Session(new() { ["A"] = CallSession.Me }, "Витя") with { Voices = ["A", "B"] };
+
+        Assert.Equal("Витя", CallSpeakers.NameOf(session, "B"));
+        Assert.False(CallSpeakers.NeedsNames(session));
     }
 }

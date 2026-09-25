@@ -86,13 +86,15 @@ user's history or forgets every voice they named.
 **Call folder layout.** `mic.wav`, `system.wav`, `meta.json`, `transcript.json`, `transcript.md`,
 declared as constants on `CallSession`. They are English and independent of the
 interface language on purpose: they are read by code as well as by people, and
-renaming them would break recordings already sitting on disk.
+renaming them would break recordings already sitting on disk. The same holds
+for `CallSession.Me`, `@me`: the voice name, stored in `meta.json`, that marks
+the owner's own voice on the far track.
 
-**Model file names.** `ggml-*.bin` is what the app globs for, and the substring
-`silero` is the entire mechanism separating speech detectors from recognition
-models — they live in one folder and are named alike otherwise. `ModelStorage.IsSpeechDetector`
-is the single place that decision is made; a test asserts every catalog entry
-matches its own kind.
+**Model file names.** `ggml-*.bin` and `*.onnx` are what the app globs for. The
+substring `silero` separates speech detectors from recognition models, and
+`segmentation` separates the two voice models — they live in one folder and are
+named alike otherwise. `ModelStorage.KindOf` is the single place that decision
+is made; a test asserts every catalog entry matches its own kind.
 
 **Portable markers.** `portable.txt` is what the app creates;
 `Tapybara.portable` is still recognised because people already have it. New

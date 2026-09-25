@@ -18,6 +18,25 @@ public sealed class ModelShelfTests
     public void KindOf_TellsModelsApartByName(string name, ModelKind kind) =>
         Assert.Equal(kind, ModelStorage.KindOf(name));
 
+    /// <summary>
+    /// Тип модели каталога совпадает с тем, что скажет о её файле диск: иначе
+    /// скачанная модель показалась бы нескачанной и попала бы не в свою группу.
+    /// </summary>
+    [Fact]
+    public void KindOf_AgreesWithTheCatalog() =>
+        Assert.All(ModelCatalog.All, m => Assert.Equal(m.Kind, ModelStorage.KindOf(m.FileName)));
+
+    [Fact]
+    public void Missing_CountsAFallbackAsPresent()
+    {
+        var settings = new AppSettings { ModelFileName = "ggml-gone.bin", VoiceEmbeddingModelFileName = "gone.onnx" };
+        InstalledModel[] installed = [File("ggml-small-q5_1.bin"), File("campplus-voxceleb.onnx")];
+
+        Assert.Equal(
+            [ModelKind.VoiceEmbedding],
+            ModelShelf.Missing(settings, [ModelKind.Recognition, ModelKind.VoiceEmbedding], installed));
+    }
+
     [Fact]
     public void Of_ListsCatalogFirstThenOwnFiles_AndMarksTheChosenOne()
     {

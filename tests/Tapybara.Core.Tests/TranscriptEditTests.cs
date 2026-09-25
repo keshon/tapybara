@@ -198,11 +198,35 @@ public sealed class TranscriptEditTests
         Assert.Equal("Hugging Face тут.", fixedCall.Lines[1].Text);
     }
 
+    /// <summary>«Щёлково» и «Щелково» — одно слово: найденное должно и заменяться.</summary>
     [Fact]
-    public void Distance_CountsEdits()
+    public void Replace_TreatsYoAsYe_LikeSimilarFormsDoes()
     {
-        Assert.Equal(0, TranscriptEdit.Distance("рекстат", "рекстат"));
-        Assert.Equal(1, TranscriptEdit.Distance("рикстат", "рекстат"));
-        Assert.Equal(2, TranscriptEdit.Distance("рикстат", "рекстата"));
+        CallTranscript call = Call("Щёлково рядом", "Щелково далеко");
+
+        IReadOnlyList<TranscriptEdit.WordForm> forms = TranscriptEdit.SimilarForms(call, "Щёлково");
+        (_, int replaced) = TranscriptEdit.Replace(call, [.. forms.Select(f => f.Form)], "Щёлково-2");
+
+        Assert.Equal(2, forms.Sum(f => f.Count));
+        Assert.Equal(2, replaced);
+    }
+
+    /// <summary>
+    /// Реплику, которую сверка голосов в фоне успела поменять, правка всё
+    /// равно находит, а несуществующую — не отмечает правленой.
+    /// </summary>
+    [Fact]
+    public void EditLine_FindsTheLineByPlace_AndIgnoresAMissingOne()
+    {
+        CallTranscript call = Call("Было так");
+        CallLine seen = call.Lines[0];
+        CallTranscript rechecked = call with { Lines = [seen with { Fit = 0.4 }] };
+
+        Assert.Equal("Стало", TranscriptEdit.EditLine(rechecked, seen, "Стало").Lines[0].Text);
+
+        CallLine gone = seen with { Start = TimeSpan.FromMinutes(9) };
+        CallTranscript untouched = TranscriptEdit.EditLine(call, gone, "Стало");
+        Assert.Same(call, untouched);
+        Assert.False(untouched.EditedByHand);
     }
 }

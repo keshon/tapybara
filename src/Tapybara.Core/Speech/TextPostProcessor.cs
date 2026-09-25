@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -39,17 +38,6 @@ public static partial class TextPostProcessor
         "please subscribe",
         "subscribe to",
     ];
-
-    /// <summary>
-    /// Скомпилированные шаблоны замен, по одному на пару «откуда → куда».
-    /// </summary>
-    /// <remarks>
-    /// Статический <c>Regex.Replace</c> кладёт шаблон в общий кэш, а тот по
-    /// умолчанию хранит пятнадцать записей. Реальный словарь замен больше, и
-    /// каждая диктовка пересобирала бы их все заново. Здесь шаблон компилируется
-    /// один раз за жизнь процесса.
-    /// </remarks>
-    private static readonly ConcurrentDictionary<string, Regex> ReplacementPatterns = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Теги звука ТОЛЬКО в скобках: [музыка], (аплодисменты), [laughter].
@@ -139,8 +127,9 @@ public static partial class TextPostProcessor
 
     /// <summary>Применить пользовательский словарь замен.</summary>
     /// <remarks>
-    /// Замена идёт по границам слова и без учёта регистра: «юджайл» → «YouGile»
-    /// должно сработать и в начале предложения, но не внутри другого слова.
+    /// Замена идёт по границам слова, без учёта регистра и «ё» (<see cref="Words.Whole"/>):
+    /// «юджайл» → «YouGile» должно сработать и в начале предложения, но не
+    /// внутри другого слова.
     /// </remarks>
     public static string ApplyReplacements(string text, IReadOnlyDictionary<string, string> replacements)
     {
@@ -157,32 +146,13 @@ public static partial class TextPostProcessor
                 continue;
             }
 
-            result = PatternFor(from).Replace(
+            result = Words.Whole(from).Replace(
                 result,
                 to.Replace("$", "$$", StringComparison.Ordinal)); // $ в замене — служебный символ
         }
 
         return result;
     }
-
-    /// <summary>
-    /// Шаблон для одного ключа замены.
-    /// </summary>
-    /// <remarks>
-    /// Не <c>\bКЛЮЧ\b</c>, хотя так пишут везде. <c>\b</c> — это граница между
-    /// буквенным и небуквенным символом, и для ключа, который сам кончается
-    /// небуквенным («C#», «C++»), такой границы после него не существует
-    /// НИКОГДА: шаблон не совпадает ни с чем. А это ровно те названия, ради
-    /// которых словарь замен и заводят.
-    /// <para>
-    /// Ретроспективная и опережающая проверки дают то же поведение для обычных
-    /// слов и правильное — для оканчивающихся пунктуацией.
-    /// </para>
-    /// </remarks>
-    private static Regex PatternFor(string from) => ReplacementPatterns.GetOrAdd(from, static key => new Regex(
-        $@"(?<!\w){Regex.Escape(key)}(?!\w)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        TimeSpan.FromSeconds(1)));
 
     /// <summary>Привести к виду «только буквы, цифры и пробелы, нижний регистр».</summary>
     private static string Normalize(string text)

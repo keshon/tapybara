@@ -1,13 +1,25 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Tapybara.Core.Speech;
 
 namespace Tapybara.Core.Calls;
 
+/// <summary>Падеж — в каком виде имя стоит в тексте.</summary>
+public enum GrammaticalCase
+{
+    Nominative,
+    Genitive,
+    Dative,
+    Accusative,
+    Instrumental,
+    Prepositional,
+}
+
 /// <summary>Упоминание человека в тексте: форма имени, её падеж и сколько раз встретилась.</summary>
 /// <param name="Form">Как написано, в нижнем регистре: «кириллу».</param>
-/// <param name="Case">Падеж: 0 — именительный, дальше родительный, дательный, винительный, творительный, предложный.</param>
+/// <param name="Case">Падеж формы.</param>
 /// <param name="Count">Сколько раз.</param>
-public sealed record NameMention(string Form, int Case, int Count);
+public sealed record NameMention(string Form, GrammaticalCase Case, int Count);
 
 /// <summary>
 /// Имя человека в тексте звонков: его падежные формы и то же в новом имени.
@@ -34,69 +46,52 @@ public sealed record NameMention(string Form, int Case, int Count);
 /// </remarks>
 public static partial class PersonNames
 {
-    /// <summary>Окончания по падежам: им., род., дат., вин., тв., пр.</summary>
+    /// <summary>Окончания по падежам в порядке <see cref="GrammaticalCase"/>.</summary>
     private static readonly string[] Consonant = ["", "а", "у", "а", "ом", "е"];
     private static readonly string[] Ya = ["я", "и", "е", "ю", "ей", "е"];
+    private static readonly string[] Iya = ["я", "и", "и", "ю", "ей", "и"];
     private static readonly string[] A = ["а", "ы", "е", "у", "ой", "е"];
     private static readonly string[] Iy = ["й", "я", "ю", "я", "ем", "е"];
+    private static readonly string[] Iiy = ["й", "я", "ю", "я", "ем", "и"];
     private static readonly string[] Soft = ["ь", "я", "ю", "я", "ем", "е"];
+
+    /// <summary>Имя на другую гласную — «Анри», «Нико» — не склоняется.</summary>
+    private const string Vowels = "аеёиоуыэюя";
 
     [GeneratedRegex(@"^\p{IsCyrillic}+$")]
     private static partial Regex CyrillicWord();
 
-    [GeneratedRegex(@"[\p{L}\p{N}][\p{L}\p{N}'’\-]*", RegexOptions.CultureInvariant)]
-    private static partial Regex WordPattern();
-
     /// <summary>Имя в падеже; не склоняемое — как есть.</summary>
-    public static string Inflect(string name, int grammaticalCase)
+    public static string Inflect(string name, GrammaticalCase grammaticalCase)
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        return Forms(name.Trim()) is { } forms && grammaticalCase is >= 0 and < 6
-            ? forms[grammaticalCase]
-            : name.Trim();
+        return Forms(name.Trim()) is { } forms ? forms[(int)grammaticalCase] : name.Trim();
     }
 
-    /// <summary>
-    /// Упоминания имени в репликах: какие формы встречаются и сколько раз.
-    /// </summary>
+    /// <summary>Упоминания имени в репликах: какие формы встречаются и сколько раз.</summary>
     public static IReadOnlyList<NameMention> Find(IEnumerable<CallTranscript> calls, string name)
     {
         ArgumentNullException.ThrowIfNull(calls);
         ArgumentNullException.ThrowIfNull(name);
 
-        string[] forms = Forms(name.Trim()) ?? [name.Trim()];
-        var byForm = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (int i = forms.Length - 1; i >= 0; i--)
-        {
-            byForm[Fold(forms[i])] = i; // одинаковые окончания — у первого падежа
-        }
+        Dictionary<string, GrammaticalCase> forms = FormsOf(name);
+        Regex pattern = Words.AnyOf(forms.Keys);
 
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (CallTranscript call in calls)
+        foreach (CallLine line in calls.SelectMany(c => c.Lines))
         {
-            foreach (CallLine line in call.Lines)
+            foreach (Match match in pattern.Matches(line.Text))
             {
-                foreach (Match word in WordPattern().Matches(line.Text))
-                {
-                    string folded = Fold(word.Value);
-                    if (byForm.ContainsKey(folded))
-                    {
-                        counts[folded] = counts.GetValueOrDefault(folded) + 1;
-                    }
-                }
+                string form = Words.Fold(match.Value);
+                counts[form] = counts.GetValueOrDefault(form) + 1;
             }
         }
 
-        return
-        [
-            .. counts
-                .OrderBy(c => byForm[c.Key])
-                .Select(c => new NameMention(c.Key, byForm[c.Key], c.Value)),
-        ];
+        return [.. counts.OrderBy(c => forms[c.Key]).Select(c => new NameMention(c.Key, forms[c.Key], c.Value))];
     }
 
-    /// <summary>Заменить упоминания старого имени новым — в том же падеже.</summary>
+    /// <summary>Заменить упоминания новым именем — в том же падеже, одним проходом.</summary>
     /// <returns>Новый транскрипт и сколько мест заменено.</returns>
     public static (CallTranscript Transcript, int Replaced) Replace(
         CallTranscript transcript,
@@ -106,14 +101,10 @@ public static partial class PersonNames
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(mentions);
 
-        int total = 0;
-        foreach (NameMention mention in mentions)
-        {
-            (transcript, int replaced) = TranscriptEdit.Replace(transcript, [mention.Form], Inflect(newName, mention.Case));
-            total += replaced;
-        }
-
-        return (transcript, total);
+        Dictionary<string, string> map = mentions.ToDictionary(m => Words.Fold(m.Form), m => Inflect(newName, m.Case), StringComparer.Ordinal);
+        return map.Count == 0
+            ? (transcript, 0)
+            : TranscriptEdit.ReplaceAll(transcript, Words.AnyOf(map.Keys), found => map[Words.Fold(found)]);
     }
 
     /// <summary>Есть ли человек в мете звонка — отмеченным или названным голосом.</summary>
@@ -130,18 +121,8 @@ public static partial class PersonNames
     /// Новое имя может совпасть с кем-то, кто уже есть на звонке, — тогда это
     /// один человек (<see cref="CallPeople"/>), и в участниках он один.
     /// </remarks>
-    public static CallSession Rename(CallSession session, string from, string to)
-    {
-        ArgumentNullException.ThrowIfNull(session);
-
-        string Swap(string name) => string.Equals(name, from, StringComparison.OrdinalIgnoreCase) ? to : name;
-
-        return session with
-        {
-            Participants = [.. session.Participants.Select(Swap).Distinct(StringComparer.OrdinalIgnoreCase)],
-            VoiceNames = session.VoiceNames.ToDictionary(p => p.Key, p => Swap(p.Value)),
-        };
-    }
+    public static CallSession Rename(CallSession session, string from, string to) =>
+        RenameAll(session, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [from] = to });
 
     /// <summary>
     /// Звонок, в котором люди подписаны псевдонимами, — для копии, которую отдают.
@@ -149,11 +130,17 @@ public static partial class PersonNames
     /// <param name="session">Мета звонка.</param>
     /// <param name="transcript">Реплики.</param>
     /// <param name="aliases">Настоящее имя → псевдоним. Кого нет — остаётся как есть.</param>
-    /// <param name="mentions">Заменить и упоминания в тексте реплик.</param>
+    /// <param name="mentions">Заменить и упоминания в тексте реплик и в названии.</param>
     /// <remarks>
-    /// Файлы звонка не трогаются: это правда, а меняется только то, что уходит
-    /// наружу. Своё имя — такой же ключ: его подменяет тот, кто собирает
-    /// транскрипт, передав псевдоним вместо имени владельца.
+    /// <para>
+    /// Файлы звонка не трогаются: меняется только то, что уходит наружу.
+    /// Своё имя — такой же ключ: его подменяет тот, кто собирает транскрипт,
+    /// передав псевдоним вместо имени владельца.
+    /// </para>
+    /// <para>
+    /// Все псевдонимы — разом: иначе обмен «Кирилл ↔ Павел» превращал обоих
+    /// в одного Кирилла.
+    /// </para>
     /// </remarks>
     public static (CallSession Session, CallTranscript Transcript) Anonymize(
         CallSession session,
@@ -165,80 +152,131 @@ public static partial class PersonNames
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(aliases);
 
+        var swap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach ((string name, string alias) in aliases)
         {
-            if (string.IsNullOrWhiteSpace(alias) || string.Equals(name, alias, StringComparison.Ordinal))
+            if (!string.IsNullOrWhiteSpace(alias) && !string.Equals(name, alias, StringComparison.Ordinal))
             {
-                continue;
-            }
-
-            session = Rename(session, name, alias);
-            if (mentions)
-            {
-                transcript = transcript with
-                {
-                    Lines = [.. transcript.Lines.Select(l => l with { Text = ReplaceIn(l.Text, name, alias) })],
-                };
-                session = session with { Title = session.Title is { } title ? ReplaceIn(title, name, alias) : null };
+                swap.TryAdd(name, alias.Trim());
             }
         }
 
-        return (session, transcript);
+        if (swap.Count == 0)
+        {
+            return (session, transcript);
+        }
+
+        session = RenameAll(session, swap);
+        if (!mentions)
+        {
+            return (session, transcript);
+        }
+
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach ((string name, string alias) in swap)
+        {
+            foreach ((string form, GrammaticalCase grammaticalCase) in FormsOf(name))
+            {
+                map.TryAdd(form, Inflect(alias, grammaticalCase));
+            }
+        }
+
+        Regex pattern = Words.AnyOf(map.Keys);
+        string Swap(Match found) => map[Words.Fold(found.Value)];
+        return (
+            session with { Title = session.Title is { } title ? pattern.Replace(title, Swap) : null },
+            transcript with { Lines = [.. transcript.Lines.Select(l => l with { Text = pattern.Replace(l.Text, Swap) })] });
     }
 
-    /// <summary>Заменить в строке все формы имени формами нового — в тех же падежах.</summary>
-    private static string ReplaceIn(string text, string name, string newName)
+    /// <summary>Переименовать сразу нескольких — по таблице «кто → кем».</summary>
+    private static CallSession RenameAll(CallSession session, Dictionary<string, string> swap)
     {
-        string[] forms = Forms(name.Trim()) ?? [name.Trim()];
-        return WordPattern().Replace(text, word =>
+        ArgumentNullException.ThrowIfNull(session);
+
+        string Swap(string name) => swap.TryGetValue(name, out string? to) ? to : name;
+
+        return session with
         {
-            int grammaticalCase = Array.FindIndex(forms, f => Fold(f) == Fold(word.Value));
-            return grammaticalCase < 0 ? word.Value : Inflect(newName, grammaticalCase);
-        });
+            Participants = [.. session.Participants.Select(Swap).Distinct(StringComparer.OrdinalIgnoreCase)],
+            VoiceNames = session.VoiceNames.ToDictionary(p => p.Key, p => Swap(p.Value)),
+        };
+    }
+
+    /// <summary>Формы имени в сложенном виде → падеж; у одинаковых форм — первый падеж.</summary>
+    private static Dictionary<string, GrammaticalCase> FormsOf(string name)
+    {
+        var forms = new Dictionary<string, GrammaticalCase>(StringComparer.Ordinal);
+        string[] all = Forms(name.Trim()) ?? [name.Trim()];
+        for (int i = 0; i < all.Length; i++)
+        {
+            forms.TryAdd(Words.Fold(all[i]), (GrammaticalCase)i);
+        }
+
+        return forms;
     }
 
     /// <summary>Все шесть падежных форм имени, или <c>null</c>, если имя не склоняется.</summary>
     private static string[]? Forms(string name)
     {
-        if (!CyrillicWord().IsMatch(name) || name.Length < 2)
+        if (name.Length < 2 || !CyrillicWord().IsMatch(name))
         {
             return null;
         }
 
         char last = char.ToLower(name[^1], CultureInfo.InvariantCulture);
+        char beforeLast = char.ToLower(name[^2], CultureInfo.InvariantCulture);
         string stem = name[..^1];
-        return last switch
+        string[]? endings = last switch
         {
-            'я' => [.. Ya.Select(e => stem + e)],
-            'а' => [.. A.Select((e, i) => stem + AfterStem(stem, i, e))],
-            'й' => [.. Iy.Select(e => stem + e)],
-            'ь' => [.. Soft.Select(e => stem + e)],
-            _ when "аеёиоуыэюя".Contains(last) => null,
-            _ => [.. Consonant.Select((e, i) => (i == 0 ? name : Oblique(name)) + e)],
+            'я' => beforeLast == 'и' ? Iya : Ya,
+            'а' => A,
+            'й' => beforeLast == 'и' ? Iiy : Iy,
+            'ь' => Soft,
+            _ => null,
         };
+
+        if (endings is not null)
+        {
+            return [.. endings.Select((e, i) => stem + (last == 'а' ? AfterStem(stem, (GrammaticalCase)i, e) : e))];
+        }
+
+        return Vowels.Contains(last)
+            ? null
+            : [.. Consonant.Select((e, i) => (i == 0 ? name : Oblique(name)) + e)];
     }
 
     /// <summary>
     /// Окончание имени на «-а» с поправкой на правописание: «Саши», не
     /// «Сашы»; «Машей», не «Машой».
     /// </summary>
-    private static string AfterStem(string stem, int grammaticalCase, string ending)
+    private static string AfterStem(string stem, GrammaticalCase grammaticalCase, string ending)
     {
         char last = char.ToLower(stem[^1], CultureInfo.InvariantCulture);
         return grammaticalCase switch
         {
-            1 when "гкхжшщч".Contains(last) => "и",
-            4 when "жшщчц".Contains(last) => "ей",
+            GrammaticalCase.Genitive when "гкхжшщч".Contains(last) => "и",
+            GrammaticalCase.Instrumental when "жшщчц".Contains(last) => "ей",
             _ => ending,
         };
     }
 
-    /// <summary>Основа косвенных падежей: у «Павел» — «Павл», у «Кирилл» — та же.</summary>
-    private static string Oblique(string name) =>
-        name.Length >= 4 && (name.EndsWith("ел", StringComparison.OrdinalIgnoreCase) || name.EndsWith("ек", StringComparison.OrdinalIgnoreCase))
+    /// <summary>
+    /// Основа косвенных падежей: у «Павел» — «Павл», у «Лев» — «Льв», у «Кирилл» — та же.
+    /// </summary>
+    /// <remarks>
+    /// Беглая гласная в русских именах — это «-ел» («Павел») и единственный
+    /// частый случай с мягким знаком, «Лев»; остальные имена на согласный её
+    /// не теряют.
+    /// </remarks>
+    private static string Oblique(string name)
+    {
+        if (name.Equals("Лев", StringComparison.OrdinalIgnoreCase))
+        {
+            return name[..1] + "ьв";
+        }
+
+        return name.Length >= 4 && name.EndsWith("ел", StringComparison.OrdinalIgnoreCase)
             ? name[..^2] + name[^1]
             : name;
-
-    private static string Fold(string word) =>
-        word.ToLower(CultureInfo.InvariantCulture).Replace('ё', 'е');
+    }
 }
