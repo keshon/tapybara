@@ -104,7 +104,6 @@ public partial class SettingsWindow : FluentWindow
     private Button? _updateButton;
 
     private readonly SettingsHost _host;
-    private readonly Func<IReadOnlyList<string>> _availableModels;
 
     /// <summary>
     /// Удаление модели поручено приложению.
@@ -163,7 +162,6 @@ public partial class SettingsWindow : FluentWindow
 
     public SettingsWindow(
         SettingsHost host,
-        Func<IReadOnlyList<string>> availableModels,
         Func<InstalledModel, Task<string?>> deleteModel,
         Tapybara.Core.Dictation.DictationJournal journal,
         Tapybara.Core.Calls.VoiceBook voices,
@@ -173,7 +171,6 @@ public partial class SettingsWindow : FluentWindow
         _host = host;
         _updater = updater;
         _restartToUpdate = restartToUpdate;
-        _availableModels = availableModels;
         _deleteModel = deleteModel;
         _journal = journal;
         _voices = voices;
@@ -471,24 +468,6 @@ public partial class SettingsWindow : FluentWindow
         AddGroup(L.S.GroupVoices);
 
         AddCard(
-            SymbolRegular.PeopleTeam24,
-            L.S.FieldVoiceEmbeddingModel,
-            L.S.FieldVoiceEmbeddingModelHint,
-            VoiceModelCombo(
-                segmentation: false,
-                () => Settings.VoiceEmbeddingModelFileName,
-                name => Apply(s => s with { VoiceEmbeddingModelFileName = name })));
-
-        AddCard(
-            SymbolRegular.PulseSquare24,
-            L.S.FieldVoiceSegmentationModel,
-            L.S.FieldVoiceSegmentationModelHint,
-            VoiceModelCombo(
-                segmentation: true,
-                () => Settings.VoiceSegmentationModelFileName,
-                name => Apply(s => s with { VoiceSegmentationModelFileName = name })));
-
-        AddCard(
             SymbolRegular.Options24,
             L.S.FieldVoiceThreshold,
             L.S.FieldVoiceThresholdHint,
@@ -543,19 +522,6 @@ public partial class SettingsWindow : FluentWindow
                 trailing: null);
             return;
         }
-
-        var vadBox = new ComboBox { Width = ControlColumnWidth };
-        RefillVadBox(vadBox, vadModels);
-        vadBox.SelectionChanged += (_, _) =>
-        {
-            if (vadBox.SelectedItem is string fileName)
-            {
-                Apply(s => s with { VadModelFileName = fileName });
-            }
-        };
-
-        Refresh(() => RefillVadBox(vadBox, ModelLocator.ListVadModels(Settings.ModelsDirectory)));
-        AddCard(SymbolRegular.Options24, L.S.FieldVadModel, description: null, vadBox);
 
         BuildVadThresholdCard();
 
@@ -668,55 +634,64 @@ public partial class SettingsWindow : FluentWindow
     /// Где взять модели.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Самая важная страница для нового пользователя и единственный ответ на
     /// вопрос, на котором раньше всё заканчивалось. Приложение сообщало
     /// «модель не найдена» и предлагало самому найти в интернете
     /// полуторагигабайтный файл, о котором человек ничего не знает: ни имени,
     /// ни размера, ни того, какой из тридцати вариантов ему нужен.
+    /// </para>
+    /// <para>
+    /// Любая модель — одна строка одного вида (<see cref="ModelShelf"/>).
+    /// Кружок говорит, используется ли она: закрашен — да, пуст — скачана,
+    /// щёлкни, чтобы переключиться, бледный — не скачана. Взгляда на кружки
+    /// группы хватает, чтобы понять, есть ли чем работать, — подписывать это
+    /// не нужно. Раньше у модели распознавания была своя «Активная модель»,
+    /// у остальных — выпадающие списки в «Дополнительно», а удалять можно
+    /// было только из четвёртого места, «Установлены».
+    /// </para>
     /// </remarks>
     private void BuildModelsSection()
     {
         _page.Children.Add(Intro(L.S.ModelsIntro));
 
-        // Какой моделью распознавать — первым: это единственное, что здесь
-        // выбирают чаще одного раза. Раньше выбор жил в «Распознавании» и в
-        // подменю трея, а на странице моделей его не было вовсе.
-        var modelBox = new ComboBox { Width = ControlColumnWidth };
-        RefillModelBox(modelBox);
-        modelBox.SelectionChanged += (_, _) =>
+        AddShelf(ModelKind.Recognition, L.S.ModelsRecognitionHeader, note: null);
+        AddShelf(ModelKind.SpeechDetector, L.S.ModelsDetectorHeader, note: null);
+
+        // Две группы, а не одна: модель разделения и модель слепков делают
+        // разное, и нужна одна из каждой. В общей группе три строки читались
+        // как «выберите одну из трёх» — человек брал рекомендованную модель
+        // слепков и оставался без разделения, не узнав, чего не хватает.
+        AddShelf(ModelKind.VoiceSegmentation, L.S.ModelsSegmentationHeader, L.S.ModelsForCalls);
+        AddShelf(ModelKind.VoiceEmbedding, L.S.ModelsEmbeddingHeader, L.S.ModelsForCalls);
+
+        _page.Children.Add(new Wpf.Ui.Controls.HyperlinkButton
         {
-            if (modelBox.SelectedItem is string fileName)
-            {
-                Apply(s => s with { ModelFileName = fileName });
-            }
-        };
-
-        Refresh(() => RefillModelBox(modelBox));
-        AddCard(SymbolRegular.BrainCircuit24, L.S.FieldActiveModel, L.S.FieldModelHint, modelBox);
-
-        AddGroup(L.S.GroupDownload);
-        BuildDownloadList();
-
-        AddGroup(L.S.ModelsInstalled);
-        BuildInstalledList();
+            Content = L.S.ModelsFullListLink,
+            NavigateUri = ModelCatalog.WhisperModelsPageUrl,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 4, 0, 0),
+        });
 
         // Папка — последней: её выбирают раз в жизни, а на первом запуске
         // человеку нужно скачать модель, а не решать, где она будет лежать.
         AddGroup(L.S.GroupModelsFolder);
 
-        var folderBox = new TextBox
-        {
-            Text = TargetDirectory(),
-            IsReadOnly = true,
-        };
+        var folderBox = new TextBox { Text = TargetDirectory(), IsReadOnly = true };
+        TextBlock size = Ui.Caption(FolderSize());
+        size.Margin = new Thickness(0, Tokens.Space1, 0, 0);
 
-        Refresh(() => folderBox.Text = TargetDirectory());
+        Refresh(() =>
+        {
+            folderBox.Text = TargetDirectory();
+            size.Text = FolderSize();
+        });
 
         AddStackedCard(
             SymbolRegular.FolderOpen24,
             L.S.FieldModelsFolder,
-            L.S.FieldModelsFolderHint,
-            folderBox,
+            description: null,
+            new StackPanel { Children = { folderBox, size } },
             FolderButtons(
                 () => folderBox.Text,
                 picked => _ = ChangeModelsFolderAsync(picked),
@@ -726,110 +701,294 @@ public partial class SettingsWindow : FluentWindow
                 () => _ = ChangeModelsFolderAsync(null)));
     }
 
-    private void BuildInstalledList()
+    private string FolderSize() =>
+        string.Format(CultureInfo.CurrentCulture, L.S.ModelsTotalSize, L.S.Size(ModelStorage.TotalBytes(TargetDirectory())));
+
+    /// <summary>Карточка моделей одного типа.</summary>
+    /// <param name="kind">Тип.</param>
+    /// <param name="title">Заголовок группы.</param>
+    /// <param name="note">Два-три слова, для чего она, — или ничего.</param>
+    private void AddShelf(ModelKind kind, string title, string? note)
     {
+        int at = _page.Children.Count;
         var list = new StackPanel();
+
         void Fill()
         {
             list.Children.Clear();
+            IReadOnlyList<ShelfModel> shelf = ModelShelf.Of(kind, ModelStorage.List(TargetDirectory()), Settings);
 
-            IReadOnlyList<InstalledModel> installed = ModelStorage.List(TargetDirectory());
-
-            if (installed.Count == 0)
+            // Ничего этого типа нет — «Скачать» у первой, рекомендованной,
+            // модели выделена: это единственное, что здесь стоит нажать.
+            bool empty = !shelf.Any(m => m.IsInstalled);
+            for (int i = 0; i < shelf.Count; i++)
             {
-                list.Children.Add(Ui.BodySecondary(L.S.ModelsNothingInstalled));
-
-                return;
+                list.Children.Add(ShelfRow(shelf[i], primary: empty && i == 0));
             }
-
-            foreach (InstalledModel model in installed)
-            {
-                list.Children.Add(BuildInstalledRow(model));
-            }
-
-            list.Children.Add(new TextBlock
-            {
-                Text = string.Format(
-                    CultureInfo.CurrentCulture,
-                    L.S.ModelsTotalSize,
-                    L.S.Size(installed.Sum(m => m.Bytes))),
-                Style = Ui.StyleOf("TextCaption"),
-                Margin = new Thickness(0, Tokens.Space2, 0, 0),
-            });
         }
 
         Fill();
         Refresh(Fill);
 
-        // Без заголовка: он уже стоит над группой, и повторять его на карточке
-        // значило бы написать «Установлены» дважды подряд.
-        AddPlainCard(list);
+        AddStackedCard(
+            kind switch
+            {
+                ModelKind.Recognition => SymbolRegular.BrainCircuit24,
+                ModelKind.SpeechDetector => SymbolRegular.PulseSquare24,
+                _ => SymbolRegular.PeopleTeam24,
+            },
+            title,
+            note,
+            list,
+            trailing: null);
+
+        _models.Groups[kind] = (FrameworkElement)_page.Children[at];
     }
 
-    /// <summary>Строка списка установленного: что это, сколько весит и кнопка удаления.</summary>
-    private Grid BuildInstalledRow(InstalledModel model)
+    /// <summary>Строка модели: кружок, имя с подписью и одно действие.</summary>
+    private Grid ShelfRow(ShelfModel model, bool primary)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        string name = model.Catalog?.DisplayName ?? PrettyModelName(model.FileName);
+
+        var row = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var icon = new SymbolIcon
+        var pick = new System.Windows.Controls.RadioButton
         {
-            Symbol = model.Kind switch
+            GroupName = "models-" + model.Kind,
+            IsChecked = model.InUse,
+            IsEnabled = model.IsInstalled,
+            MinWidth = 0,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 0, Tokens.Space2, 0),
+            Opacity = model.IsInstalled ? 1 : 0.4,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(pick, name);
+        pick.Checked += (_, _) =>
+        {
+            if (!model.InUse)
             {
-                ModelKind.SpeechDetector => SymbolRegular.PulseSquare24,
-                ModelKind.VoiceSegmentation or ModelKind.VoiceEmbedding => SymbolRegular.PeopleTeam24,
-                _ => SymbolRegular.BrainCircuit24,
-            },
-            FontSize = 16,
-            Margin = new Thickness(0, 0, Tokens.Space3, 0),
-            Foreground = ThemeBrush("TextFillColorSecondaryBrush", Colors.Gray),
-            VerticalAlignment = VerticalAlignment.Center,
+                Apply(s => ModelShelf.Choose(s, model.Kind, model.FileName));
+            }
         };
+        row.Children.Add(pick);
 
-        var label = new TextBlock
+        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var title = new WrapPanel();
+        title.Children.Add(new TextBlock { Text = name, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+        if (model.IsCustom)
         {
-            Text = $"{PrettyModelName(model.FileName)}  ·  {L.S.Size(model.Bytes)}",
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        };
+            TextBlock tag = Ui.Caption(L.S.ModelsCustom);
+            var tagBox = new Border
+            {
+                Child = tag,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(5, 0, 5, 0),
+                Margin = new Thickness(Tokens.Space2, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            tagBox.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+            title.Children.Add(tagBox);
+        }
 
-        var delete = new Button
+        info.Children.Add(title);
+
+        TextBlock detail = Ui.Caption(Detail(model));
+        detail.Margin = new Thickness(0, 2, 0, 0);
+        info.Children.Add(detail);
+
+        var progress = new ProgressBar
         {
-            Content = L.S.ButtonDelete,
-            MinWidth = 100,
-            VerticalAlignment = VerticalAlignment.Center,
+            Height = 4,
+            Minimum = 0,
+            Maximum = 1,
+            Margin = new Thickness(0, 8, 12, 0),
+            Visibility = Visibility.Collapsed,
         };
+        info.Children.Add(progress);
 
-        delete.Click += async (_, _) => await DeleteModelAsync(model, delete);
+        Grid.SetColumn(info, 1);
+        row.Children.Add(info);
 
-        Grid.SetColumn(label, 1);
-        Grid.SetColumn(delete, 2);
-        row.Children.Add(icon);
-        row.Children.Add(label);
-        row.Children.Add(delete);
+        _models.Rows[model.FileName] = (detail, progress);
+        ShowDownload(model.FileName);
+
+        Wpf.Ui.Controls.Button action = RowAction(model, primary);
+        Grid.SetColumn(action, 2);
+        row.Children.Add(action);
         return row;
+    }
+
+    /// <summary>«Рекомендуется · 574 МБ», у своего файла — только размер.</summary>
+    private static string Detail(ShelfModel model)
+    {
+        if (model.Catalog is not { } catalog)
+        {
+            return L.S.Size(model.Installed?.Bytes ?? 0);
+        }
+
+        return $"{L.S.Describe(catalog.Tier)} · {L.S.Size(model.Installed?.Bytes ?? catalog.ApproximateBytes)}";
+    }
+
+    /// <summary>
+    /// Одно действие строки: «Скачать», «Отменить» — или «⋯» с удалением у скачанной.
+    /// </summary>
+    /// <remarks>
+    /// Удаление спрятано в меню: кнопка «Удалить» у каждой скачанной модели
+    /// стояла на виду, хотя нужна раз в год, а промах по ней стоит
+    /// полугигабайта закачки.
+    /// </remarks>
+    private Wpf.Ui.Controls.Button RowAction(ShelfModel model, bool primary)
+    {
+        if (_models.Running.TryGetValue(model.FileName, out CancellationTokenSource? running))
+        {
+            var cancel = new Wpf.Ui.Controls.Button { Content = L.S.ButtonCancelDownload, MinWidth = 110, VerticalAlignment = VerticalAlignment.Top };
+            cancel.Click += (_, _) => running.Cancel();
+            return cancel;
+        }
+
+        if (!model.IsInstalled)
+        {
+            var download = new Wpf.Ui.Controls.Button
+            {
+                Content = L.S.ButtonDownload,
+                MinWidth = 110,
+                VerticalAlignment = VerticalAlignment.Top,
+                Appearance = primary ? ControlAppearance.Primary : ControlAppearance.Secondary,
+            };
+            download.Click += (_, _) =>
+            {
+                if (model.Catalog is { } catalog)
+                {
+                    _ = DownloadAsync(catalog);
+                }
+            };
+            return download;
+        }
+
+        var more = new Wpf.Ui.Controls.Button
+        {
+            Icon = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24 },
+            ToolTip = L.S.CallsMore,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(more, L.S.CallsMore);
+        more.Click += (_, _) =>
+        {
+            var menu = new System.Windows.Controls.ContextMenu { PlacementTarget = more, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+            var delete = new System.Windows.Controls.MenuItem { Header = L.S.ButtonDelete, Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 } };
+            delete.Click += async (_, _) => await DeleteModelAsync(model);
+            menu.Items.Add(delete);
+            menu.IsOpen = true;
+        };
+        return more;
+    }
+
+    /// <summary>Показать ход закачки или её итог в строке модели.</summary>
+    private void ShowDownload(string fileName)
+    {
+        if (!_models.Rows.TryGetValue(fileName, out var parts))
+        {
+            return;
+        }
+
+        if (_models.Status.TryGetValue(fileName, out DownloadProgress? status))
+        {
+            parts.Progress.Visibility = Visibility.Visible;
+            parts.Progress.IsIndeterminate = status.Fraction is null;
+            parts.Progress.Value = status.Fraction ?? 0;
+            parts.Detail.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                L.S.DownloadProgress,
+                L.S.Size(status.ReceivedBytes),
+                status.TotalBytes is { } total ? L.S.Size(total) : "?",
+                L.S.Size((long)status.BytesPerSecond));
+        }
+        else if (_models.Running.ContainsKey(fileName))
+        {
+            parts.Progress.Visibility = Visibility.Visible;
+            parts.Progress.IsIndeterminate = true;
+        }
+        else if (_models.Notes.TryGetValue(fileName, out string? note))
+        {
+            parts.Detail.Text = note;
+        }
+    }
+
+    /// <summary>Скачать модель каталога — с ходом, отменой и выбором, если выбрать было нечего.</summary>
+    private async Task DownloadAsync(CatalogModel model)
+    {
+        if (_models.Running.ContainsKey(model.FileName) || File.Exists(Path.Combine(TargetDirectory(), model.FileName)))
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _models.Running[model.FileName] = cancellation;
+        _models.Notes.Remove(model.FileName);
+        RefreshControls();
+
+        var reporter = new Progress<DownloadProgress>(p =>
+        {
+            _models.Status[model.FileName] = p;
+            ShowDownload(model.FileName);
+        });
+
+        try
+        {
+            // Папку спрашиваем в момент закачки: её меняют прямо на этой
+            // странице, и запомненное значение отправило бы файл в прежнюю.
+            using var downloader = new ModelDownloader();
+            await downloader.DownloadAsync(model, TargetDirectory(), reporter, cancellation.Token);
+
+            // Скачали первую модель — сразу ею и пользуемся: заставлять
+            // выбирать её отдельным действием было бы пустой формальностью.
+            AdoptIfNothingChosen(model);
+            ModelsChanged?.Invoke();
+        }
+        catch (OperationCanceledException)
+        {
+            _models.Notes[model.FileName] = L.S.DownloadCancelled;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error($"Не удалось скачать {model.FileName}.", ex);
+            _models.Notes[model.FileName] = string.Format(CultureInfo.CurrentCulture, L.S.DownloadFailed, ex.Message);
+        }
+        finally
+        {
+            _models.Running.Remove(model.FileName);
+            _models.Status.Remove(model.FileName);
+            cancellation.Dispose();
+            RefreshControls();
+        }
     }
 
     /// <summary>Спросить и удалить модель.</summary>
     /// <remarks>
     /// Подтверждение обязательно: файл весит сотни мегабайт и качался
-    /// минутами, а кнопка стоит рядом со списком, по которому просто
-    /// скользят глазами.
+    /// минутами. Удалили используемую — выбирается другая скачанная того же
+    /// типа, если есть: без этого голосовые модели оставались бы указывать
+    /// на пустое место.
     /// </remarks>
-    private async Task DeleteModelAsync(InstalledModel model, Button button)
+    private async Task DeleteModelAsync(ShelfModel model)
     {
-        bool inUse = string.Equals(model.FileName, Settings.ModelFileName, StringComparison.OrdinalIgnoreCase)
-                     || string.Equals(model.FileName, Settings.VadModelFileName, StringComparison.OrdinalIgnoreCase);
+        if (model.Installed is not { } file)
+        {
+            return;
+        }
 
         string question = string.Format(
             CultureInfo.CurrentCulture,
             L.S.ModelsDeleteQuestion,
-            PrettyModelName(model.FileName),
-            L.S.Size(model.Bytes));
+            model.Catalog?.DisplayName ?? PrettyModelName(model.FileName),
+            L.S.Size(file.Bytes));
 
-        if (inUse)
+        if (model.InUse)
         {
             question += Environment.NewLine + Environment.NewLine + L.S.ModelsDeleteInUse;
         }
@@ -842,17 +1001,16 @@ public partial class SettingsWindow : FluentWindow
             icon: SymbolRegular.Delete24,
             danger: true);
 
-        confirm.AddDetail(L.S.LabelFrom, model.Path);
+        confirm.AddDetail(L.S.LabelFrom, file.Path);
 
         if (ConfirmWindow.Ask(this, confirm) != ConfirmChoice.Primary)
         {
             return;
         }
 
-        button.IsEnabled = false;
         try
         {
-            if (await _deleteModel(model) is { } failure)
+            if (await _deleteModel(file) is { } failure)
             {
                 ConfirmWindow.Ask(this, new ConfirmWindow(
                     L.S.ModelsDeleteTitle,
@@ -861,90 +1019,33 @@ public partial class SettingsWindow : FluentWindow
                     cancelButton: L.S.ButtonClose,
                     icon: SymbolRegular.Warning24,
                     danger: true));
+                return;
             }
+
+            if (model.InUse
+                && ModelShelf.Of(model.Kind, ModelStorage.List(TargetDirectory()), Settings).FirstOrDefault(m => m.IsInstalled) is { } next)
+            {
+                Apply(s => ModelShelf.Choose(s, model.Kind, next.FileName));
+            }
+
+            ModelsChanged?.Invoke();
         }
         finally
         {
-            button.IsEnabled = true;
             RefreshControls();
         }
     }
 
-    private void BuildDownloadList()
-    {
-        AddDownloadGroup(
-            L.S.ModelsRecognitionHeader,
-            description: null,
-            ModelKind.Recognition);
-
-        AddDownloadGroup(
-            L.S.ModelsDetectorHeader,
-            L.S.ModelsDetectorNote,
-            ModelKind.SpeechDetector);
-
-        // Две группы, а не одна: модель разделения и модель слепков делают
-        // разное, и нужна одна из каждой. В общей группе три строки читались
-        // как «выберите одну из трёх» — человек брал рекомендованную модель
-        // слепков и оставался без разделения, не узнав, чего не хватает.
-        // Внутри каждой группы выбор остаётся: моделей появится больше.
-        AddDownloadGroup(
-            L.S.ModelsSegmentationHeader,
-            L.S.ModelsSegmentationNote,
-            ModelKind.VoiceSegmentation);
-
-        AddDownloadGroup(
-            L.S.ModelsEmbeddingHeader,
-            L.S.ModelsEmbeddingNote,
-            ModelKind.VoiceEmbedding);
-
-        var link = new Wpf.Ui.Controls.HyperlinkButton
-        {
-            Content = L.S.ModelsFullListLink,
-            NavigateUri = ModelCatalog.WhisperModelsPageUrl,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-
-        _page.Children.Add(link);
-    }
-
-    private void AddDownloadGroup(string title, string? description, params ModelKind[] kinds)
-    {
-        int at = _page.Children.Count;
-        var list = new StackPanel();
-        foreach (CatalogModel model in ModelCatalog.All.Where(m => kinds.Contains(m.Kind)))
-        {
-            list.Children.Add(BuildDownloadRow(model));
-        }
-
-        AddStackedCard(
-            kinds[0] switch
-            {
-                ModelKind.Recognition => SymbolRegular.BrainCircuit24,
-                ModelKind.SpeechDetector => SymbolRegular.PulseSquare24,
-                _ => SymbolRegular.PeopleTeam24,
-            },
-            title,
-            description,
-            list,
-            trailing: null);
-
-        foreach (ModelKind kind in kinds)
-        {
-            _models.Groups[kind] = (FrameworkElement)_page.Children[at];
-        }
-    }
-
     /// <summary>
-    /// Скачать недостающую модель этого типа: открыть её группу и нажать
-    /// «Скачать» у первой модели в ней.
+    /// Скачать недостающую модель этого типа: открыть её группу и начать
+    /// закачку первой модели в ней.
     /// </summary>
     /// <remarks>
     /// Первая в группе — рекомендованная: так упорядочен каталог. Какая
     /// именно, здесь не знают и знать не должны — появится новая модель,
     /// станет первой, и кнопки по всему приложению поведут к ней. Закачка
-    /// идёт тем же путём, что и по нажатию на странице, с тем же прогрессом
-    /// и отменой.
+    /// идёт тем же путём, что и по нажатию на странице, с тем же ходом и
+    /// отменой.
     /// </remarks>
     public void FetchModel(ModelKind kind)
     {
@@ -957,11 +1058,14 @@ public partial class SettingsWindow : FluentWindow
                 PageScroll.ScrollToVerticalOffset(Math.Max(0, at.Y - 12));
             }
 
-            CatalogModel? first = ModelCatalog.All.FirstOrDefault(m => m.Kind == kind);
+            if (ModelCatalog.All.FirstOrDefault(m => m.Kind == kind) is not { } first)
+            {
+                return;
+            }
 
             // Модель этого типа уже скачана, но выбран файл, которого нет, —
             // качать нечего, достаточно её выбрать.
-            if (first is not null && File.Exists(Path.Combine(TargetDirectory(), first.FileName)))
+            if (File.Exists(Path.Combine(TargetDirectory(), first.FileName)))
             {
                 AdoptIfNothingChosen(first);
                 RefreshControls();
@@ -969,43 +1073,18 @@ public partial class SettingsWindow : FluentWindow
                 return;
             }
 
-            if (first is not null
-                && _models.Buttons.TryGetValue(first.FileName, out Button? download)
-                && download.IsEnabled
-                && !_models.Running.ContainsKey(first.FileName))
-            {
-                download.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            }
+            _ = DownloadAsync(first);
         });
     }
 
     /// <summary>
-    /// Сделать модель выбранной, если выбранной модели её типа на диске нет.
+    /// Сделать модель выбранной, если выбранного файла её типа на диске нет.
     /// </summary>
-    /// <remarks>
-    /// Скачали первую модель — сразу ею и пользуемся: заставлять выбирать её
-    /// отдельным действием было бы бессмысленной формальностью.
-    /// </remarks>
     private void AdoptIfNothingChosen(CatalogModel model)
     {
-        if (model.Kind == ModelKind.Recognition && _availableModels().Count <= 1)
+        if (ModelLocator.Resolve(ModelShelf.Chosen(Settings, model.Kind), Settings.ModelsDirectory) is null)
         {
-            Apply(s => s with { ModelFileName = model.FileName });
-        }
-        else if (model.Kind == ModelKind.SpeechDetector
-                 && ModelLocator.ResolveVadModel(Settings.VadModelFileName, Settings.ModelsDirectory) is null)
-        {
-            Apply(s => s with { VadModelFileName = model.FileName });
-        }
-        else if (model.Kind == ModelKind.VoiceSegmentation
-                 && ModelNeeds.Missing(Settings, [ModelKind.VoiceSegmentation]).Count > 0)
-        {
-            Apply(s => s with { VoiceSegmentationModelFileName = model.FileName });
-        }
-        else if (model.Kind == ModelKind.VoiceEmbedding
-                 && ModelNeeds.Missing(Settings, [ModelKind.VoiceEmbedding]).Count > 0)
-        {
-            Apply(s => s with { VoiceEmbeddingModelFileName = model.FileName });
+            Apply(s => ModelShelf.Choose(s, model.Kind, model.FileName));
         }
     }
 
@@ -1023,156 +1102,6 @@ public partial class SettingsWindow : FluentWindow
 
         fetch.Click += (_, _) => FetchModel(missing[0]);
         return fetch;
-    }
-
-    private Grid BuildDownloadRow(CatalogModel model)
-    {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var info = new StackPanel();
-        info.Children.Add(new TextBlock
-        {
-            Text = model.DisplayName,
-            FontWeight = model.Tier == ModelTier.Recommended ? FontWeights.SemiBold : FontWeights.Normal,
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        var detail = new TextBlock
-        {
-            Text = $"{L.S.Describe(model.Tier)} · {L.S.Size(model.ApproximateBytes)}",
-            Style = Ui.StyleOf("TextCaption"),
-            Margin = new Thickness(0, 2, 0, 0),
-        };
-
-        info.Children.Add(detail);
-
-        var progress = new ProgressBar
-        {
-            Height = 4,
-            Minimum = 0,
-            Maximum = 1,
-            Margin = new Thickness(0, 8, 12, 0),
-            Visibility = Visibility.Collapsed,
-        };
-
-        info.Children.Add(progress);
-
-        var action = new Button
-        {
-            MinWidth = 120,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(12, 0, 0, 0),
-        };
-
-        Grid.SetColumn(action, 1);
-        grid.Children.Add(info);
-        grid.Children.Add(action);
-
-        WireDownloadRow(model, action, detail, progress);
-        _models.Buttons[model.FileName] = action;
-        return grid;
-    }
-
-    private void WireDownloadRow(
-        CatalogModel model,
-        Button action,
-        TextBlock detail,
-        ProgressBar progress)
-    {
-        string baseDetail = $"{L.S.Describe(model.Tier)} · {L.S.Size(model.ApproximateBytes)}";
-
-        void ShowIdle()
-        {
-            // Папку спрашиваем каждый раз, а не запоминаем при сборке
-            // страницы: её меняют прямо здесь, на этой же странице, и
-            // запомненное значение отправило бы закачку в прежнюю папку.
-            bool installed = File.Exists(Path.Combine(TargetDirectory(), model.FileName));
-            progress.Visibility = Visibility.Collapsed;
-            action.Content = installed ? L.S.LabelInstalled : L.S.ButtonDownload;
-            action.IsEnabled = !installed;
-            detail.Text = baseDetail;
-        }
-
-        ShowIdle();
-
-        // Строка тоже обновляется при смене папки: в новой эта модель может
-        // быть уже установлена, а может и не быть.
-        Refresh(() =>
-        {
-            if (!_models.Running.ContainsKey(model.FileName))
-            {
-                ShowIdle();
-            }
-        });
-
-        action.Click += async (_, _) =>
-        {
-            if (_models.Running.TryGetValue(model.FileName, out CancellationTokenSource? running))
-            {
-                running.Cancel();
-                return;
-            }
-
-            var cancellation = new CancellationTokenSource();
-            _models.Running[model.FileName] = cancellation;
-
-            action.Content = L.S.ButtonCancelDownload;
-            action.IsEnabled = true;
-            progress.Visibility = Visibility.Visible;
-            progress.Value = 0;
-
-            var reporter = new Progress<DownloadProgress>(p =>
-            {
-                progress.IsIndeterminate = p.Fraction is null;
-                progress.Value = p.Fraction ?? 0;
-                detail.Text = string.Format(
-                    CultureInfo.CurrentCulture,
-                    L.S.DownloadProgress,
-                    L.S.Size(p.ReceivedBytes),
-                    p.TotalBytes is { } total ? L.S.Size(total) : "?",
-                    L.S.Size((long)p.BytesPerSecond));
-            });
-
-            try
-            {
-                using var downloader = new ModelDownloader();
-                await downloader.DownloadAsync(model, TargetDirectory(), reporter, cancellation.Token);
-
-                // Скачали первую модель — сразу ею и пользуемся: заставлять
-                // выбирать её отдельным действием было бы бессмысленной
-                // формальностью.
-                AdoptIfNothingChosen(model);
-
-                // Обновляем ВСЁ, что зависит от набора моделей: список
-                // установленного, выбор модели распознавания, выбор детектора
-                // и подписи на самих кнопках закачки. Раньше обновлялся только
-                // список установленного, и скачанная модель не появлялась в
-                // выборе до перезапуска окна.
-                RefreshControls();
-                ModelsChanged?.Invoke();
-            }
-            catch (OperationCanceledException)
-            {
-                detail.Text = L.S.DownloadCancelled;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException)
-            {
-                AppLog.Error($"Не удалось скачать {model.FileName}.", ex);
-                detail.Text = string.Format(CultureInfo.CurrentCulture, L.S.DownloadFailed, ex.Message);
-            }
-            finally
-            {
-                _models.Running.Remove(model.FileName);
-                cancellation.Dispose();
-
-                bool installed = File.Exists(Path.Combine(TargetDirectory(), model.FileName));
-                progress.Visibility = Visibility.Collapsed;
-                action.Content = installed ? L.S.LabelInstalled : L.S.ButtonDownload;
-                action.IsEnabled = !installed;
-            }
-        };
     }
 
     // --- раздел: звонки ----------------------------------------------------
@@ -2214,50 +2143,6 @@ public partial class SettingsWindow : FluentWindow
         return box;
     }
 
-    /// <summary>
-    /// Выбор модели разделения голосов из того, что лежит в папке.
-    /// </summary>
-    /// <remarks>
-    /// Настроенное имя показываем, даже если файла нет: иначе список молча
-    /// перескакивал бы на другую модель, и человек, не скачавший нужную,
-    /// считал бы, что всё в порядке.
-    /// </remarks>
-    private ComboBox VoiceModelCombo(bool segmentation, Func<string> read, Action<string> onChange)
-    {
-        var box = new ComboBox { Width = ControlColumnWidth };
-
-        void Fill()
-        {
-            string current = read();
-            box.Items.Clear();
-
-            foreach (string name in ModelLocator.ListVoiceModels(segmentation, Settings.ModelsDirectory))
-            {
-                box.Items.Add(name);
-            }
-
-            if (!box.Items.Contains(current))
-            {
-                box.Items.Add(current);
-            }
-
-            box.SelectedItem = current;
-        }
-
-        Fill();
-        Refresh(Fill);
-
-        box.SelectionChanged += (_, _) =>
-        {
-            if (box.SelectedItem is string name && name != read())
-            {
-                onChange(name);
-            }
-        };
-
-        return box;
-    }
-
     private sealed record DecodingChoice(int BeamSize, string Label)
     {
         public override string ToString() => Label;
@@ -2558,35 +2443,6 @@ public partial class SettingsWindow : FluentWindow
     private Brush ThemeBrush(string resourceKey, Color fallback) =>
         TryFindResource(resourceKey) as Brush ?? new SolidColorBrush(fallback);
 
-    private void RefillModelBox(ComboBox box)
-    {
-        IReadOnlyList<string> models = _availableModels();
-        box.Items.Clear();
-        foreach (string model in models)
-        {
-            box.Items.Add(model);
-        }
-
-        int index = models.ToList().FindIndex(
-            m => string.Equals(m, Settings.ModelFileName, StringComparison.OrdinalIgnoreCase));
-
-        box.SelectedIndex = index >= 0 ? index : (models.Count > 0 ? 0 : -1);
-    }
-
-    private void RefillVadBox(ComboBox box, IReadOnlyList<string> models)
-    {
-        box.Items.Clear();
-        foreach (string model in models)
-        {
-            box.Items.Add(model);
-        }
-
-        int index = models.ToList().FindIndex(
-            m => string.Equals(m, Settings.VadModelFileName, StringComparison.OrdinalIgnoreCase));
-
-        box.SelectedIndex = index >= 0 ? index : (models.Count > 0 ? 0 : -1);
-    }
-
     private static string PrettyModelName(string fileName)
     {
         string name = Path.GetFileNameWithoutExtension(fileName);
@@ -2697,8 +2553,14 @@ public partial class SettingsWindow : FluentWindow
     {
         public Dictionary<string, CancellationTokenSource> Running { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Кнопка «Скачать» каждой модели каталога — чтобы нажать её снаружи.</summary>
-        public Dictionary<string, Button> Buttons { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Последний ход идущих закачек — строка пересобирается, а ход должен остаться.</summary>
+        public Dictionary<string, DownloadProgress> Status { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Чем кончилась закачка: отменена или не удалась.</summary>
+        public Dictionary<string, string> Notes { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Подпись и полоска хода в текущей строке каждой модели.</summary>
+        public Dictionary<string, (TextBlock Detail, ProgressBar Progress)> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Карточка группы каждого типа — чтобы к ней прокрутить.</summary>
         public Dictionary<ModelKind, FrameworkElement> Groups { get; } = [];

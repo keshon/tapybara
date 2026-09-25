@@ -99,12 +99,18 @@ on a recording that is mostly silence those predictions drift badly.
 record calls with more than one other person on them. One finds the moment the
 speaker changes; the other turns a stretch of speech into something that can be
 compared with another stretch. Both run on the CPU and neither is needed for
-dictation, so the Models page keeps them in their own group and nothing prompts
+dictation, so the Models page keeps each in its own group and nothing prompts
 you to fetch them until they would help.
 
-Models you fetch yourself go in the models folder and appear straight away —
-the folder is watched, so no restart is needed. Models you no longer want can
-be deleted from the same page; the one currently loaded is unloaded first.
+Every model on the page is one row, whatever its kind. A filled circle is the
+model in use; an empty one is downloaded — click it to switch; a pale one is
+not downloaded yet, with **Download** beside it. **⋯ › Delete** removes a
+downloaded model; the one currently loaded is unloaded first, and another of
+its kind takes over if there is one.
+
+Models you fetch yourself go in the models folder and appear straight away in
+their group, marked *your file* — the folder is watched, so no restart is
+needed.
 
 Downloads resume if the connection drops, and a file only takes its real name
 once the length checks out, so an interrupted download can never leave a
@@ -120,8 +126,8 @@ the question you arrived with:
 | **General** | Interface language, theme, floating indicator, start with Windows, dictation history |
 | **Dictation** | Hotkey, microphone, language, where the text goes, paragraphs, maximum length |
 | **Calls** | Hotkey, output device to record, your name, telling voices apart, folder, limits |
-| **Models** | Which model is active, what to download, what is installed, where they live |
-| **Advanced** | Decoding effort, idle unload, speech detection, voice models and threshold, portable mode |
+| **Models** | Every model by kind: which is in use, download, delete, where they live |
+| **Advanced** | Decoding effort, idle unload, speech detection, voice threshold, portable mode |
 | **About** | Version and updates, compute backend, where data lives, diagnostics, log |
 
 Everything that needs knowing how recognition works is under **Advanced**;

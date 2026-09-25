@@ -6,7 +6,7 @@ namespace Tapybara.Core.Models;
 /// <param name="FileName">Имя файла.</param>
 /// <param name="Path">Полный путь.</param>
 /// <param name="Bytes">Размер.</param>
-/// <param name="Kind">Распознавание или детектор речи.</param>
+/// <param name="Kind">Распознавание, детектор речи или одна из голосовых моделей.</param>
 public sealed record InstalledModel(string FileName, string Path, long Bytes, ModelKind Kind);
 
 /// <summary>Итог переноса моделей в другую папку.</summary>
@@ -34,14 +34,17 @@ public static class ModelStorage
 
         try
         {
+            // И голосовые модели (.onnx): раньше их здесь не было, и удалить
+            // или перенести их вместе с остальными приложение не могло.
             return
             [
                 .. Directory.EnumerateFiles(directory, "ggml-*.bin")
+                    .Concat(Directory.EnumerateFiles(directory, "*.onnx"))
                     .Select(path => new InstalledModel(
                         Path.GetFileName(path),
                         path,
                         new FileInfo(path).Length,
-                        IsSpeechDetector(path) ? ModelKind.SpeechDetector : ModelKind.Recognition))
+                        KindOf(path)))
                     .OrderBy(m => m.Kind)
                     .ThenBy(m => m.FileName, StringComparer.OrdinalIgnoreCase),
             ];
@@ -63,6 +66,29 @@ public static class ModelStorage
     /// </remarks>
     public static bool IsSpeechDetector(string fileNameOrPath) =>
         Path.GetFileName(fileNameOrPath).Contains("silero", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Тип модели по имени файла.
+    /// </summary>
+    /// <remarks>
+    /// Голосовые модели различаются по подстроке «segmentation» — тем же
+    /// способом, что детектор речи по «silero». Способ грубый, зато не
+    /// требует открывать файл и читать заголовок ONNX ради списка. Перепутать
+    /// их не даёт сама природа моделей: сегментация в роли слепков не
+    /// запустится, и нативная сторона скажет об этом сразу.
+    /// </remarks>
+    internal static ModelKind KindOf(string fileNameOrPath)
+    {
+        string name = Path.GetFileName(fileNameOrPath);
+        if (name.EndsWith(".onnx", StringComparison.OrdinalIgnoreCase))
+        {
+            return name.Contains("segmentation", StringComparison.OrdinalIgnoreCase)
+                ? ModelKind.VoiceSegmentation
+                : ModelKind.VoiceEmbedding;
+        }
+
+        return IsSpeechDetector(name) ? ModelKind.SpeechDetector : ModelKind.Recognition;
+    }
 
     /// <summary>
     /// Удалить модель.
