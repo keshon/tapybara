@@ -78,7 +78,8 @@ assets/readme-banner.webp        1600×420, the header of README.md
 assets/favicon/                  ico + png set + apple-touch
 assets/screens/                  real screenshots: pill-*.webp, and
                                  calls / dictations / dictionary / settings /
-                                 welcome, each as -dark.webp and -light.webp
+                                 welcome / fix-word / anonymize, each as
+                                 -dark.webp and -light.webp
 ```
 
 ### Two traps worth knowing
@@ -102,10 +103,20 @@ a hidden lazy image is never fetched, so a visitor downloads only one.
 ### Taking the screenshots
 
 The window screenshots are the real windows, captured live, all at the same
-1280×800 so that switching between them on the page does not make it jump.
-The data in them is written for the page and seeded into a test profile — the
-call is the same conversation as the demo above it on the site, with the same
-three people — never a real profile. The indicator
+size so that switching between them on the page does not make it jump. One
+command takes all of them in both themes:
+
+```
+powershell -File tools\site\shots.ps1
+```
+
+It builds Release into a separate portable copy and seeds it with data written
+for the page (`tools/site/seed.py`) — the call is the same conversation as the
+demo above it on the site, with the same three people — so the live profile and
+real calls are never touched. Windows are captured with `PrintWindow`, so other
+windows cannot get into the frame; the one real double-click it needs (the word
+card) happens only when a Tapybara window is under the cursor. Leave the mouse
+alone for the two minutes it runs. The indicator
 screenshots are taken by constructing `OverlayWindow` directly and passing it
 level values as numbers, rather than by starting a real dictation: a picture
 for a website is no reason to switch on somebody's microphone, and it also
