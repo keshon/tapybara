@@ -271,7 +271,6 @@ public sealed record UiStrings
     public required string FieldRememberVoices { get; init; }
     public required string GroupListening { get; init; }
     public required string FieldPlayingProgress { get; init; }
-    public required string FieldPlayingProgressHint { get; init; }
     public required string FieldRememberVoicesHint { get; init; }
     public required string ButtonForgetVoices { get; init; }
     public required string ForgetVoicesTitle { get; init; }
@@ -413,7 +412,9 @@ public sealed record UiStrings
     public required string ModelsEmbeddingHeader { get; init; }
     public required string ModelsForCalls { get; init; }
     public required string ModelsCustom { get; init; }
-    public required string VoicesOpenModels { get; init; }
+    public required string SizeUnknown { get; init; }
+    public required string QuoteFormat { get; init; }
+    public required string ButtonGetModel { get; init; }
     public required string VoiceSomeoneElseGetModel { get; init; }
     public required string VoicesResplitCount { get; init; }
     public required string VoicesResplitGo { get; init; }
@@ -460,7 +461,6 @@ public sealed record UiStrings
     public required string LineCopy { get; init; }
     public required string LineYourMicrophone { get; init; }
     public required string ReplacementTitle { get; init; }
-    public required string ButtonAdd { get; init; }
     public required string CallStateNotTranscribed { get; init; }
     public required string CallStateDamaged { get; init; }
     public required string TranscriptBleedRemoved { get; init; }
@@ -549,7 +549,7 @@ public sealed record UiStrings
 
     /// <summary>Как назвать место модели в ряду «качество против размера».</summary>
     /// <summary>Название типа модели — тот же заголовок, что у его группы на странице моделей.</summary>
-    public string KindName(Tapybara.Core.Models.ModelKind kind) => kind switch
+    private string KindName(Tapybara.Core.Models.ModelKind kind) => kind switch
     {
         Tapybara.Core.Models.ModelKind.VoiceSegmentation => ModelsSegmentationHeader,
         Tapybara.Core.Models.ModelKind.VoiceEmbedding => ModelsEmbeddingHeader,
@@ -561,7 +561,7 @@ public sealed record UiStrings
     public string KindNames(IEnumerable<Tapybara.Core.Models.ModelKind> kinds) =>
         string.Join(", ", kinds.Select(k => Quote(KindName(k))));
 
-    private string Quote(string text) => Formatting.TwoLetterISOLanguageName == "ru" ? $"«{text}»" : $"“{text}”";
+    private string Quote(string text) => string.Format(Formatting, QuoteFormat, text);
 
     public string Describe(ModelTier tier) => tier switch
     {
@@ -782,7 +782,7 @@ public sealed record UiStrings
         FieldUseVad = "Find speech before transcribing",
         FieldUseVadHint = "Locates where speech actually is, so each line gets the position it was measured at instead of one the model guessed. Also removes silence hallucinations and speeds transcription up. Needs a detector model.",
         FieldVadModel = "Detector model",
-        FieldVadModelMissing = "No detector model installed — get one on the Models page",
+        FieldVadModelMissing = "Not installed",
         FieldVadThreshold = "Detector sensitivity",
         FieldVadThresholdHint = "Lower catches quieter speech but also more noise. Measure it instead of guessing.",
         FieldNormalize = "Even out loudness before transcribing",
@@ -896,8 +896,7 @@ public sealed record UiStrings
         VoicesResplitMenu = "Split the voices again…",
         FieldRememberVoices = "Remember voices",
         GroupListening = "Listening",
-        FieldPlayingProgress = "Show what is playing",
-        FieldPlayingProgressHint = "The playing line fills as it sounds.",
+        FieldPlayingProgress = "Fill the playing line",
         FieldRememberVoicesHint = "When you name a voice, its voiceprint is kept on this computer, and on later calls Tapybara suggests who is speaking. A voiceprint is biometric data; it never leaves this computer.",
         ButtonForgetVoices = "Forget all voices",
         ForgetVoicesTitle = "Forget all voices?",
@@ -1038,13 +1037,15 @@ public sealed record UiStrings
         ModelsEmbeddingHeader = "Voiceprints",
         ModelsForCalls = "for calls",
         ModelsCustom = "your file",
-        VoicesOpenModels = "Get the model",
+        SizeUnknown = "?",
+        QuoteFormat = "“{0}”",
+        ButtonGetModel = "Get the model",
         VoiceSomeoneElseGetModel = "Someone else — get the model to split voices…",
         VoicesResplitCount = "Voices to look for",
         VoicesResplitGo = "Split again",
-        ModelsMissingList = "Not installed yet: {0}. The button downloads the recommended one.",
+        ModelsMissingList = "Not installed yet: {0}.",
         VoicesNeedModels = "Splitting needs: {0}.",
-        CardModelsMissing = "Telling these voices apart needs models that are not installed yet: {0}.",
+        CardModelsMissing = "Missing: {0}.",
         LineFixWord = "Fix this word…",
         LineEditText = "Edit the line",
         LineFixSelection = "Fix “{0}”…",
@@ -1067,13 +1068,13 @@ public sealed record UiStrings
         FixReplaceAll = "Replace: {0}",
         FixOnlyHere = "Only here",
         RetranscribeEditedTitle = "Transcribe again?",
-        RetranscribeEditedBody = "The transcript has edits made by hand. Transcribing again rebuilds the text from the recording, and those edits will be lost. Words saved to the dictionary will be fixed again.",
+        RetranscribeEditedBody = "Your edits to the text will be lost.",
         DictionaryApplyToCalls = "Apply to past calls",
         DictionaryApplyTitle = "Apply the dictionary to past calls?",
-        DictionaryApplyBody = "Places to correct: {0}, in {1} calls. The text is corrected as it is; nothing is transcribed again.",
+        DictionaryApplyBody = "Places: {0} · calls: {1}. Nothing is transcribed again.",
         DictionaryApplyGo = "Apply",
         DictionaryApplyNothing = "Past calls already match the dictionary.",
-        DictionaryApplied = "Corrected {0} places in {1} calls.",
+        DictionaryApplied = "Corrected. Places: {0} · calls: {1}.",
         RecordCall = "Record a call",
         RecordDictate = "Dictate",
         RecordStop = "Stop",
@@ -1086,7 +1087,6 @@ public sealed record UiStrings
         LineCopy = "Copy",
         LineYourMicrophone = "Your microphone",
         ReplacementTitle = "Add a replacement",
-        ButtonAdd = "Add",
         CallStateNotTranscribed = "not transcribed",
         CallStateDamaged = "no audio",
         TranscriptBleedRemoved = "Other-side speech removed from your channel",
@@ -1260,7 +1260,7 @@ public sealed record UiStrings
         FieldUseVad = "Искать речь перед распознаванием",
         FieldUseVadHint = "Находит, где на записи действительно речь: реплика получает измеренное положение, а не предсказанное моделью. Заодно исчезают галлюцинации на тишине и падает время работы. Нужна модель детектора.",
         FieldVadModel = "Модель детектора",
-        FieldVadModelMissing = "Модель детектора не установлена — скачайте её в разделе «Модели»",
+        FieldVadModelMissing = "Не установлена",
         FieldVadThreshold = "Чувствительность детектора",
         FieldVadThresholdHint = "Ниже — ловит более тихую речь, но и больше шума. Это можно не угадывать, а измерить.",
         FieldNormalize = "Выравнивать громкость перед распознаванием",
@@ -1374,8 +1374,7 @@ public sealed record UiStrings
         VoicesResplitMenu = "Разделить голоса заново…",
         FieldRememberVoices = "Запоминать голоса",
         GroupListening = "Прослушивание",
-        FieldPlayingProgress = "Показывать, что звучит",
-        FieldPlayingProgressHint = "Звучащая реплика заливается по ходу звука.",
+        FieldPlayingProgress = "Заливать звучащую реплику",
         FieldRememberVoicesHint = "Когда вы называете голос, его слепок сохраняется на этом компьютере, и на следующих звонках Tapybara подсказывает, кто говорит. Слепок голоса — биометрия; он не покидает этот компьютер.",
         ButtonForgetVoices = "Забыть все голоса",
         ForgetVoicesTitle = "Забыть все голоса?",
@@ -1516,13 +1515,15 @@ public sealed record UiStrings
         ModelsEmbeddingHeader = "Слепки голоса",
         ModelsForCalls = "для звонков",
         ModelsCustom = "свой файл",
-        VoicesOpenModels = "Скачать модель",
+        SizeUnknown = "?",
+        QuoteFormat = "«{0}»",
+        ButtonGetModel = "Скачать модель",
         VoiceSomeoneElseGetModel = "Кто-то другой — скачать модель для разделения…",
         VoicesResplitCount = "Сколько голосов искать",
         VoicesResplitGo = "Разделить заново",
-        ModelsMissingList = "Ещё не скачано: {0}. Кнопка скачает рекомендованную модель.",
+        ModelsMissingList = "Ещё не скачано: {0}.",
         VoicesNeedModels = "Чтобы разделить, нужно: {0}.",
-        CardModelsMissing = "Чтобы различить эти голоса, нужны модели, которые ещё не скачаны: {0}.",
+        CardModelsMissing = "Не хватает: {0}.",
         LineFixWord = "Исправить слово…",
         LineEditText = "Исправить реплику",
         LineFixSelection = "Исправить «{0}»…",
@@ -1545,13 +1546,13 @@ public sealed record UiStrings
         FixReplaceAll = "Заменить: {0}",
         FixOnlyHere = "Только здесь",
         RetranscribeEditedTitle = "Распознать заново?",
-        RetranscribeEditedBody = "В транскрипте есть ручные правки. Повторное распознавание соберёт текст заново из записи, и они пропадут. Слова, сохранённые в словаре, исправятся снова.",
+        RetranscribeEditedBody = "Ваши правки в тексте пропадут.",
         DictionaryApplyToCalls = "Применить к прошлым звонкам",
         DictionaryApplyTitle = "Применить словарь к прошлым звонкам?",
-        DictionaryApplyBody = "Исправится мест: {0}, звонков: {1}. Правится готовый текст, заново ничего не распознаётся.",
+        DictionaryApplyBody = "Мест: {0} · звонков: {1}. Заново ничего не распознаётся.",
         DictionaryApplyGo = "Применить",
         DictionaryApplyNothing = "Прошлые звонки уже соответствуют словарю.",
-        DictionaryApplied = "Исправлено мест: {0}, звонков: {1}.",
+        DictionaryApplied = "Исправлено. Мест: {0} · звонков: {1}.",
         RecordCall = "Записать звонок",
         RecordDictate = "Диктовать",
         RecordStop = "Стоп",
@@ -1564,7 +1565,6 @@ public sealed record UiStrings
         LineCopy = "Копировать",
         LineYourMicrophone = "Ваш микрофон",
         ReplacementTitle = "Добавить замену",
-        ButtonAdd = "Добавить",
         CallStateNotTranscribed = "не распознано",
         CallStateDamaged = "нет звука",
         TranscriptBleedRemoved = "Отсеяно чужой речи из своего канала",

@@ -3,6 +3,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Tapybara.App.Localization;
 using Tapybara.Core.Calls;
+using Tapybara.Core.Models;
 using Wpf.Ui.Controls;
 
 using ContextMenu = System.Windows.Controls.ContextMenu;
@@ -97,6 +98,8 @@ public partial class CallReviewWindow : FluentWindow
         MoreButton.ToolTip = L.S.CallsMore;
 
         Participants.ApplyLanguage();
+
+        SplitModelsButton.Content = L.S.ButtonGetModel;
         UpdateHint();
     }
 
@@ -163,29 +166,25 @@ public partial class CallReviewWindow : FluentWindow
     /// </remarks>
     private void UpdateHint()
     {
-        bool several = Participants.Selected.Count > 1;
-        bool cannotSplit = several && _splitModelsMissing?.Invoke() == true;
+        IReadOnlyList<ModelKind> missing = Participants.Selected.Count > 1 ? _missingModels?.Invoke() ?? [] : [];
+        bool cannotSplit = missing.Count > 0;
 
         ParticipantsHint.Text = Participants.Selected.Count switch
         {
             0 => L.S.CardHintNone,
             1 => L.S.CallReviewHintOne,
-            _ when cannotSplit => string.Format(L.S.Formatting, L.S.CardModelsMissing, _missingNames?.Invoke()),
+            _ when cannotSplit => string.Format(L.S.Formatting, L.S.CardModelsMissing, L.S.KindNames(missing)),
             _ => string.Format(L.S.Formatting, L.S.CardHintMany, Participants.Selected.Count),
         };
 
-        SplitModelsButton.Content = L.S.VoicesOpenModels;
         SplitModelsButton.Visibility = cannotSplit ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Нет ли моделей для разделения голосов.</summary>
-    private Func<bool>? _splitModelsMissing;
+    /// <summary>Каких моделей для разделения голосов нет — пусто, если разделять не нужно или есть чем.</summary>
+    private Func<IReadOnlyList<ModelKind>>? _missingModels;
 
-    /// <summary>Каких именно — названиями групп на странице моделей.</summary>
-    private Func<string>? _missingNames;
-
-    /// <summary>Открыть страницу моделей.</summary>
-    private Action? _openModels;
+    /// <summary>Скачать модель этого типа.</summary>
+    private Action<ModelKind>? _fetchModel;
 
     /// <summary>
     /// Подсказать о недостающих моделях, если отмечено несколько человек.
@@ -195,15 +194,20 @@ public partial class CallReviewWindow : FluentWindow
     /// распознавание молча обходилось без разделения — и все собеседники
     /// оказывались одним голосом.
     /// </remarks>
-    public void OfferSplitModels(Func<bool> missing, Func<string> missingNames, Action openModels)
+    public void OfferSplitModels(Func<IReadOnlyList<ModelKind>> missing, Action<ModelKind> fetch)
     {
-        _splitModelsMissing = missing;
-        _missingNames = missingNames;
-        _openModels = openModels;
+        _missingModels = missing;
+        _fetchModel = fetch;
         UpdateHint();
     }
 
-    private void OnSplitModelsClick(object sender, RoutedEventArgs e) => _openModels?.Invoke();
+    private void OnSplitModelsClick(object sender, RoutedEventArgs e)
+    {
+        if (_missingModels?.Invoke() is [ModelKind first, ..])
+        {
+            _fetchModel?.Invoke(first);
+        }
+    }
 
     private void OnTitleKeyDown(object sender, KeyEventArgs e)
     {

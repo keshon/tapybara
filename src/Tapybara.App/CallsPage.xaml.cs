@@ -1205,7 +1205,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
             var get = new Wpf.Ui.Controls.Button
             {
-                Content = L.S.VoicesOpenModels,
+                Content = L.S.ButtonGetModel,
                 Appearance = ControlAppearance.Primary,
                 Margin = new Thickness(0, Tokens.Space2, 0, 0),
             };
