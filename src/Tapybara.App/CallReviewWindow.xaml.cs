@@ -161,13 +161,49 @@ public partial class CallReviewWindow : FluentWindow
     /// А вот что один собеседник подпишется сразу, а несколько — назовутся
     /// по цитатам, — знание, из-за которого человек и правда отметит имена.
     /// </remarks>
-    private void UpdateHint() =>
+    private void UpdateHint()
+    {
+        bool several = Participants.Selected.Count > 1;
+        bool cannotSplit = several && _splitModelsMissing?.Invoke() == true;
+
         ParticipantsHint.Text = Participants.Selected.Count switch
         {
             0 => L.S.CardHintNone,
             1 => L.S.CallReviewHintOne,
+            _ when cannotSplit => string.Format(L.S.Formatting, L.S.CardModelsMissing, _missingNames?.Invoke()),
             _ => string.Format(L.S.Formatting, L.S.CardHintMany, Participants.Selected.Count),
         };
+
+        SplitModelsButton.Content = L.S.VoicesOpenModels;
+        SplitModelsButton.Visibility = cannotSplit ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Нет ли моделей для разделения голосов.</summary>
+    private Func<bool>? _splitModelsMissing;
+
+    /// <summary>Каких именно — названиями групп на странице моделей.</summary>
+    private Func<string>? _missingNames;
+
+    /// <summary>Открыть страницу моделей.</summary>
+    private Action? _openModels;
+
+    /// <summary>
+    /// Подсказать о недостающих моделях, если отмечено несколько человек.
+    /// </summary>
+    /// <remarks>
+    /// Раньше карточка обещала «поищу столько голосов», а без моделей
+    /// распознавание молча обходилось без разделения — и все собеседники
+    /// оказывались одним голосом.
+    /// </remarks>
+    public void OfferSplitModels(Func<bool> missing, Func<string> missingNames, Action openModels)
+    {
+        _splitModelsMissing = missing;
+        _missingNames = missingNames;
+        _openModels = openModels;
+        UpdateHint();
+    }
+
+    private void OnSplitModelsClick(object sender, RoutedEventArgs e) => _openModels?.Invoke();
 
     private void OnTitleKeyDown(object sender, KeyEventArgs e)
     {

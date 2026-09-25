@@ -360,7 +360,6 @@ public sealed record UiStrings
     public required string ButtonClearHistory { get; init; }
     public required string ClearHistoryTitle { get; init; }
     public required string ClearHistoryBody { get; init; }
-    public required string FieldSplitVoicesMissing { get; init; }
     public required string AboutDataFolder { get; init; }
     public required string AdvancedIntro { get; init; }
     public required string CallsSearchPlaceholder { get; init; }
@@ -416,12 +415,22 @@ public sealed record UiStrings
     public required string VoicesSplitInto { get; init; }
     public required string VoiceRejectedHint { get; init; }
     public required string LineDoubtful { get; init; }
+    public required string ModelsSegmentationHeader { get; init; }
+    public required string ModelsSegmentationNote { get; init; }
+    public required string ModelsEmbeddingHeader { get; init; }
+    public required string ModelsEmbeddingNote { get; init; }
+    public required string VoicesOpenModels { get; init; }
+    public required string VoiceSomeoneElseGetModel { get; init; }
+    public required string VoicesResplitCount { get; init; }
+    public required string VoicesResplitGo { get; init; }
+    public required string ModelsMissingList { get; init; }
+    public required string VoicesNeedModels { get; init; }
+    public required string CardModelsMissing { get; init; }
     public required string RecordCall { get; init; }
     public required string RecordDictate { get; init; }
     public required string RecordStop { get; init; }
     public required string RecordTranscribing { get; init; }
     public required string DictateHint { get; init; }
-    public required string VoicesResplit { get; init; }
     public required string VoiceTheOtherSide { get; init; }
     public required string VoiceNamePlaceholder { get; init; }
     public required string LineSaidBy { get; init; }
@@ -454,8 +463,6 @@ public sealed record UiStrings
     public required string FieldVoiceSegmentationModelHint { get; init; }
     public required string FieldVoiceThreshold { get; init; }
     public required string FieldVoiceThresholdHint { get; init; }
-    public required string ModelsVoicesHeader { get; init; }
-    public required string ModelsVoicesNote { get; init; }
 
     // --- общее ---
     public required string ButtonBrowse { get; init; }
@@ -527,6 +534,21 @@ public sealed record UiStrings
     };
 
     /// <summary>Как назвать место модели в ряду «качество против размера».</summary>
+    /// <summary>Название типа модели — тот же заголовок, что у его группы на странице моделей.</summary>
+    public string KindName(Tapybara.Core.Models.ModelKind kind) => kind switch
+    {
+        Tapybara.Core.Models.ModelKind.VoiceSegmentation => ModelsSegmentationHeader,
+        Tapybara.Core.Models.ModelKind.VoiceEmbedding => ModelsEmbeddingHeader,
+        Tapybara.Core.Models.ModelKind.SpeechDetector => ModelsDetectorHeader,
+        _ => ModelsRecognitionHeader,
+    };
+
+    /// <summary>«Разделение голосов», «Слепки голоса» — через запятую, в кавычках.</summary>
+    public string KindNames(IEnumerable<Tapybara.Core.Models.ModelKind> kinds) =>
+        string.Join(", ", kinds.Select(k => Quote(KindName(k))));
+
+    private string Quote(string text) => Formatting.TwoLetterISOLanguageName == "ru" ? $"«{text}»" : $"“{text}”";
+
     public string Describe(ModelTier tier) => tier switch
     {
         ModelTier.Best => TierBest,
@@ -950,7 +972,6 @@ public sealed record UiStrings
         ButtonClearHistory = "Clear history",
         ClearHistoryTitle = "Clear dictation history?",
         ClearHistoryBody = "Every saved dictation will be deleted from this computer. This cannot be undone.",
-        FieldSplitVoicesMissing = "Needs two small voice models (34 MB). Get them on the Models page.",
         AboutDataFolder = "Settings and data",
         AdvancedIntro = "Sensible values are already set. Change these when something specific is wrong.",
         CallsSearchPlaceholder = "Search calls and transcripts",
@@ -1005,13 +1026,23 @@ public sealed record UiStrings
         VoicesSplitInto = "Split into {0} voices",
         VoiceRejectedHint = "Two quotes from here turned out to be someone else. This may be two people in one voice.",
         LineDoubtful = "Not sure this is the right person: the voice doesn't match well. Click to choose who said it.",
+        ModelsSegmentationHeader = "Voice splitting",
+        ModelsSegmentationNote = "Finds where the speaker changes. Needed only for calls with more than one other person, together with a voiceprint model below.",
+        ModelsEmbeddingHeader = "Voiceprints",
+        ModelsEmbeddingNote = "Tells whose voice it is: sorts the pieces of speech into people, checks every line of a call, and recognises people on later calls. One is enough.",
+        VoicesOpenModels = "Get the model",
+        VoiceSomeoneElseGetModel = "Someone else — get the model to split voices…",
+        VoicesResplitCount = "Voices to look for",
+        VoicesResplitGo = "Split again",
+        ModelsMissingList = "Not installed yet: {0}. The button downloads the recommended one.",
+        VoicesNeedModels = "Splitting needs: {0}.",
+        CardModelsMissing = "Telling these voices apart needs models that are not installed yet: {0}.",
         RecordCall = "Record a call",
         RecordDictate = "Dictate",
         RecordStop = "Stop",
         RecordTranscribing = "Transcribing…",
         DictateHint = "Dictate here: the text lands in this list and in the clipboard. To type straight into another app, put the caret there and press the hotkey.",
         VoiceMe = "This is you: your own microphone, so there is nothing to name. The name is set in Settings › Calls.",
-        VoicesResplit = "Split wrong? Look for this many voices:",
         VoiceTheOtherSide = "The other side",
         VoiceNamePlaceholder = "Name",
         LineSaidBy = "Said by",
@@ -1044,8 +1075,6 @@ public sealed record UiStrings
         FieldVoiceSegmentationModelHint = "What finds the moment the speaker changes",
         FieldVoiceThreshold = "How different voices must be",
         FieldVoiceThresholdHint = "Only used when you have not named the participants. Naming them is far more accurate",
-        ModelsVoicesHeader = "Telling voices apart",
-        ModelsVoicesNote = "Needed only for calls with more than one other person",
 
         ButtonBrowse = "Browse…",
         ButtonUseDefault = "Use default",
@@ -1407,7 +1436,6 @@ public sealed record UiStrings
         ButtonClearHistory = "Очистить историю",
         ClearHistoryTitle = "Очистить историю диктовок?",
         ClearHistoryBody = "Все сохранённые диктовки будут удалены с этого компьютера. Отменить будет нельзя.",
-        FieldSplitVoicesMissing = "Нужны две небольшие модели голосов (34 МБ). Скачайте их на странице «Модели».",
         AboutDataFolder = "Настройки и данные",
         AdvancedIntro = "Разумные значения уже выставлены. Меняйте, когда что-то конкретное работает не так.",
         CallsSearchPlaceholder = "Поиск по звонкам и тексту",
@@ -1462,13 +1490,23 @@ public sealed record UiStrings
         VoicesSplitInto = "Разделить заново — голосов: {0}",
         VoiceRejectedHint = "Две цитаты отсюда оказались чужими. Возможно, в этом голосе два человека.",
         LineDoubtful = "Не уверен, что это тот человек: голос не очень похож. Нажмите, чтобы выбрать, кто это сказал.",
+        ModelsSegmentationHeader = "Разделение голосов",
+        ModelsSegmentationNote = "Находит, где сменился говорящий. Нужна только для звонков, где собеседников больше одного, — вместе с моделью слепков ниже.",
+        ModelsEmbeddingHeader = "Слепки голоса",
+        ModelsEmbeddingNote = "Определяет, чей это голос: собирает куски речи в людей, проверяет каждую реплику звонка и узнаёт людей на следующих звонках. Достаточно одной.",
+        VoicesOpenModels = "Скачать модель",
+        VoiceSomeoneElseGetModel = "Кто-то другой — скачать модель для разделения…",
+        VoicesResplitCount = "Сколько голосов искать",
+        VoicesResplitGo = "Разделить заново",
+        ModelsMissingList = "Ещё не скачано: {0}. Кнопка скачает рекомендованную модель.",
+        VoicesNeedModels = "Чтобы разделить, нужно: {0}.",
+        CardModelsMissing = "Чтобы различить эти голоса, нужны модели, которые ещё не скачаны: {0}.",
         RecordCall = "Записать звонок",
         RecordDictate = "Диктовать",
         RecordStop = "Стоп",
         RecordTranscribing = "Распознаю…",
         DictateHint = "Диктовка сюда: текст появится в этом списке и в буфере обмена. Чтобы печатать сразу в другое приложение, поставьте туда курсор и нажмите горячую клавишу.",
         VoiceMe = "Это вы: ваш собственный микрофон, называть здесь некого. Имя задаётся в «Настройки › Звонки».",
-        VoicesResplit = "Разделено неверно? Искать голосов:",
         VoiceTheOtherSide = "Собеседник",
         VoiceNamePlaceholder = "Имя",
         LineSaidBy = "Эту реплику сказал",
@@ -1501,8 +1539,6 @@ public sealed record UiStrings
         FieldVoiceSegmentationModelHint = "Находит момент, когда говорящий сменился",
         FieldVoiceThreshold = "Насколько голоса должны различаться",
         FieldVoiceThresholdHint = "Работает, только если участники не названы. Назвать их — заметно точнее",
-        ModelsVoicesHeader = "Разделение голосов",
-        ModelsVoicesNote = "Нужно только для звонков, где собеседников больше одного",
 
         ButtonBrowse = "Обзор…",
         ButtonUseDefault = "По умолчанию",

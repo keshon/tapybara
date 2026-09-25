@@ -535,21 +535,11 @@ public partial class SettingsWindow : FluentWindow
             // Раздел детектора раньше просто исчезал, если модели не было, —
             // и человек не мог узнать, что она вообще существует и что её
             // надо скачать.
-            var goToModels = new Button
-            {
-                Content = L.S.SectionModels,
-                MinWidth = 130,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 10, 0, 0),
-            };
-
-            goToModels.Click += (_, _) => GoTo(SettingsSection.Models);
-
             AddStackedCard(
                 SymbolRegular.Warning24,
                 L.S.FieldVadModel,
                 L.S.FieldVadModelMissing,
-                goToModels,
+                FetchButton([ModelKind.SpeechDetector]),
                 trailing: null);
             return;
         }
@@ -892,10 +882,19 @@ public partial class SettingsWindow : FluentWindow
             L.S.ModelsDetectorNote,
             ModelKind.SpeechDetector);
 
+        // Две группы, а не одна: модель разделения и модель слепков делают
+        // разное, и нужна одна из каждой. В общей группе три строки читались
+        // как «выберите одну из трёх» — человек брал рекомендованную модель
+        // слепков и оставался без разделения, не узнав, чего не хватает.
+        // Внутри каждой группы выбор остаётся: моделей появится больше.
         AddDownloadGroup(
-            L.S.ModelsVoicesHeader,
-            L.S.ModelsVoicesNote,
-            ModelKind.VoiceSegmentation,
+            L.S.ModelsSegmentationHeader,
+            L.S.ModelsSegmentationNote,
+            ModelKind.VoiceSegmentation);
+
+        AddDownloadGroup(
+            L.S.ModelsEmbeddingHeader,
+            L.S.ModelsEmbeddingNote,
             ModelKind.VoiceEmbedding);
 
         var link = new Wpf.Ui.Controls.HyperlinkButton
@@ -911,6 +910,7 @@ public partial class SettingsWindow : FluentWindow
 
     private void AddDownloadGroup(string title, string? description, params ModelKind[] kinds)
     {
+        int at = _page.Children.Count;
         var list = new StackPanel();
         foreach (CatalogModel model in ModelCatalog.All.Where(m => kinds.Contains(m.Kind)))
         {
@@ -928,6 +928,101 @@ public partial class SettingsWindow : FluentWindow
             description,
             list,
             trailing: null);
+
+        foreach (ModelKind kind in kinds)
+        {
+            _models.Groups[kind] = (FrameworkElement)_page.Children[at];
+        }
+    }
+
+    /// <summary>
+    /// Скачать недостающую модель этого типа: открыть её группу и нажать
+    /// «Скачать» у первой модели в ней.
+    /// </summary>
+    /// <remarks>
+    /// Первая в группе — рекомендованная: так упорядочен каталог. Какая
+    /// именно, здесь не знают и знать не должны — появится новая модель,
+    /// станет первой, и кнопки по всему приложению поведут к ней. Закачка
+    /// идёт тем же путём, что и по нажатию на странице, с тем же прогрессом
+    /// и отменой.
+    /// </remarks>
+    public void FetchModel(ModelKind kind)
+    {
+        GoTo(SettingsSection.Models);
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+        {
+            if (_models.Groups.TryGetValue(kind, out FrameworkElement? group)
+                && group.TranslatePoint(new System.Windows.Point(0, 0), (UIElement)PageScroll.Content) is { } at)
+            {
+                PageScroll.ScrollToVerticalOffset(Math.Max(0, at.Y - 12));
+            }
+
+            CatalogModel? first = ModelCatalog.All.FirstOrDefault(m => m.Kind == kind);
+
+            // Модель этого типа уже скачана, но выбран файл, которого нет, —
+            // качать нечего, достаточно её выбрать.
+            if (first is not null && File.Exists(Path.Combine(TargetDirectory(), first.FileName)))
+            {
+                AdoptIfNothingChosen(first);
+                RefreshControls();
+                ModelsChanged?.Invoke();
+                return;
+            }
+
+            if (first is not null
+                && _models.Buttons.TryGetValue(first.FileName, out Button? download)
+                && download.IsEnabled
+                && !_models.Running.ContainsKey(first.FileName))
+            {
+                download.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            }
+        });
+    }
+
+    /// <summary>
+    /// Сделать модель выбранной, если выбранной модели её типа на диске нет.
+    /// </summary>
+    /// <remarks>
+    /// Скачали первую модель — сразу ею и пользуемся: заставлять выбирать её
+    /// отдельным действием было бы бессмысленной формальностью.
+    /// </remarks>
+    private void AdoptIfNothingChosen(CatalogModel model)
+    {
+        if (model.Kind == ModelKind.Recognition && _availableModels().Count <= 1)
+        {
+            Apply(s => s with { ModelFileName = model.FileName });
+        }
+        else if (model.Kind == ModelKind.SpeechDetector
+                 && ModelLocator.ResolveVadModel(Settings.VadModelFileName, Settings.ModelsDirectory) is null)
+        {
+            Apply(s => s with { VadModelFileName = model.FileName });
+        }
+        else if (model.Kind == ModelKind.VoiceSegmentation
+                 && ModelNeeds.Missing(Settings, [ModelKind.VoiceSegmentation]).Count > 0)
+        {
+            Apply(s => s with { VoiceSegmentationModelFileName = model.FileName });
+        }
+        else if (model.Kind == ModelKind.VoiceEmbedding
+                 && ModelNeeds.Missing(Settings, [ModelKind.VoiceEmbedding]).Count > 0)
+        {
+            Apply(s => s with { VoiceEmbeddingModelFileName = model.FileName });
+        }
+    }
+
+    /// <summary>Кнопка «Скачать» для первого недостающего типа.</summary>
+    private Wpf.Ui.Controls.Button FetchButton(IReadOnlyList<ModelKind> missing)
+    {
+        var fetch = new Wpf.Ui.Controls.Button
+        {
+            Content = L.S.VoicesOpenModels,
+            Appearance = ControlAppearance.Primary,
+            MinWidth = 130,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+
+        fetch.Click += (_, _) => FetchModel(missing[0]);
+        return fetch;
     }
 
     private Grid BuildDownloadRow(CatalogModel model)
@@ -976,6 +1071,7 @@ public partial class SettingsWindow : FluentWindow
         grid.Children.Add(action);
 
         WireDownloadRow(model, action, detail, progress);
+        _models.Buttons[model.FileName] = action;
         return grid;
     }
 
@@ -1047,15 +1143,7 @@ public partial class SettingsWindow : FluentWindow
                 // Скачали первую модель — сразу ею и пользуемся: заставлять
                 // выбирать её отдельным действием было бы бессмысленной
                 // формальностью.
-                if (model.Kind == ModelKind.Recognition && _availableModels().Count <= 1)
-                {
-                    Apply(s => s with { ModelFileName = model.FileName });
-                }
-                else if (model.Kind == ModelKind.SpeechDetector
-                         && ModelLocator.ResolveVadModel(Settings.VadModelFileName, Settings.ModelsDirectory) is null)
-                {
-                    Apply(s => s with { VadModelFileName = model.FileName });
-                }
+                AdoptIfNothingChosen(model);
 
                 // Обновляем ВСЁ, что зависит от набора моделей: список
                 // установленного, выбор модели распознавания, выбор детектора
@@ -1216,27 +1304,17 @@ public partial class SettingsWindow : FluentWindow
     /// </remarks>
     private void BuildSplitVoicesCard()
     {
-        bool modelsPresent =
-            ModelLocator.Resolve(Settings.VoiceSegmentationModelFileName, Settings.ModelsDirectory) is not null
-            && ModelLocator.Resolve(Settings.VoiceEmbeddingModelFileName, Settings.ModelsDirectory) is not null;
+        IReadOnlyList<ModelKind> missing = ModelNeeds.Missing(Settings, ModelNeeds.SplitVoices);
 
-        if (!modelsPresent)
+        if (missing.Count > 0)
         {
-            var goToModels = new Button
-            {
-                Content = L.S.SectionModels,
-                MinWidth = 130,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 10, 0, 0),
-            };
-
-            goToModels.Click += (_, _) => GoTo(SettingsSection.Models);
-
+            // Какого именно типа не хватает: одного из двух — не то же самое,
+            // что обоих, и «скачайте модели» при одной скачанной путает.
             AddStackedCard(
                 SymbolRegular.PeopleTeam24,
                 L.S.FieldSplitVoices,
-                L.S.FieldSplitVoicesMissing,
-                goToModels,
+                string.Format(CultureInfo.CurrentCulture, L.S.ModelsMissingList, L.S.KindNames(missing)),
+                FetchButton(missing),
                 trailing: null);
             return;
         }
@@ -1870,8 +1948,21 @@ public partial class SettingsWindow : FluentWindow
             VerticalAlignment = VerticalAlignment.Top,
         });
 
-        head.Children.Add(BuildHeader(title, description, maxWidth: 520));
+        // Пояснение — под значком, от левого края карточки, вровень с
+        // содержимым под ним. Рядом с названием оно висело со сдвигом на
+        // ширину значка, а список моделей ниже начинался от края — и слева
+        // от пояснения зияла пустота.
+        head.Children.Add(BuildHeader(title, description: null, maxWidth: 520));
         content.Children.Add(head);
+
+        if (!string.IsNullOrEmpty(description))
+        {
+            TextBlock caption = Ui.Caption(description);
+            caption.MaxWidth = 620;
+            caption.HorizontalAlignment = HorizontalAlignment.Left;
+            caption.Margin = new Thickness(0, -4, 0, 10);
+            content.Children.Add(caption);
+        }
         content.Children.Add(control);
 
         if (trailing is not null)
@@ -2596,5 +2687,11 @@ public partial class SettingsWindow : FluentWindow
     private sealed class ModelsPageState
     {
         public Dictionary<string, CancellationTokenSource> Running { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Кнопка «Скачать» каждой модели каталога — чтобы нажать её снаружи.</summary>
+        public Dictionary<string, Button> Buttons { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Карточка группы каждого типа — чтобы к ней прокрутить.</summary>
+        public Dictionary<ModelKind, FrameworkElement> Groups { get; } = [];
     }
 }

@@ -194,7 +194,7 @@ public sealed class ParticipantsPicker : UserControl
         {
             Content = name,
             IsChecked = selected,
-            Style = (Style)Application.Current.Resources["ParticipantChipStyle"],
+            Style = Ui.ChipStyle(),
             ToolTip = selected ? L.S.ParticipantsRemoveHint : L.S.ParticipantsAddHint,
         };
 

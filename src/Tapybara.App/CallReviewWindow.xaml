@@ -54,6 +54,14 @@
             <TextBlock x:Name="ParticipantsLabel" Style="{StaticResource TextBodyStrong}" Margin="0,0,0,8" />
             <app:ParticipantsPicker x:Name="Participants" />
             <TextBlock x:Name="ParticipantsHint" Style="{StaticResource TextCaption}" Margin="0,4,0,0" />
+            <!-- Несколько человек, а различать их нечем: сказать сразу и дать
+                 скачать, а не распознать молча без разделения. -->
+            <Button x:Name="SplitModelsButton"
+                    Style="{StaticResource FlatLinkButton}"
+                    HorizontalAlignment="Left"
+                    Margin="0,4,0,0"
+                    Visibility="Collapsed"
+                    Click="OnSplitModelsClick" />
         </StackPanel>
 
         <Border Grid.Row="2"
