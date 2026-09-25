@@ -262,18 +262,41 @@ what state each is in, and lets you fix names or transcribe again later.
 
 The calls window shows the transcript itself, not a link to a file. Each voice
 has its own colour, and a panel beside the transcript lists the voices found:
-how much each one spoke, its longest lines as quotes, and a ▶ that plays that
-line from the far track alone. Pick a name under a voice and it goes into every
+how much each one spoke, three quotes, and a ▶ that plays that line from the
+far track alone. The quotes are the lines that sound most surely like that
+voice, one from each part of the call — not the longest ones, because a long
+line is exactly where a change of speaker hides. Pick a name under a voice and it goes into every
 one of its lines at once — `transcript.md` is rebuilt in the same moment.
 
-When one line landed on the wrong voice, click the name above it and give it to
-another. When one person was split into two voices, "Same person as…" merges
+When a quote is not that person, **Not this person** under it gives the line
+to another voice or to a new one, and the next best quote takes its place.
+When a line in the transcript landed on the wrong voice, click the name above
+it and give it to another. When one person was split into two voices, "Same person as…" merges
 them. When the split found the wrong number of people, tell it the right number
 and only the split runs again.
 
 A timestamp plays the call from that line. Right-click a line to copy it or to
 add a replacement for a word that keeps being misheard — without going to
 Settings.
+
+### Checking every line
+
+Once voices are split, every line of four seconds or more is compared with
+the voice it was given. A line that clearly sounds like another voice moves
+there by itself; one that sounds like none of them gets a `?` beside its
+time — click it to say who it was. Your own track is never checked; it is
+your microphone.
+
+When many lines sound like nobody found — usually because one person was
+ticked and three spoke — the voices panel says someone else was probably on
+the call and offers to split again with one more voice. On the author's
+recordings a call ticked with one person and spoken by three had 39 such
+lines; split into three voices, none. Calls recorded before this check are
+checked once, in the background, the first time they are opened.
+
+The check runs whether or not voices are remembered: it compares the lines of
+one call with each other and keeps nothing. `bench linecheck <call folder>`
+prints the numbers for a recording.
 
 Calls transcribed before this version kept only the markdown, so their voices
 cannot be named; the window says so and offers to transcribe them again.
@@ -290,7 +313,10 @@ someone else's name in the transcript.
 
 A call with a single ticked participant teaches the book on its own — the
 whole far track is that person by construction — so one-to-one calls are
-enough for Tapybara to recognise people later on group calls.
+enough for Tapybara to recognise people later on group calls. Unless the line
+check hears someone else on that side: then nothing is learned, because the
+print would carry other people's voices under that name. The print itself is
+taken from the lines that most surely belong to the voice.
 
 A voiceprint is biometric data. It is stored in `voices.json` next to the
 settings and never leaves the computer unless you export the dictionary
