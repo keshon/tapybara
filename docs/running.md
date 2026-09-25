@@ -181,8 +181,9 @@ right:
 | хакинг фейс | Hugging Face |
 | си шарп | C# |
 
-A right-click on a line of a call transcript adds a replacement without leaving
-the call.
+A replacement fixes new dictations and calls. For calls transcribed before it
+was added, **Apply to past calls** on the Dictionary page corrects their text in
+place — nothing is transcribed again.
 
 Names that end in punctuation — `C#`, `C++`, `.NET` — work as replacement
 targets and as keys.
@@ -275,9 +276,20 @@ it and give it to another. When one person was split into two voices, "Same pers
 them. When the split found the wrong number of people, tell it the right number
 and only the split runs again.
 
-A timestamp plays the call from that line. Right-click a line to copy it or to
-add a replacement for a word that keeps being misheard — without going to
-Settings.
+A timestamp plays the call from that line.
+
+### Fixing words
+
+Double-click a misheard word. The card that opens lists how else the same word
+came out in this call — misspelled or declined, "битре", "битра", "битры" —
+all ticked: type the right word and **Replace** changes them at once, or
+**Only here** changes just that one place. **Remember in the dictionary** (on by
+default) adds the ticked spellings as replacements, so later calls come out
+right. To rewrite a whole line, right-click it › **Edit the line**: Enter saves,
+Esc cancels.
+
+Edits change the text only — nothing is transcribed again. Transcribing an
+edited call again would lose them, so Tapybara asks first.
 
 ### Checking every line
 

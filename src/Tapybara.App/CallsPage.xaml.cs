@@ -2015,7 +2015,18 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         if (sender is TextBox { IsReadOnly: true, Tag: TranscriptLineRow row } box)
         {
             e.Handled = true;
-            FixWordAt(box, row, box.GetCharacterIndexFromPoint(e.GetPosition(box), snapToText: true));
+            int index = box.GetCharacterIndexFromPoint(e.GetPosition(box), snapToText: true);
+
+            // Карточка открывается, когда кнопку отпустят: на втором нажатии
+            // поле ещё держит мышь для выделения, и отпускание закрыло бы
+            // только что открытую карточку.
+            void Open(object s, MouseButtonEventArgs up)
+            {
+                box.PreviewMouseLeftButtonUp -= Open;
+                Dispatcher.BeginInvoke(() => FixWordAt(box, row, index), DispatcherPriority.Input);
+            }
+
+            box.PreviewMouseLeftButtonUp += Open;
         }
     }
 

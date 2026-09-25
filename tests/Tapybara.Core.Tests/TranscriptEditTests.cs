@@ -33,6 +33,17 @@ public sealed class TranscriptEditTests
     }
 
     [Fact]
+    public void SimilarForms_SkipsOtherWordsThatDifferAtTheStart()
+    {
+        // Настоящий случай: к «битре» предлагалось «тире».
+        CallTranscript call = Call("Ставится в битре, битра тире рекстат, из битры.");
+
+        IReadOnlyList<TranscriptEdit.WordForm> forms = TranscriptEdit.SimilarForms(call, "битре");
+
+        Assert.Equal(["битре", "битра", "битры"], forms.Select(f => f.Form));
+    }
+
+    [Fact]
     public void SimilarForms_KeepsShortWordsExact()
     {
         CallTranscript call = Call("Кот ест код, кот спит.");

@@ -226,7 +226,12 @@ public static partial class TranscriptEdit
             return false;
         }
 
-        int allowed = Math.Max(1, (int)Math.Round(Math.Max(a.Length, b.Length) * SimilarShare));
+        // Искажения и падежи меняют середину и конец слова, а не начало:
+        // «битре» — «битра», но не «тире». С другой первой буквой похожим
+        // считается только слово с одной опечаткой.
+        int allowed = a[0] == b[0]
+            ? Math.Max(1, (int)Math.Round(Math.Max(a.Length, b.Length) * SimilarShare))
+            : 1;
         return Math.Abs(a.Length - b.Length) <= allowed && Distance(a, b) <= allowed;
     }
 
