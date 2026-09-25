@@ -7,6 +7,8 @@ using Application = System.Windows.Application;
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
 using Color = System.Windows.Media.Color;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace Tapybara.App;
 
@@ -38,6 +40,73 @@ internal static class Ui
 
     /// <summary>Кнопка-ссылка без рамки.</summary>
     public static Button Link(string text) => new() { Content = text, Style = StyleOf("FlatLinkButton") };
+
+    /// <summary>Ссылка мелким кеглем — под цитатой, у голоса: рядом с подписью, не громче её.</summary>
+    public static Button SmallLink(string text)
+    {
+        Button link = Link(text);
+        link.FontSize = Tokens.Caption;
+        link.Padding = new Thickness(Tokens.Space1, 0, Tokens.Space1, 0);
+        link.VerticalAlignment = VerticalAlignment.Center;
+        return link;
+    }
+
+    /// <summary>Цветная точка человека — у имени, в чипе, в меню.</summary>
+    public static System.Windows.Shapes.Ellipse Dot(Brush color, double size) => new()
+    {
+        Width = size,
+        Height = size,
+        Fill = color,
+        Margin = new Thickness(0, 0, Tokens.Space2, 0),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>Метка рядом с названием: «свой файл».</summary>
+    public static Border Tag(string text)
+    {
+        var tag = new Border
+        {
+            Child = Caption(text),
+            BorderThickness = new Thickness(1),
+            CornerRadius = Tokens.ControlRadius,
+            Padding = new Thickness(Tokens.Space1, 0, Tokens.Space1, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        tag.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+        return tag;
+    }
+
+    /// <summary>
+    /// Кнопка «⋯» с меню редких действий — одна на все места, где она есть.
+    /// </summary>
+    /// <param name="items">Пункты: текст, значок и что делать.</param>
+    public static Wpf.Ui.Controls.Button MoreButton(params (string Text, Wpf.Ui.Controls.SymbolRegular Icon, Action Act)[] items)
+    {
+        string more = Localization.L.S.CallsMore;
+        var button = new Wpf.Ui.Controls.Button
+        {
+            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.MoreHorizontal24 },
+            ToolTip = more,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(button, more);
+        button.Click += (_, _) => Menu(button, items).IsOpen = true;
+        return button;
+    }
+
+    /// <summary>Меню под элементом: пункты со значками.</summary>
+    public static ContextMenu Menu(UIElement anchor, params (string Text, Wpf.Ui.Controls.SymbolRegular Icon, Action Act)[] items)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
+        foreach ((string text, Wpf.Ui.Controls.SymbolRegular icon, Action act) in items)
+        {
+            var item = new MenuItem { Header = text, Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = icon } };
+            item.Click += (_, _) => act();
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
 
     public static Style StyleOf(string key) => (Style)Application.Current.FindResource(key);
 

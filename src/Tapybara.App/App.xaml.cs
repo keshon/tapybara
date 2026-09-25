@@ -92,6 +92,9 @@ public partial class App : Application, IDisposable
 
     /// <summary>Окно настроек. Оно одно: второе рассинхронизировалось бы с первым.</summary>
     private SettingsWindow? _settingsWindow;
+
+    /// <summary>Закачки моделей — живут дольше окна настроек, из которого их начали.</summary>
+    private ModelDownloads? _downloads;
     /// <summary>Главное окно: диктовки, звонки, словарь. Одно на приложение.</summary>
     private MainWindow? _mainWindow;
 
@@ -261,6 +264,8 @@ public partial class App : Application, IDisposable
 
         _journal = new DictationJournal(AppPaths.DictationsPath);
         _voiceBook = new VoiceBook(AppPaths.VoicesPath);
+        _downloads = new ModelDownloads(_settings);
+        _downloads.Landed += OnModelsChanged;
 
         StartHotkey();
         StartCallHotkey();
@@ -337,11 +342,14 @@ public partial class App : Application, IDisposable
         {
             Directory.CreateDirectory(directory);
 
-            var watcher = new FileSystemWatcher(directory, "*.bin")
+            // И голосовые модели: *.onnx лежат в той же папке.
+            var watcher = new FileSystemWatcher(directory)
             {
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite,
                 IncludeSubdirectories = false,
             };
+            watcher.Filters.Add("*.bin");
+            watcher.Filters.Add("*.onnx");
 
             // Копирование большого файла порождает поток событий, а
             // переименование — сразу два. Собираем всё в одно обновление,
@@ -401,11 +409,15 @@ public partial class App : Application, IDisposable
     private async Task<string?> DeleteModelAsync(InstalledModel model)
     {
         AppSettings settings = _settings.Current;
+        string directory = Path.GetDirectoryName(model.Path)!;
 
-        bool inUse = string.Equals(model.FileName, settings.ModelFileName, StringComparison.OrdinalIgnoreCase)
-                     || string.Equals(model.FileName, settings.VadModelFileName, StringComparison.OrdinalIgnoreCase);
+        // «Используется» — по тому же правилу, что и кружок на странице моделей:
+        // запасная модель, которой движок работает без выбранной, тоже занята.
+        bool inUse = ModelShelf.Of(model.Kind, ModelStorage.List(directory), settings)
+            .Any(m => m.InUse && string.Equals(m.FileName, model.FileName, StringComparison.OrdinalIgnoreCase));
+        bool holdsEngine = inUse && model.Kind is ModelKind.Recognition or ModelKind.SpeechDetector;
 
-        if (inUse)
+        if (holdsEngine)
         {
             await _rebuildGate.WaitAsync().ConfigureAwait(true);
             try
@@ -423,7 +435,7 @@ public partial class App : Application, IDisposable
         // движок дважды.
         if (ModelStorage.Delete(model.Path) is { } failure)
         {
-            if (inUse)
+            if (holdsEngine)
             {
                 _ = RebuildEngineAsync();
             }
@@ -431,16 +443,17 @@ public partial class App : Application, IDisposable
             return failure;
         }
 
-        // Настройка указывает на файл, которого больше нет — переводим её на
-        // то, что осталось, иначе следующая сборка движка возьмёт «любую» и
-        // меню покажет отмеченной не ту.
-        if (model.Kind == ModelKind.Recognition
-            && string.Equals(model.FileName, settings.ModelFileName, StringComparison.OrdinalIgnoreCase)
-            && AvailableModels() is [string replacement, ..])
+        // Удалили используемую — её тип переходит к другой скачанной, если
+        // есть. Смена настройки сама пересоберёт движок; не сменилась —
+        // пересобираем здесь: мы его только что разобрали.
+        bool chosenChanged = false;
+        if (inUse && ModelShelf.Of(model.Kind, ModelStorage.List(directory), settings).FirstOrDefault(m => m.IsInstalled) is { } next)
         {
-            _settings.Update(s => s with { ModelFileName = replacement });
+            chosenChanged = ModelShelf.Chosen(settings, model.Kind) != next.FileName;
+            _settings.Update(s => ModelShelf.Choose(s, model.Kind, next.FileName));
         }
-        else if (inUse)
+
+        if (holdsEngine && !chosenChanged)
         {
             _ = RebuildEngineAsync();
         }
@@ -1281,16 +1294,8 @@ public partial class App : Application, IDisposable
 
         var window = new CallReviewWindow(session, settings.EffectiveMyName, settings.KnownParticipants);
         window.OfferSplitModels(
-            () => _settings.Current.SplitVoices && ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices).Count > 0,
-            () => L.S.KindNames(ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices)),
-            () =>
-            {
-                IReadOnlyList<ModelKind> missing = ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices);
-                if (missing.Count > 0)
-                {
-                    FetchModel(missing[0]);
-                }
-            });
+            () => _settings.Current.SplitVoices ? ModelNeeds.Missing(_settings.Current, ModelNeeds.SplitVoices) : [],
+            FetchModel);
         _reviewCards[session.Directory] = window;
 
         window.Closed += (_, _) =>
@@ -1343,13 +1348,17 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private void CancelCallWork(string directory)
     {
+        StopCallJob(directory);
+        _mainWindow?.RefreshCalls();
+    }
+
+    private void StopCallJob(string directory)
+    {
         _queuedCalls.Remove(directory);
         if (string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase))
         {
             _callCancellation?.Cancel();
         }
-
-        _mainWindow?.RefreshCalls();
     }
 
     /// <summary>Убрать папку звонка целиком.</summary>
@@ -1360,11 +1369,7 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private void DeleteCall(string directory)
     {
-        _queuedCalls.Remove(directory);
-        if (string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase))
-        {
-            _callCancellation?.Cancel();
-        }
+        StopCallJob(directory);
 
         try
         {
@@ -1373,7 +1378,7 @@ public partial class App : Application, IDisposable
                 Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
                 Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
         {
             AppLog.Error("Не удалось удалить папку звонка.", ex);
             _tray?.SetStatus(ex.Message);
@@ -1916,7 +1921,7 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        var window = new SettingsWindow(_settings, DeleteModelAsync, _journal, _voiceBook, _updater!, RestartToUpdate);
+        var window = new SettingsWindow(_settings, _downloads!, DeleteModelAsync, _journal, _voiceBook, _updater!, RestartToUpdate);
         window.HotkeyCaptureChanged += OnHotkeyCaptureChanged;
         window.ModelsChanged += OnModelsChanged;
         window.Closed += (_, _) => _settingsWindow = null;
@@ -2148,6 +2153,8 @@ public partial class App : Application, IDisposable
     public void Dispose()
     {
         AppLog.Info("Выход.");
+
+        _downloads?.CancelAll();
 
         _elapsedTimer?.Stop();
         _elapsedTimer = null;

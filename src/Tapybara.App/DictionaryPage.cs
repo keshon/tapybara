@@ -61,6 +61,9 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     private readonly VoiceBook _voices;
     private readonly Func<string> _callsDirectory;
     private readonly Action<string> _render;
+
+    /// <summary>Идёт ли работа над звонком — такой не правим: распознавание перезапишет правку.</summary>
+    private readonly Func<string, bool> _isCallBusy;
     private readonly StackPanel _root = new() { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 960, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _replacements = new();
     private readonly List<ReplacementRow> _rows = [];
@@ -70,8 +73,14 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     private readonly TextBlock _noMatches;
     private readonly TextBlock _status;
 
-    public DictionaryPage(SettingsHost settings, VoiceBook voices, Func<string> callsDirectory, Action<string> render)
+    public DictionaryPage(
+        SettingsHost settings,
+        VoiceBook voices,
+        Func<string> callsDirectory,
+        Action<string> render,
+        Func<string, bool> isCallBusy)
     {
+        _isCallBusy = isCallBusy;
         _settings = settings;
         _voices = voices;
         _callsDirectory = callsDirectory;
@@ -201,7 +210,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         System.Windows.Controls.Button applyToCalls = Ui.Link(L.S.DictionaryApplyToCalls);
         applyToCalls.VerticalAlignment = VerticalAlignment.Center;
         applyToCalls.Margin = new Thickness(Tokens.Space4, 0, 0, 0);
-        applyToCalls.Click += (_, _) => ApplyToPastCalls();
+        applyToCalls.Click += async (_, _) => await ApplyToPastCallsAsync();
 
         var toolbar = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
         toolbar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { add, applyToCalls } });
@@ -676,7 +685,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     /// Сначала считаем, потом спрашиваем: «исправится 23 места в 5 звонках» —
     /// понятная цена, а молча переписанные звонки не понравились бы никому.
     /// </remarks>
-    private void ApplyToPastCalls()
+    private async Task ApplyToPastCallsAsync()
     {
         Dictionary<string, string> dictionary = Settings.Replacements;
         string root = _callsDirectory();
@@ -686,22 +695,26 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             return;
         }
 
-        var touched = new List<string>();
-        int places = 0;
-        foreach (string directory in Directory.GetDirectories(root))
+        // Звонок, который распознаётся прямо сейчас, пропускаем: распознавание
+        // допишет свой текст поверх исправленного. Прочитать все транскрипты —
+        // дело диска, и окно на это время не замирает.
+        List<string> directories = [.. Directory.GetDirectories(root).Where(d => !_isCallBusy(d))];
+        (List<string> touched, int places) = await Task.Run(() =>
         {
-            if (CallTranscriptStore.Load(directory) is not { } transcript)
+            var found = new List<string>();
+            int count = 0;
+            foreach (string directory in directories)
             {
-                continue;
+                if (CallTranscriptStore.Load(directory) is { } transcript
+                    && TranscriptEdit.ApplyDictionary(transcript, dictionary).Replaced is > 0 and int replaced)
+                {
+                    found.Add(directory);
+                    count += replaced;
+                }
             }
 
-            int replaced = TranscriptEdit.ApplyDictionary(transcript, dictionary).Replaced;
-            if (replaced > 0)
-            {
-                touched.Add(directory);
-                places += replaced;
-            }
-        }
+            return (found, count);
+        });
 
         if (places == 0)
         {
