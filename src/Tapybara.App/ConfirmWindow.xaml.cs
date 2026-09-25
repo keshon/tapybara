@@ -68,6 +68,13 @@ public partial class ConfirmWindow : FluentWindow
     /// <summary>Ответ пользователя.</summary>
     public ConfirmChoice Choice { get; private set; } = ConfirmChoice.Cancel;
 
+    /// <summary>Можно ли нажать главную кнопку — пока в поле пусто, нельзя.</summary>
+    public bool PrimaryEnabled
+    {
+        get => PrimaryButton.IsEnabled;
+        set => PrimaryButton.IsEnabled = value;
+    }
+
     /// <summary>
     /// Добавить строку «подпись — значение» в карточку под текстом.
     /// </summary>

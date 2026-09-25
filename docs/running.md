@@ -287,6 +287,18 @@ quotes, the voices it is made of and **Detach** by each, and **Change** to
 rename. Two people with one name are one person to Tapybara, so give namesakes
 different names — "Sasha K.", "Sasha M.".
 
+**Change** renames a person on this call only. **Rename everywhere…** beside it
+— or editing the name under Dictionary › People — renames them in every call,
+the voice book and the list of people, and offers the mentions in the text:
+each form with what it becomes, "кириллу → Шерифу ×5", so that "tell Kirill"
+follows the new name in the right case. Nothing is transcribed again.
+
+To show a call to someone without showing who was on it, **⋯ › Copy without
+names…** copies the transcript with an alias for each person — yourself and
+anyone mentioned included — and replaces the mentions too. Only the copy
+changes; the call keeps the real names. Aliases are remembered, so the same
+person is the same "Sheriff" in the next copy.
+
 When a quote is not that person, **Not this person** under it gives the line
 to someone else, and the next best quote takes its place. When a line in the
 transcript landed on the wrong person, click the name above it. When the split

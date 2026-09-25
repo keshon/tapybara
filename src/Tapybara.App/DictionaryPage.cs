@@ -601,24 +601,17 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         var box = new TextBox { Text = name, ClearButtonEnabled = false };
         Button remove = DeleteButton();
 
+        // Переименование — везде: звонки, упоминания, книга голосов.
+        // Отказался — имя в поле возвращается.
         box.LostFocus += (_, _) =>
         {
-            string? renamed = box.Text.Trim() is { Length: > 0 } t ? t : null;
-            if (renamed is null || renamed == name)
+            string renamed = box.Text.Trim();
+            if (renamed.Length == 0
+                || renamed == name
+                || !PersonRenamer.Run(Window.GetWindow(this), _settings, _voices, _callsDirectory(), name, renamed, _render))
             {
                 box.Text = name;
-                return;
             }
-
-            _settings.Update(s => s with
-            {
-                KnownParticipants = [.. s.KnownParticipants.Select(n => n == name ? renamed : n)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)],
-            });
-
-            // Голос переезжает вместе с именем: иначе переименованный человек
-            // перестал бы узнаваться, а старое имя всплывало бы в подсказках.
-            _voices.Rename(name, renamed);
         };
 
         // Убрать человека — значит и забыть его голос: подсказывать имя,
