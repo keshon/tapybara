@@ -188,15 +188,26 @@ public sealed class CallTranscriptTests : IDisposable
     public void Label_OwnLinesCarryTheOwnersName() =>
         Assert.Equal("Иннокентий", Label(Mine(0, 1, "я"), Session(), voiceCount: 0));
 
-    /// <summary>Один собеседник подписывает весь чужой канал — это верно по построению.</summary>
+    /// <summary>Один отмеченный собеседник подписывает чужой канал, пока голос там один.</summary>
     [Fact]
     public void Label_SingleParticipantNamesTheWholeOtherSide()
     {
-        CallSession session = Session(participants: ["Кирилл"], voices: ["A", "B"]);
+        Assert.Equal("Кирилл", Label(Theirs(0, 1, "x"), Session(participants: ["Кирилл"]), voiceCount: 0));
+        Assert.Equal("Кирилл", Label(Theirs(0, 1, "x", "A"), Session(participants: ["Кирилл"], voices: ["A"]), voiceCount: 1));
+    }
 
-        Assert.Equal("Кирилл", Label(Theirs(0, 1, "x", "A"), session, voiceCount: 2));
-        Assert.Equal("Кирилл", Label(Theirs(1, 2, "y", "B"), session, voiceCount: 2));
-        Assert.Equal("Кирилл", Label(Theirs(2, 3, "z"), session, voiceCount: 2));
+    /// <summary>
+    /// Отметили одного, а голосов разделили несколько — значит, человек сам
+    /// сказал «их было больше», и раздавать всем одно имя нельзя.
+    /// </summary>
+    [Fact]
+    public void Label_SingleParticipantDoesNotNameSeveralVoices()
+    {
+        CallSession session = Session(participants: ["Витя"], voices: ["A", "B"]);
+
+        Assert.Equal("Голос A", Label(Theirs(0, 1, "x", "A"), session, voiceCount: 2));
+        Assert.Equal("Голос B", Label(Theirs(1, 2, "y", "B"), session, voiceCount: 2));
+        Assert.True(CallSpeakers.NeedsNames(session));
     }
 
     [Fact]
@@ -210,7 +221,7 @@ public sealed class CallTranscriptTests : IDisposable
         Assert.True(CallSpeakers.NeedsNames(Session(voices: ["A", "B"], names: new() { ["A"] = "Кирилл" })));
         Assert.False(CallSpeakers.NeedsNames(Session(voices: ["A", "B"], names: new() { ["A"] = "Кирилл", ["B"] = "Марина" })));
         Assert.False(CallSpeakers.NeedsNames(Session(voices: ["A"])));
-        Assert.False(CallSpeakers.NeedsNames(Session(participants: ["Кирилл"], voices: ["A", "B"])));
+        Assert.False(CallSpeakers.NeedsNames(Session(participants: ["Кирилл"], voices: ["A"])));
     }
 
     // --- сколько голосов искать ---------------------------------------------
