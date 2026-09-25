@@ -206,10 +206,28 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <ScrollViewer x:Name="PART_ContentHost"
-                                  Focusable="False"
-                                  HorizontalScrollBarVisibility="Hidden"
-                                  VerticalScrollBarVisibility="Hidden" />
+                    <!-- В покое — просто текст. Когда реплику правят на месте,
+                         появляется подложка поля и полоса акцента снизу: видно,
+                         что сейчас это поле, и где оно кончается. -->
+                    <Border x:Name="Frame"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="{x:Static app:Tokens.ControlRadius}">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsReadOnly" Value="False">
+                            <Setter TargetName="Frame" Property="Background"
+                                    Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                            <Setter TargetName="Frame" Property="BorderBrush"
+                                    Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            <Setter TargetName="Frame" Property="BorderThickness" Value="0,0,0,2" />
+                            <Setter TargetName="Frame" Property="Padding" Value="6,3" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

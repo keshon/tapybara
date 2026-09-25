@@ -329,6 +329,7 @@
                                                      Style="{StaticResource TranscriptTextStyle}"
                                                      Text="{Binding Text, Mode=OneWay}"
                                                      Tag="{Binding}"
+                                                     MouseDoubleClick="OnLineDoubleClick"
                                                      ContextMenuOpening="OnLineContextMenuOpening" />
                                         </Grid>
                                     </Border>

@@ -426,6 +426,20 @@ public sealed record UiStrings
     public required string ModelsMissingList { get; init; }
     public required string VoicesNeedModels { get; init; }
     public required string CardModelsMissing { get; init; }
+    public required string LineFixWord { get; init; }
+    public required string LineEditText { get; init; }
+    public required string FixSimilar { get; init; }
+    public required string FixRemember { get; init; }
+    public required string FixReplaceAll { get; init; }
+    public required string FixOnlyHere { get; init; }
+    public required string RetranscribeEditedTitle { get; init; }
+    public required string RetranscribeEditedBody { get; init; }
+    public required string DictionaryApplyToCalls { get; init; }
+    public required string DictionaryApplyTitle { get; init; }
+    public required string DictionaryApplyBody { get; init; }
+    public required string DictionaryApplyGo { get; init; }
+    public required string DictionaryApplyNothing { get; init; }
+    public required string DictionaryApplied { get; init; }
     public required string RecordCall { get; init; }
     public required string RecordDictate { get; init; }
     public required string RecordStop { get; init; }
@@ -436,12 +450,8 @@ public sealed record UiStrings
     public required string LineSaidBy { get; init; }
     public required string LinePlayFrom { get; init; }
     public required string LineCopy { get; init; }
-    public required string LineAddReplacement { get; init; }
     public required string LineYourMicrophone { get; init; }
     public required string ReplacementTitle { get; init; }
-    public required string ReplacementHeard { get; init; }
-    public required string ReplacementCorrect { get; init; }
-    public required string ReplacementHint { get; init; }
     public required string ButtonAdd { get; init; }
     public required string CallStateNotTranscribed { get; init; }
     public required string CallStateDamaged { get; init; }
@@ -1037,6 +1047,20 @@ public sealed record UiStrings
         ModelsMissingList = "Not installed yet: {0}. The button downloads the recommended one.",
         VoicesNeedModels = "Splitting needs: {0}.",
         CardModelsMissing = "Telling these voices apart needs models that are not installed yet: {0}.",
+        LineFixWord = "Fix this word…",
+        LineEditText = "Edit the line",
+        FixSimilar = "Similar in this call",
+        FixRemember = "Remember in the dictionary",
+        FixReplaceAll = "Replace: {0}",
+        FixOnlyHere = "Only here",
+        RetranscribeEditedTitle = "Transcribe again?",
+        RetranscribeEditedBody = "The transcript has edits made by hand. Transcribing again rebuilds the text from the recording, and those edits will be lost. Words saved to the dictionary will be fixed again.",
+        DictionaryApplyToCalls = "Apply to past calls",
+        DictionaryApplyTitle = "Apply the dictionary to past calls?",
+        DictionaryApplyBody = "Places to correct: {0}, in {1} calls. The text is corrected as it is; nothing is transcribed again.",
+        DictionaryApplyGo = "Apply",
+        DictionaryApplyNothing = "Past calls already match the dictionary.",
+        DictionaryApplied = "Corrected {0} places in {1} calls.",
         RecordCall = "Record a call",
         RecordDictate = "Dictate",
         RecordStop = "Stop",
@@ -1048,12 +1072,8 @@ public sealed record UiStrings
         LineSaidBy = "Said by",
         LinePlayFrom = "Listen from {0}",
         LineCopy = "Copy",
-        LineAddReplacement = "Add a replacement…",
         LineYourMicrophone = "Your microphone",
         ReplacementTitle = "Add a replacement",
-        ReplacementHeard = "Heard",
-        ReplacementCorrect = "Correct",
-        ReplacementHint = "Applies to new dictations and transcripts. For this call, transcribe it again.",
         ButtonAdd = "Add",
         CallStateNotTranscribed = "not transcribed",
         CallStateDamaged = "no audio",
@@ -1501,6 +1521,20 @@ public sealed record UiStrings
         ModelsMissingList = "Ещё не скачано: {0}. Кнопка скачает рекомендованную модель.",
         VoicesNeedModels = "Чтобы разделить, нужно: {0}.",
         CardModelsMissing = "Чтобы различить эти голоса, нужны модели, которые ещё не скачаны: {0}.",
+        LineFixWord = "Исправить слово…",
+        LineEditText = "Исправить реплику",
+        FixSimilar = "Похожие в этом звонке",
+        FixRemember = "Запомнить в словаре",
+        FixReplaceAll = "Заменить: {0}",
+        FixOnlyHere = "Только здесь",
+        RetranscribeEditedTitle = "Распознать заново?",
+        RetranscribeEditedBody = "В транскрипте есть ручные правки. Повторное распознавание соберёт текст заново из записи, и они пропадут. Слова, сохранённые в словаре, исправятся снова.",
+        DictionaryApplyToCalls = "Применить к прошлым звонкам",
+        DictionaryApplyTitle = "Применить словарь к прошлым звонкам?",
+        DictionaryApplyBody = "Исправится мест: {0}, звонков: {1}. Правится готовый текст, заново ничего не распознаётся.",
+        DictionaryApplyGo = "Применить",
+        DictionaryApplyNothing = "Прошлые звонки уже соответствуют словарю.",
+        DictionaryApplied = "Исправлено мест: {0}, звонков: {1}.",
         RecordCall = "Записать звонок",
         RecordDictate = "Диктовать",
         RecordStop = "Стоп",
@@ -1512,12 +1546,8 @@ public sealed record UiStrings
         LineSaidBy = "Эту реплику сказал",
         LinePlayFrom = "Слушать с {0}",
         LineCopy = "Копировать",
-        LineAddReplacement = "Добавить замену…",
         LineYourMicrophone = "Ваш микрофон",
         ReplacementTitle = "Добавить замену",
-        ReplacementHeard = "Услышано",
-        ReplacementCorrect = "Правильно",
-        ReplacementHint = "Сработает в новых диктовках и распознаваниях. Для этого звонка — распознайте его заново.",
         ButtonAdd = "Добавить",
         CallStateNotTranscribed = "не распознано",
         CallStateDamaged = "нет звука",

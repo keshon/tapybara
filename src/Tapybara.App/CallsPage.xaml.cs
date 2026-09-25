@@ -1993,63 +1993,281 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             Copy(box is { SelectionLength: > 0 } ? box.SelectedText : $"{row.Speaker}: {row.Text}");
         menu.Items.Add(copy);
 
-        var replace = new MenuItem { Header = L.S.LineAddReplacement, Icon = new SymbolIcon { Symbol = SymbolRegular.TextEditStyle24 } };
-        replace.Click += (_, _) => AddReplacement(box is { SelectionLength: > 0 } ? box.SelectedText : string.Empty);
-        menu.Items.Add(replace);
+        if (box is not null)
+        {
+            var fix = new MenuItem { Header = L.S.LineFixWord, Icon = new SymbolIcon { Symbol = SymbolRegular.TextEditStyle24 } };
+            fix.Click += (_, _) => FixWordAt(box, row, box.SelectionLength > 0 ? box.SelectionStart : box.CaretIndex);
+            menu.Items.Add(fix);
+
+            var edit = new MenuItem { Header = L.S.LineEditText, Icon = new SymbolIcon { Symbol = SymbolRegular.Edit24 } };
+            edit.Click += (_, _) => EditLineInPlace(box, row);
+            menu.Items.Add(edit);
+        }
 
         return menu;
     }
 
-    /// <summary>
-    /// Добавить замену в словарь прямо из транскрипта.
-    /// </summary>
-    /// <remarks>
-    /// Именно здесь человек и видит, что имя коллеги снова расслышано не так.
-    /// Раньше для этого надо было запомнить слово, открыть настройки, найти
-    /// раздел «Текст» и дописать строку в формате «услышано = правильно».
-    /// </remarks>
-    private void AddReplacement(string heard)
+    // --- правка текста --------------------------------------------------------
+
+    /// <summary>Двойной щелчок по слову реплики — исправить его.</summary>
+    private void OnLineDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        var heardBox = new Wpf.Ui.Controls.TextBox { Text = heard.Trim(), PlaceholderText = L.S.ReplacementHeard };
-        var correctBox = new Wpf.Ui.Controls.TextBox { PlaceholderText = L.S.ReplacementCorrect };
-
-        var dialog = new ConfirmWindow(
-            L.S.ReplacementTitle,
-            L.S.ReplacementHint,
-            primaryButton: L.S.ButtonAdd,
-            cancelButton: L.S.ButtonCancel,
-            icon: SymbolRegular.TextEditStyle24);
-
-        dialog.AddContent(Labeled(L.S.ReplacementHeard, heardBox));
-        dialog.AddContent(Labeled(L.S.ReplacementCorrect, correctBox));
-        dialog.Loaded += (_, _) => (heard.Length == 0 ? heardBox : correctBox).Focus();
-
-        if (ConfirmWindow.Ask(Window.GetWindow(this), dialog) != ConfirmChoice.Primary)
+        if (sender is TextBox { IsReadOnly: true, Tag: TranscriptLineRow row } box)
         {
-            return;
+            e.Handled = true;
+            FixWordAt(box, row, box.GetCharacterIndexFromPoint(e.GetPosition(box), snapToText: true));
         }
-
-        string from = heardBox.Text.Trim();
-        string to = correctBox.Text.Trim();
-        if (from.Length == 0 || to.Length == 0)
-        {
-            return;
-        }
-
-        _services.Settings.Update(s => s with
-        {
-            Replacements = new Dictionary<string, string>(s.Replacements) { [from] = to },
-        });
     }
 
-    private static StackPanel Labeled(string label, UIElement field)
+    /// <summary>
+    /// Исправить слово: здесь, во всём звонке вместе с похожими написаниями и, по желанию, в словаре.
+    /// </summary>
+    /// <remarks>
+    /// Раньше отсюда можно было только добавить замену в словарь, и к этому
+    /// звонку она не применялась — окно советовало распознать его заново.
+    /// Теперь правится сам текст: миллисекунды, без Whisper.
+    /// </remarks>
+    private void FixWordAt(TextBox box, TranscriptLineRow row, int index)
     {
-        var panel = new StackPanel();
-        TextBlock caption = Ui.Caption(label);
-        caption.Margin = new Thickness(0, 0, 0, Tokens.Space1);
-        panel.Children.Add(caption);
-        panel.Children.Add(field);
-        return panel;
+        if (_transcript is null || _session is null || TranscriptEdit.WordAt(row.Line.Text, index) is not { } word)
+        {
+            return;
+        }
+
+        string original = row.Line.Text.Substring(word.Start, word.Length);
+        string directory = _session.Directory;
+        box.Select(word.Start, word.Length);
+
+        var field = new Wpf.Ui.Controls.TextBox { Text = original, MinWidth = 220, ClearButtonEnabled = false };
+
+        var was = new TextBlock
+        {
+            Text = original,
+            TextDecorations = TextDecorations.Strikethrough,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, Tokens.Space2, 0),
+        };
+        was.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+
+        TextBlock arrow = Ui.Caption("→");
+        arrow.VerticalAlignment = VerticalAlignment.Center;
+        arrow.Margin = new Thickness(0, 0, Tokens.Space2, 0);
+
+        var body = new StackPanel { Width = 360 };
+        body.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { was, arrow, field } });
+
+        // Похожие написания — отмеченными: чаще всего их и нужно поменять
+        // вместе. Лишнее снимается одним щелчком.
+        IReadOnlyList<TranscriptEdit.WordForm> forms = TranscriptEdit.SimilarForms(_transcript, original);
+        var checks = new List<(System.Windows.Controls.CheckBox Box, TranscriptEdit.WordForm Form)>();
+        if (forms.Count > 1)
+        {
+            TextBlock similar = Ui.Caption(L.S.FixSimilar);
+            similar.Margin = new Thickness(0, Tokens.Space3, 0, Tokens.Space1);
+            body.Children.Add(similar);
+
+            var list = new WrapPanel();
+            foreach (TranscriptEdit.WordForm form in forms)
+            {
+                var check = new System.Windows.Controls.CheckBox
+                {
+                    Content = $"{form.Form} ×{form.Count}",
+                    IsChecked = true,
+                    Margin = new Thickness(0, 0, Tokens.Space3, 0),
+                };
+                checks.Add((check, form));
+                list.Children.Add(check);
+            }
+
+            body.Children.Add(list);
+        }
+
+        var remember = new System.Windows.Controls.CheckBox
+        {
+            Content = L.S.FixRemember,
+            IsChecked = true,
+            Margin = new Thickness(0, Tokens.Space2, 0, 0),
+        };
+        body.Children.Add(remember);
+
+        var replaceAll = new Wpf.Ui.Controls.Button { Appearance = ControlAppearance.Primary, Margin = new Thickness(0, 0, Tokens.Space2, 0) };
+        var onlyHere = new Wpf.Ui.Controls.Button { Content = L.S.FixOnlyHere };
+        body.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, Tokens.Space3, 0, 0),
+            Children = { replaceAll, onlyHere },
+        });
+
+        List<string> Chosen() => checks.Count == 0
+            ? [original]
+            : [.. checks.Where(c => c.Box.IsChecked == true).Select(c => c.Form.Form)];
+
+        void Update()
+        {
+            int count = checks.Count == 0 ? 1 : checks.Where(c => c.Box.IsChecked == true).Sum(c => c.Form.Count);
+            string to = field.Text.Trim();
+            replaceAll.Content = string.Format(L.S.Formatting, L.S.FixReplaceAll, count);
+            replaceAll.IsEnabled = count > 0 && to.Length > 0 && to != original;
+            onlyHere.IsEnabled = to.Length > 0 && to != original;
+        }
+
+        foreach ((System.Windows.Controls.CheckBox check, _) in checks)
+        {
+            check.Checked += (_, _) => Update();
+            check.Unchecked += (_, _) => Update();
+        }
+
+        field.TextChanged += (_, _) => Update();
+        Update();
+
+        var card = new Border
+        {
+            Child = body,
+            Padding = new Thickness(Tokens.Space4),
+            CornerRadius = Tokens.CardRadius,
+            BorderThickness = new Thickness(1),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.18 },
+            Margin = new Thickness(Tokens.Space2),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "ApplicationBackgroundBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+
+        Rect at = box.GetRectFromCharacterIndex(word.Start);
+        var popup = new Popup
+        {
+            Child = card,
+            PlacementTarget = box,
+            Placement = PlacementMode.Bottom,
+            PlacementRectangle = at,
+            StaysOpen = false,
+            AllowsTransparency = true,
+        };
+
+        void Apply(Func<CallTranscript, CallTranscript> change, IReadOnlyList<string>? rememberForms)
+        {
+            popup.IsOpen = false;
+            string to = field.Text.Trim();
+            if (CallTranscriptStore.Update(directory, change) is null)
+            {
+                return;
+            }
+
+            if (rememberForms is { Count: > 0 })
+            {
+                _services.Settings.Update(s =>
+                {
+                    var map = new Dictionary<string, string>(s.Replacements);
+                    foreach (string form in rememberForms.Where(f => !f.Equals(to, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        map[form] = to;
+                    }
+
+                    return s with { Replacements = map };
+                });
+            }
+
+            _services.Render(directory);
+            RefreshAfterEdit();
+        }
+
+        replaceAll.Click += (_, _) =>
+        {
+            List<string> chosen = Chosen();
+            string to = field.Text.Trim();
+            Apply(t => TranscriptEdit.Replace(t, chosen, to).Transcript, remember.IsChecked == true ? chosen : null);
+        };
+
+        // «Только здесь» — правка одного места, в словарь не идёт: это
+        // исправление, которое разносить не нужно.
+        onlyHere.Click += (_, _) =>
+        {
+            string to = field.Text.Trim();
+            Apply(t => TranscriptEdit.ReplaceAt(t, row.Line, word.Start, word.Length, to), null);
+        };
+
+        field.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter && replaceAll.IsEnabled)
+            {
+                e.Handled = true;
+                replaceAll.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            }
+            else if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                popup.IsOpen = false;
+            }
+        };
+
+        popup.Opened += (_, _) =>
+        {
+            field.Focus();
+            field.SelectAll();
+        };
+        popup.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Исправить реплику целиком — прямо на месте: Enter сохраняет, Esc отменяет.
+    /// </summary>
+    private void EditLineInPlace(TextBox box, TranscriptLineRow row)
+    {
+        if (_session is null)
+        {
+            return;
+        }
+
+        string directory = _session.Directory;
+        string before = row.Line.Text;
+        bool done = false;
+
+        void Finish(bool save)
+        {
+            if (done)
+            {
+                return;
+            }
+
+            done = true;
+            box.IsReadOnly = true;
+            string text = box.Text.Trim();
+            if (!save || text.Length == 0 || text == before)
+            {
+                box.Text = before;
+                return;
+            }
+
+            if (CallTranscriptStore.Update(directory, t => TranscriptEdit.EditLine(t, row.Line, text)) is not null)
+            {
+                _services.Render(directory);
+                RefreshAfterEdit();
+            }
+        }
+
+        box.IsReadOnly = false;
+        box.Focus();
+        box.CaretIndex = box.Text.Length;
+
+        box.PreviewKeyDown += (_, e) =>
+        {
+            if (done)
+            {
+                return;
+            }
+
+            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                e.Handled = true;
+                Finish(save: true);
+            }
+            else if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                Finish(save: false);
+            }
+        };
+        box.LostKeyboardFocus += (_, _) => Finish(save: true);
     }
 
     // --- прослушивание -------------------------------------------------------
@@ -2256,6 +2474,19 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private void Transcribe()
     {
         if (_current is null)
+        {
+            return;
+        }
+
+        // Ручные правки повторное распознавание сотрёт — спросить, а не
+        // молча потерять полчаса исправлений.
+        if (_transcript is { EditedByHand: true }
+            && ConfirmWindow.Ask(Window.GetWindow(this), new ConfirmWindow(
+                L.S.RetranscribeEditedTitle,
+                L.S.RetranscribeEditedBody,
+                primaryButton: L.S.CallsTranscribeAgain,
+                cancelButton: L.S.ButtonCancel,
+                icon: SymbolRegular.Warning24)) != ConfirmChoice.Primary)
         {
             return;
         }

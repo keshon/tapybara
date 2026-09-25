@@ -59,6 +59,8 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private readonly SettingsHost _settings;
     private readonly VoiceBook _voices;
+    private readonly Func<string> _callsDirectory;
+    private readonly Action<string> _render;
     private readonly StackPanel _root = new() { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 960, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _replacements = new();
     private readonly List<ReplacementRow> _rows = [];
@@ -68,10 +70,12 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     private readonly TextBlock _noMatches;
     private readonly TextBlock _status;
 
-    public DictionaryPage(SettingsHost settings, VoiceBook voices)
+    public DictionaryPage(SettingsHost settings, VoiceBook voices, Func<string> callsDirectory, Action<string> render)
     {
         _settings = settings;
         _voices = voices;
+        _callsDirectory = callsDirectory;
+        _render = render;
         _voices.Changed += OnVoicesChanged;
 
         _prompt = new TextBox
@@ -194,8 +198,13 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             row.NewVariant.Focus();
         };
 
+        System.Windows.Controls.Button applyToCalls = Ui.Link(L.S.DictionaryApplyToCalls);
+        applyToCalls.VerticalAlignment = VerticalAlignment.Center;
+        applyToCalls.Margin = new Thickness(Tokens.Space4, 0, 0, 0);
+        applyToCalls.Click += (_, _) => ApplyToPastCalls();
+
         var toolbar = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
-        toolbar.Children.Add(add);
+        toolbar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { add, applyToCalls } });
         toolbar.Children.Add(_search);
 
         _root.Children.Add(Card(new StackPanel { Children = { toolbar, _replacements, _noMatches } }));
@@ -666,6 +675,68 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     }
 
     // --- перенос в файл -------------------------------------------------------
+
+    /// <summary>
+    /// Исправить словарём уже распознанные звонки — без повторного распознавания.
+    /// </summary>
+    /// <remarks>
+    /// Сначала считаем, потом спрашиваем: «исправится 23 места в 5 звонках» —
+    /// понятная цена, а молча переписанные звонки не понравились бы никому.
+    /// </remarks>
+    private void ApplyToPastCalls()
+    {
+        Dictionary<string, string> dictionary = Settings.Replacements;
+        string root = _callsDirectory();
+        if (dictionary.Count == 0 || !Directory.Exists(root))
+        {
+            ShowStatus(L.S.DictionaryApplyNothing);
+            return;
+        }
+
+        var touched = new List<string>();
+        int places = 0;
+        foreach (string directory in Directory.GetDirectories(root))
+        {
+            if (CallTranscriptStore.Load(directory) is not { } transcript)
+            {
+                continue;
+            }
+
+            int replaced = TranscriptEdit.ApplyDictionary(transcript, dictionary).Replaced;
+            if (replaced > 0)
+            {
+                touched.Add(directory);
+                places += replaced;
+            }
+        }
+
+        if (places == 0)
+        {
+            ShowStatus(L.S.DictionaryApplyNothing);
+            return;
+        }
+
+        var ask = new ConfirmWindow(
+            L.S.DictionaryApplyTitle,
+            string.Format(L.S.Formatting, L.S.DictionaryApplyBody, places, touched.Count),
+            primaryButton: L.S.DictionaryApplyGo,
+            cancelButton: L.S.ButtonCancel,
+            icon: SymbolRegular.TextEditStyle24);
+        if (ConfirmWindow.Ask(Window.GetWindow(this), ask) != ConfirmChoice.Primary)
+        {
+            return;
+        }
+
+        foreach (string directory in touched)
+        {
+            if (CallTranscriptStore.Update(directory, t => TranscriptEdit.ApplyDictionary(t, dictionary).Transcript) is not null)
+            {
+                _render(directory);
+            }
+        }
+
+        ShowStatus(string.Format(L.S.Formatting, L.S.DictionaryApplied, places, touched.Count));
+    }
 
     private void ShowStatus(string text)
     {
