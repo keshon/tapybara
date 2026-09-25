@@ -121,6 +121,14 @@ public static partial class TranscriptEdit
                     break;
                 }
 
+                // «и», «в», «не» в кусок из нескольких слов не входят: «рекстат и»
+                // на букву ближе к «Рикстати», чем «рекстат», но заменить его
+                // значило бы съесть союз.
+                if (count > 1 && Enumerable.Range(from, count).Any(i => words[i].Length <= 2))
+                {
+                    continue;
+                }
+
                 string glued = string.Concat(Enumerable.Range(from, count).Select(i => Fold(words[i].Value)));
 
                 // Несколько слов и искомое похожи, только если начинаются
@@ -138,7 +146,9 @@ public static partial class TranscriptEdit
         }
 
         var taken = new List<(int From, int To)>();
-        foreach (var c in candidates.OrderBy(c => c.Distance).ThenBy(c => c.Extra).ThenBy(c => c.To - c.From))
+        // Сначала куски в столько же слов, сколько в искомом, потом — самые
+        // похожие: лишнее слово берётся, только если без него похожего нет.
+        foreach (var c in candidates.OrderBy(c => c.Extra).ThenBy(c => c.Distance).ThenBy(c => c.To - c.From))
         {
             if (taken.Any(t => c.From <= t.To && t.From <= c.To))
             {

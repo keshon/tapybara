@@ -1335,6 +1335,23 @@ public partial class App : Application, IDisposable
         _queuedCalls.Contains(directory)
         || string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Остановить работу над звонком — идущую или ждущую очереди.</summary>
+    /// <remarks>
+    /// Распознавание пишет данные только в конце, поэтому остановленное не
+    /// оставляет полузаписанного транскрипта: звонок остаётся таким, каким
+    /// был до запуска, и его можно распознать позже.
+    /// </remarks>
+    private void CancelCallWork(string directory)
+    {
+        _queuedCalls.Remove(directory);
+        if (string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase))
+        {
+            _callCancellation?.Cancel();
+        }
+
+        _mainWindow?.RefreshCalls();
+    }
+
     /// <summary>Убрать папку звонка целиком.</summary>
     /// <remarks>
     /// В корзину, а не мимо неё: «удалить» нажимают и по ошибке, а разговор
@@ -1759,6 +1776,7 @@ public partial class App : Application, IDisposable
             RefreshCallPrintsAsync,
             RenderCall,
             DeleteCall,
+            CancelCallWork,
             () => _ = ToggleCallRecordingAsync(),
             CanSplitVoices,
             FetchModel,

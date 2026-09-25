@@ -45,6 +45,7 @@ namespace Tapybara.App;
 /// <param name="RefreshPrints">Снять слепки голосов заново после ручной правки.</param>
 /// <param name="Render">Перерисовать transcript.md. Мгновенно.</param>
 /// <param name="Delete">Удалить звонок, отменив работу над ним.</param>
+/// <param name="Cancel">Остановить распознавание звонка или убрать его из очереди.</param>
 /// <param name="ToggleRecording">Начать или закончить запись звонка.</param>
 /// <param name="CanSplitVoices">Есть ли чем разделять голоса.</param>
 /// <param name="FetchModel">Скачать недостающую модель этого типа.</param>
@@ -62,6 +63,7 @@ public sealed record CallsServices(
     Func<string, Task> RefreshPrints,
     Action<string> Render,
     Action<string> Delete,
+    Action<string> Cancel,
     Action ToggleRecording,
     Func<bool> CanSplitVoices,
     Action<Tapybara.Core.Models.ModelKind> FetchModel,
@@ -113,6 +115,7 @@ public sealed class CallRow
 public sealed class TranscriptLineRow : INotifyPropertyChanged
 {
     private bool _isCurrent;
+    private bool _isPlaying;
     private double _progress;
 
     public required CallLine Line { get; init; }
@@ -156,6 +159,20 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
             {
                 _isCurrent = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCurrent)));
+            }
+        }
+    }
+
+    /// <summary>Эту реплику слышно прямо сейчас: у времени ■ вместо ▶.</summary>
+    public bool IsPlaying
+    {
+        get => _isPlaying;
+        set
+        {
+            if (_isPlaying != value)
+            {
+                _isPlaying = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsPlaying)));
             }
         }
     }
@@ -743,6 +760,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
                 text = string.Format(L.S.Formatting, L.S.BannerTranscribing, percent);
                 BannerProgress.Value = percent;
                 BannerProgress.Visibility = Visibility.Visible;
+
+                // Распознавание идёт минутами, и запущенное по ошибке раньше
+                // приходилось ждать до конца.
+                string transcribing = entry.Directory;
+                ShowBannerButton(L.S.CallsStopTranscribing, () => _services.Cancel(transcribing));
                 break;
 
             case CallState.NotTranscribed:
@@ -2315,11 +2337,23 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             }
         };
 
+        // Всплывающее окно — отдельное окно Windows, и фокус клавиатуры сам к
+        // нему не переходит: поле выглядело выделенным, а буквы уходили в
+        // реплику под ним, которая только для чтения. Отдаём фокус окну
+        // карточки явно, и лишь потом — полю.
         popup.Opened += (_, _) =>
         {
+            if (PresentationSource.FromVisual(card) is System.Windows.Interop.HwndSource source)
+            {
+                NativeFocus.Set(source.Handle);
+            }
+
             field.Focus();
+            Keyboard.Focus(field);
             field.SelectAll();
         };
+        popup.Closed += (_, _) => PageRoot.Children.Remove(popup);
+        PageRoot.Children.Add(popup);
         popup.IsOpen = true;
     }
 
@@ -2401,9 +2435,40 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     private void OnStampClick(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: TranscriptLineRow row })
+        if (sender is not FrameworkElement { Tag: TranscriptLineRow row })
         {
-            PlayFrom(row.Line.Start);
+            return;
+        }
+
+        if (row.IsPlaying)
+        {
+            _player.Stop();
+            return;
+        }
+
+        PlayFrom(row.Line.Start);
+    }
+
+    /// <summary>
+    /// Щелчок по реплике — отсюда «Слушать» и начнёт.
+    /// </summary>
+    /// <remarks>
+    /// Полоса звучащей реплики — это и место, откуда продолжится
+    /// прослушивание. Раньше поставить её можно было только проиграв запись
+    /// до нужного места. Пока звук идёт, щелчок ничего не переносит: человек
+    /// ставит курсор, чтобы выделить или поправить слово, а не перескочить.
+    /// </remarks>
+    private void OnLinePressed(object sender, MouseButtonEventArgs e)
+    {
+        if (_player.IsPlaying || sender is not FrameworkElement { DataContext: TranscriptLineRow row })
+        {
+            return;
+        }
+
+        foreach (TranscriptLineRow line in _lines)
+        {
+            line.IsCurrent = line == row;
+            line.Progress = 0;
         }
     }
 
@@ -2493,6 +2558,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         foreach (TranscriptLineRow row in _lines)
         {
             row.IsCurrent = row == now;
+            row.IsPlaying = row == now && _playingQuote is null;
             row.Progress = row == now && sweep ? Fraction(row.Line, position) : 0;
         }
 
@@ -2529,6 +2595,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         foreach (TranscriptLineRow row in _lines)
         {
             row.Progress = 0;
+            row.IsPlaying = false;
         }
 
         bool wasQuote = _playingQuote is not null;

@@ -65,6 +65,22 @@ public sealed class TranscriptEditTests
         Assert.DoesNotContain(forms, f => f.Form.Contains(" не", StringComparison.Ordinal) || f.Form.Contains(',', StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Настоящий случай: к «Рикстати» предлагалось «рекстат и» — на букву
+    /// ближе, чем «рекстат», но замена съела бы союз.
+    /// </summary>
+    [Fact]
+    public void SimilarForms_DoesNotSwallowShortWords()
+    {
+        CallTranscript call = Call("В рекстат и битру, а в рек стати пусто.");
+
+        IReadOnlyList<TranscriptEdit.WordForm> forms = TranscriptEdit.SimilarForms(call, "Рикстати");
+
+        Assert.Contains(forms, f => f.Form == "рекстат");
+        Assert.Contains(forms, f => f.Form == "рек стати");
+        Assert.DoesNotContain(forms, f => f.Form == "рекстат и");
+    }
+
     [Fact]
     public void SimilarForms_TakesSeveralWords()
     {
