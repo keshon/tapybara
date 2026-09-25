@@ -1091,7 +1091,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         VoicesHost.Children.Add(header);
 
-        if (VoiceCheck.MoreVoicesLikely(_transcript, out TimeSpan doubtful))
+        // Пока над звонком идёт работа — разделение, сверка, — предлагать
+        // разделить ещё раз незачем: второе нажатие встало бы в очередь следом.
+        bool busy = _services.LiveState(_session.Directory) is not null;
+        if (!busy && VoiceCheck.MoreVoicesLikely(_transcript, out TimeSpan doubtful))
         {
             VoicesHost.Children.Add(MoreVoicesCard(doubtful, Math.Max(voices.Count, 1)));
         }
