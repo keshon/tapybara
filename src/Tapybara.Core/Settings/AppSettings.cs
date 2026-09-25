@@ -289,6 +289,15 @@ public sealed record AppSettings
     public bool RememberVoices { get; init; } = true;
 
     /// <summary>
+    /// Заливать звучащую реплику по ходу прослушивания.
+    /// </summary>
+    /// <remarks>
+    /// Выключенная оставляет только полосу слева от звучащей реплики — кому
+    /// бегущая заливка мешает читать.
+    /// </remarks>
+    public bool ShowPlayingProgress { get; init; } = true;
+
+    /// <summary>
     /// Проверять обновления на GitHub при запуске и раз в несколько часов.
     /// </summary>
     /// <remarks>

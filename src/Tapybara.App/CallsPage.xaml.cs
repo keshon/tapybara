@@ -113,6 +113,7 @@ public sealed class CallRow
 public sealed class TranscriptLineRow : INotifyPropertyChanged
 {
     private bool _isCurrent;
+    private double _progress;
 
     public required CallLine Line { get; init; }
 
@@ -155,6 +156,20 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
             {
                 _isCurrent = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCurrent)));
+            }
+        }
+    }
+
+    /// <summary>Сколько реплики уже прозвучало, 0–1: столько строки и залито.</summary>
+    public double Progress
+    {
+        get => _progress;
+        set
+        {
+            if (Math.Abs(_progress - value) > 0.001)
+            {
+                _progress = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Progress)));
             }
         }
     }
@@ -262,7 +277,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         _refresh = new DispatcherTimer { Interval = RefreshInterval };
         _refresh.Tick += (_, _) => Reload(keepSelection: true);
 
-        _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        // Десять раз в секунду: заливка строки должна бежать, а не шагать.
+        _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _playbackTimer.Tick += (_, _) => FollowPlayback();
         _player.Stopped += OnPlayerStopped;
 
@@ -1694,10 +1710,20 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             {
                 System.Windows.Shapes.Ellipse mark = Dot(dot, 8);
                 mark.Margin = new Thickness(0, 0, Tokens.Space2, 0);
+
+                // Цвет текста — от кнопки, а не от общего стиля TextBlock:
+                // тот чёрный, и у отмеченного чипа на синем имя не читалось.
+                var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+                text.SetBinding(TextBlock.ForegroundProperty, new System.Windows.Data.Binding
+                {
+                    Path = new PropertyPath(System.Windows.Documents.TextElement.ForegroundProperty),
+                    RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ContentPresenter), 1),
+                });
+
                 content = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
-                    Children = { mark, new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } },
+                    Children = { mark, text },
                 };
             }
 
@@ -2061,8 +2087,20 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         if (box is not null)
         {
-            var fix = new MenuItem { Header = L.S.LineFixWord, Icon = new SymbolIcon { Symbol = SymbolRegular.TextEditStyle24 } };
-            fix.Click += (_, _) => FixWordAt(box, row, box.SelectionLength > 0 ? box.SelectionStart : box.CaretIndex);
+            // Выделено несколько слов — правится выделенное: распознавание
+            // режет незнакомое слово надвое, «рек стат», и двойной щелчок
+            // берёт только половину.
+            string selected = box.SelectedText.Trim();
+            var fix = new MenuItem
+            {
+                Header = selected.Length == 0
+                    ? L.S.LineFixWord
+                    : string.Format(L.S.Formatting, L.S.LineFixSelection, selected.Length > 30 ? selected[..30] + "…" : selected),
+                Icon = new SymbolIcon { Symbol = SymbolRegular.TextEditStyle24 },
+            };
+            int start = box.SelectionLength > 0 ? box.SelectionStart : box.CaretIndex;
+            int length = box.SelectionLength;
+            fix.Click += (_, _) => FixWordAt(box, row, start, length);
             menu.Items.Add(fix);
 
             var edit = new MenuItem { Header = L.S.LineEditText, Icon = new SymbolIcon { Symbol = SymbolRegular.Edit24 } };
@@ -2104,9 +2142,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// звонку она не применялась — окно советовало распознать его заново.
     /// Теперь правится сам текст: миллисекунды, без Whisper.
     /// </remarks>
-    private void FixWordAt(TextBox box, TranscriptLineRow row, int index)
+    private void FixWordAt(TextBox box, TranscriptLineRow row, int index, int length = 0)
     {
-        if (_transcript is null || _session is null || TranscriptEdit.WordAt(row.Line.Text, index) is not { } word)
+        if (_transcript is null || _session is null || TranscriptEdit.PhraseAt(row.Line.Text, index, length) is not { } word)
         {
             return;
         }
@@ -2418,7 +2456,14 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         ShowVoices();
     }
 
-    /// <summary>Подсветить реплику, которую сейчас слышно.</summary>
+    /// <summary>
+    /// Подсветить реплику, которую сейчас слышно, и вести за ней список.
+    /// </summary>
+    /// <remarks>
+    /// Список идёт за звуком, только пока человек сам на него смотрит: если
+    /// прежняя звучащая реплика видна. Прокрутил вверх перечитать — звук
+    /// играет дальше, а список не выдёргивается из-под глаз.
+    /// </remarks>
     private void FollowPlayback()
     {
         if (!_player.IsPlaying || _current is null
@@ -2443,15 +2488,49 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             }
         }
 
+        TranscriptLineRow? before = _lines.FirstOrDefault(l => l.IsCurrent);
+        bool sweep = Settings.ShowPlayingProgress;
         foreach (TranscriptLineRow row in _lines)
         {
             row.IsCurrent = row == now;
+            row.Progress = row == now && sweep ? Fraction(row.Line, position) : 0;
         }
+
+        if (now is not null && now != before && (before is null || IsOnScreen(before)))
+        {
+            LineList.ScrollIntoView(now);
+        }
+    }
+
+    private static double Fraction(CallLine line, TimeSpan position)
+    {
+        double length = (line.End - line.Start).TotalSeconds;
+        return length <= 0 ? 1 : Math.Clamp((position - line.Start).TotalSeconds / length, 0, 1);
+    }
+
+    /// <summary>Видна ли строка в списке целиком или частью.</summary>
+    private bool IsOnScreen(TranscriptLineRow row)
+    {
+        if (LineList.ItemContainerGenerator.ContainerFromItem(row) is not FrameworkElement item || !item.IsVisible)
+        {
+            return false;
+        }
+
+        double top = item.TransformToAncestor(LineList).Transform(new System.Windows.Point(0, 0)).Y;
+        return top + item.ActualHeight > 0 && top < LineList.ActualHeight;
     }
 
     private void OnPlayerStopped()
     {
         _playbackTimer.Stop();
+
+        // Остановились — заливка уходит, полоса остаётся: с этого места
+        // «Слушать» продолжит.
+        foreach (TranscriptLineRow row in _lines)
+        {
+            row.Progress = 0;
+        }
+
         bool wasQuote = _playingQuote is not null;
         _playingQuote = null;
         UpdateListenButton();

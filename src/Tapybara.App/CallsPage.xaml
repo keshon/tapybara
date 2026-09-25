@@ -237,14 +237,16 @@
                         </Border>
 
                         <!--
-                            Отступ списка 16 + отступ строки 8 = 24: метки времени
-                            стоят на той же вертикали, что заголовок звонка.
+                            Отступ списка 4 + отступ строки 20 = 24: метки времени
+                            стоят на той же вертикали, что заголовок звонка. Широкий
+                            левый отступ строки — место для ▶ при наведении и полосы
+                            звучащей реплики, не сдвигающих колонку времени.
                         -->
                         <ListBox x:Name="LineList"
                                  Grid.Row="1"
                                  Background="Transparent"
                                  BorderThickness="0"
-                                 Margin="16,8,16,16"
+                                 Margin="4,8,16,16"
                                  HorizontalContentAlignment="Stretch"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.CanContentScroll="True"
@@ -261,10 +263,32 @@
                                     -->
                                     <Border x:Name="LineFill"
                                             CornerRadius="{x:Static app:Tokens.ControlRadius}"
-                                            Padding="8,3"
                                             Margin="{Binding Spacing}"
                                             Background="Transparent">
                                         <Grid>
+                                        <!--
+                                            Звучащая реплика: заливка бежит по строке вместе со
+                                            звуком — прозвучало 58% реплики, залито 58% строки, — и
+                                            полоса слева. Видно и без звука, и краем глаза.
+                                        -->
+                                        <Border x:Name="Sweep"
+                                                CornerRadius="{x:Static app:Tokens.ControlRadius}"
+                                                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                                Opacity="0.12"
+                                                Visibility="Collapsed"
+                                                RenderTransformOrigin="0,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform ScaleX="{Binding Progress}" />
+                                            </Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="NowBar"
+                                                Width="3"
+                                                Margin="0,4"
+                                                HorizontalAlignment="Left"
+                                                CornerRadius="1.5"
+                                                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                                Visibility="Collapsed" />
+                                        <Grid Margin="20,3,8,3">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="56" />
                                                 <ColumnDefinition Width="*" />
@@ -295,6 +319,11 @@
                                             </Button>
 
                                             <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
+                                                <!--
+                                                    Время проигрывает реплику, но выглядело обычным
+                                                    текстом. При наведении на строку слева от него
+                                                    появляется ▶ и оно синеет: видно, что будет по щелчку.
+                                                -->
                                                 <Button Style="{StaticResource FlatLinkButton}"
                                                         VerticalAlignment="Top"
                                                         HorizontalAlignment="Left"
@@ -302,10 +331,22 @@
                                                         Tag="{Binding}"
                                                         ToolTip="{Binding PlayHint}"
                                                         Click="OnStampClick">
-                                                    <TextBlock Text="{Binding Stamp}"
-                                                               FontFamily="Cascadia Mono, Consolas"
-                                                               FontSize="{x:Static app:Tokens.Caption}"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <Grid>
+                                                        <ui:SymbolIcon x:Name="StampPlay"
+                                                                       Symbol="Play16"
+                                                                       Filled="True"
+                                                                       FontSize="11"
+                                                                       Margin="-16,0,0,0"
+                                                                       HorizontalAlignment="Left"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                                       Visibility="Hidden" />
+                                                        <TextBlock x:Name="StampText"
+                                                                   Text="{Binding Stamp}"
+                                                                   FontFamily="Cascadia Mono, Consolas"
+                                                                   FontSize="{x:Static app:Tokens.Caption}"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </Grid>
                                                 </Button>
                                                 <!-- Голос реплики под сомнением: «?» открывает то же
                                                      меню «Сказал…», что и имя говорящего. -->
@@ -332,11 +373,21 @@
                                                      MouseDoubleClick="OnLineDoubleClick"
                                                      ContextMenuOpening="OnLineContextMenuOpening" />
                                         </Grid>
+                                        </Grid>
                                     </Border>
                                     <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Trigger SourceName="LineFill" Property="IsMouseOver" Value="True">
                                             <Setter TargetName="LineFill" Property="Background"
-                                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                            <Setter TargetName="StampPlay" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="StampText" Property="Foreground"
+                                                    Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                            <Setter TargetName="Sweep" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="NowBar" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="StampText" Property="Foreground"
+                                                    Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>
