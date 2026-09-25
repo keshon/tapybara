@@ -2323,7 +2323,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             Apply(t => TranscriptEdit.ReplaceAt(t, row.Line, word.Start, word.Length, to), null);
         };
 
-        field.KeyDown += (_, e) =>
+        // PreviewKeyDown: Enter поле WPF-UI обрабатывает само, и до KeyDown он не доходил.
+        field.PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter && replaceAll.IsEnabled)
             {
