@@ -289,6 +289,25 @@ public static class TranscriptEdit
         };
     }
 
+    /// <summary>Убрать реплику: вздох, эхо, выдуманное на тишине.</summary>
+    /// <remarks>Реплики нет — транскрипт не меняется и правленым не отмечается.</remarks>
+    public static CallTranscript RemoveLine(CallTranscript transcript, CallLine line)
+    {
+        ArgumentNullException.ThrowIfNull(transcript);
+        ArgumentNullException.ThrowIfNull(line);
+
+        if (!transcript.Lines.Any(l => l.IsSameAs(line)))
+        {
+            return transcript;
+        }
+
+        return transcript with
+        {
+            Lines = [.. transcript.Lines.Where(l => !l.IsSameAs(line))],
+            EditedByHand = true,
+        };
+    }
+
     /// <summary>Слово под позицией в тексте — для правки по двойному щелчку.</summary>
     /// <returns>Начало и длина слова, или <c>null</c>, если там не слово.</returns>
     public static (int Start, int Length)? WordAt(string text, int index)

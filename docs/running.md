@@ -329,7 +329,14 @@ whole elsewhere in the same call. The card finds those too. When a double-click
 catches only half, select both words and right-click › **Fix "рек стат"…**.
 
 To rewrite a whole line, right-click it › **Edit the line**: Enter saves,
-Esc cancels.
+Esc cancels. A line that is not speech at all — a sigh read as words, a
+phrase Whisper invented on silence — goes with right-click › **Delete the
+line**.
+
+Without headphones the other side's voice reaches your microphone from the
+speakers. Tapybara removes that echo from your track when it matches what
+was said on the other side, a phrase out of a longer line included; what
+came through too garbled to match stays, and is deleted the same way.
 
 Edits change the text only — nothing is transcribed again. Transcribing an
 edited call again would lose them, so Tapybara asks first.

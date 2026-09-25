@@ -45,6 +45,9 @@ public static class BleedFilter
     /// <summary>Сходство текстов, начиная с которого это одна и та же фраза.</summary>
     private const double SimilarityThreshold = 0.6;
 
+    /// <summary>Со скольких слов фразу ищем внутри длинной чужой реплики, а не сравниваем целиком.</summary>
+    private const int MinWordsForPart = 3;
+
     /// <summary>Итог отсева: что оставить и сколько чего убрано.</summary>
     public sealed record Result(
         IReadOnlyList<TranscriptSegment> Kept,
@@ -113,11 +116,22 @@ public static class BleedFilter
         return new Result(kept, byText, byEnergy);
     }
 
-    /// <summary>Совпала ли фраза с одновременной фразой из другого канала.</summary>
+    /// <summary>
+    /// Совпала ли фраза с тем, что в то же время звучало в другом канале.
+    /// </summary>
+    /// <remarks>
+    /// Эхо повторяет не всю чужую реплику, а её кусок: у собеседника сегмент
+    /// на двадцать секунд, в микрофон из колонок разборчиво долетела одна фраза
+    /// из середины. Поэтому фраза сравнивается с каждым отрезком чужого текста
+    /// той же длины в словах, а не с сегментом целиком. Чужой текст — всё, что
+    /// звучало одновременно, даже если это конец одного сегмента и начало
+    /// следующего.
+    /// </remarks>
     private static bool IsTextEcho(TranscriptSegment segment, IReadOnlyList<TranscriptSegment> others)
     {
         double duration = Math.Max((segment.End - segment.Start).TotalSeconds, 0.1);
-        string normalized = Normalize(segment.Text);
+        double overlapped = 0;
+        var heard = new List<string>();
 
         foreach (TranscriptSegment other in others)
         {
@@ -132,14 +146,51 @@ public static class BleedFilter
             double overlap = Math.Min(segment.End.TotalSeconds, other.End.TotalSeconds)
                              - Math.Max(segment.Start.TotalSeconds, other.Start.TotalSeconds);
 
-            if (overlap <= 0 || overlap / duration < OverlapShare)
+            if (overlap > 0)
             {
-                continue;
+                overlapped += overlap;
+                heard.AddRange(Words(other.Text));
             }
+        }
 
-            if (Similarity(normalized, Normalize(other.Text)) >= SimilarityThreshold)
+        if (overlapped / duration < OverlapShare)
+        {
+            return false;
+        }
+
+        string[] said = Words(segment.Text);
+        if (said.Length == 0)
+        {
+            return false;
+        }
+
+        // Короткое «да» или «вот» найдётся в любой длинной реплике — такие
+        // фразы считаются эхом, только если чужой текст ими и исчерпывается.
+        if (said.Length < MinWordsForPart)
+        {
+            return Similarity(string.Join(' ', said), string.Join(' ', heard)) >= SimilarityThreshold;
+        }
+
+        // Меньше половины слов фразы вообще не звучало в чужом канале — дальше
+        // не считаем: это отсекает почти всю свою речь до дорогого сравнения.
+        var heardSet = new HashSet<string>(heard, StringComparer.Ordinal);
+        if (said.Count(heardSet.Contains) * 2 < said.Length)
+        {
+            return false;
+        }
+
+        // Распознавание в двух каналах режет слова по-разному, поэтому окно
+        // берётся на слово короче и на слово длиннее фразы.
+        string phrase = string.Join(' ', said);
+        for (int size = said.Length - 1; size <= said.Length + 1; size++)
+        {
+            for (int from = 0; from + size <= Math.Max(heard.Count, size); from++)
             {
-                return true;
+                string part = string.Join(' ', heard.Skip(from).Take(size));
+                if (Similarity(phrase, part) >= SimilarityThreshold)
+                {
+                    return true;
+                }
             }
         }
 
@@ -163,9 +214,10 @@ public static class BleedFilter
             : sorted[lower] + ((sorted[upper] - sorted[lower]) * (position - lower));
     }
 
-    /// <summary>Только буквы, цифры и пробелы, нижний регистр.</summary>
-    private static string Normalize(string text) =>
-        new([.. text.Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c)).Select(char.ToLowerInvariant)]);
+    /// <summary>Слова фразы: только буквы и цифры, нижний регистр.</summary>
+    private static string[] Words(string text) =>
+        new string([.. text.Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c)).Select(char.ToLowerInvariant)])
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>
     /// Схожесть двух строк, 0..1.

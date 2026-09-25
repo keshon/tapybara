@@ -148,13 +148,13 @@ public partial class CallsPage
     }
 
     /// <summary>
-    /// Меню реплики: кто её сказал, послушать, скопировать, добавить замену.
+    /// Меню реплики: кто её сказал, послушать, скопировать, исправить, удалить.
     /// </summary>
     /// <remarks>
     /// Переназначить можно только реплику собеседника и только другому
     /// голосу собеседника. Своя дорожка — это микрофон владельца по
-    /// построению; реплика, ошибочно на ней оказавшаяся, — работа фильтра
-    /// эха, а не разделения голосов.
+    /// построению; реплика, ошибочно на ней оказавшаяся, — эхо, которое
+    /// пропустил фильтр, и её не переназначают, а удаляют.
     /// </remarks>
     private ContextMenu LineMenu(TranscriptLineRow row, TextBox? box = null)
     {
@@ -211,7 +211,40 @@ public partial class CallsPage
             menu.Items.Add(edit);
         }
 
+        menu.Items.Add(new Separator());
+        var delete = new MenuItem { Header = L.S.LineDelete, Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 } };
+        delete.Click += (_, _) => DeleteLine(row.Line);
+        menu.Items.Add(delete);
+
         return menu;
+    }
+
+    /// <summary>Убрать реплику из транскрипта.</summary>
+    /// <remarks>
+    /// Без подтверждения: удаляют вздох или эхо, по одной строке подряд, и
+    /// вопрос на каждую только мешал бы.
+    /// </remarks>
+    private void DeleteLine(CallLine line)
+    {
+        if (_session is null)
+        {
+            return;
+        }
+
+        string directory = _session.Directory;
+        if (CallTranscriptStore.Update(directory, t => TranscriptEdit.RemoveLine(t, line)) is null)
+        {
+            return;
+        }
+
+        _services.Render(directory);
+        RefreshAfterEdit();
+
+        // Слепок голоса снимался и с этой реплики.
+        if (line.Voice is not null)
+        {
+            _ = _services.RefreshPrints(directory);
+        }
     }
 
     // --- правка текста --------------------------------------------------------

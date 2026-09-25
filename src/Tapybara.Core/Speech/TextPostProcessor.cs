@@ -33,6 +33,7 @@ public static partial class TextPostProcessor
         "субтитры и перевод",
         "субтитры добавил",
         "редактор субтитров",
+        "спасибо за субтитры",
         "dimatorzok",
         "thanks for watching",
         "please subscribe",
