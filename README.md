@@ -8,6 +8,11 @@ Local voice dictation for Windows, written in C#. Press a hotkey, speak, press
 it again — the text is inserted where your caret already was, in whatever
 application has focus.
 
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="assets/screens/calls-light.webp">
+  <img alt="A call transcript in Tapybara: lines by person, the share each one talked, and an unnamed voice with its quotes" src="assets/screens/calls-dark.webp">
+</picture>
+
 Windows ships dictation of its own, and the one you reach for with `Win+H` does
 the recognition on Microsoft's servers. Tapybara runs
 [whisper.cpp](https://github.com/ggerganov/whisper.cpp) on your own GPU instead,
