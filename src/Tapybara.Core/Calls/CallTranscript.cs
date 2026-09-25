@@ -205,14 +205,7 @@ public static class CallTranscriptStore
     }
 }
 
-/// <summary>Один голос собеседника: сколько говорил и чем его узнать.</summary>
-/// <param name="Id">Буква голоса.</param>
-/// <param name="Speech">Сколько он говорил в сумме.</param>
-/// <param name="Share">Доля от всей речи собеседников, 0–1.</param>
-/// <param name="Quotes">Реплики, по которым его проще всего узнать.</param>
-public sealed record VoiceSummary(string Id, TimeSpan Speech, double Share, IReadOnlyList<CallLine> Quotes);
-
-/// <summary>Голоса собеседников: разметка реплик и сводка для человека.</summary>
+/// <summary>Голоса собеседников: разметка реплик, слепки и цитаты.</summary>
 public static class CallVoices
 {
     /// <summary>Ключ слепка всего чужого канала — когда голоса не разделялись.</summary>
@@ -384,37 +377,18 @@ public static class CallVoices
     }
 
     /// <summary>
-    /// Сводка по голосам: доля речи и цитаты для узнавания.
+    /// Цитаты человека: по чему его узнать.
     /// </summary>
     /// <remarks>
-    /// Цитаты показываются в порядке времени — так их легче сопоставить с
-    /// ходом разговора. Какие именно — решает <see cref="PickQuotes"/>.
+    /// Показываются в порядке времени — так их легче сопоставить с ходом
+    /// разговора. Какие именно — решает <see cref="PickQuotes"/>.
     /// </remarks>
-    public static IReadOnlyList<VoiceSummary> Summarize(CallTranscript transcript)
+    public static IReadOnlyList<CallLine> QuotesOf(IReadOnlyList<CallLine> own)
     {
-        ArgumentNullException.ThrowIfNull(transcript);
+        ArgumentNullException.ThrowIfNull(own);
 
-        List<CallLine> theirs = [.. transcript.Lines.Where(l => l.Channel == CallChannel.Theirs && l.Voice is not null)];
-        double total = theirs.Sum(l => Math.Max(0, (l.End - l.Start).TotalSeconds));
-
-        return
-        [
-            .. transcript.Voices.Select(id =>
-            {
-                List<CallLine> own = [.. theirs.Where(l => l.Voice == id)];
-                double seconds = own.Sum(l => Math.Max(0, (l.End - l.Start).TotalSeconds));
-
-                IEnumerable<CallLine> pool = own.Any(l => l.Text.Length >= MinQuoteLength)
-                    ? own.Where(l => l.Text.Length >= MinQuoteLength)
-                    : own;
-
-                return new VoiceSummary(
-                    id,
-                    TimeSpan.FromSeconds(seconds),
-                    total > 0 ? seconds / total : 0,
-                    PickQuotes([.. pool]));
-            }),
-        ];
+        List<CallLine> pool = [.. own.Where(l => l.Text.Length >= MinQuoteLength)];
+        return PickQuotes(pool.Count > 0 ? pool : own);
     }
 
     /// <summary>
@@ -490,25 +464,6 @@ public static class CallVoices
     /// длиннее, тем вероятнее в нём чужой голос.
     /// </remarks>
     private static readonly TimeSpan MaxQuote = TimeSpan.FromSeconds(25);
-
-    /// <summary>
-    /// Слить голос <paramref name="from"/> в голос <paramref name="into"/>.
-    /// </summary>
-    /// <remarks>
-    /// Разделитель без подсказки охотно разваливает один голос на два —
-    /// простуженный, отошедший от микрофона, заговоривший громче. Исправить
-    /// это человеку проще всего словами «это тот же человек».
-    /// </remarks>
-    public static CallTranscript Merge(CallTranscript transcript, string from, string into)
-    {
-        ArgumentNullException.ThrowIfNull(transcript);
-
-        return transcript with
-        {
-            // Сходство мерили с прежним голосом — к слитому оно не относится.
-            Lines = [.. transcript.Lines.Select(l => l.Voice == from ? l with { Voice = into, Fit = null } : l)],
-        };
-    }
 
     /// <summary>Отдать одну реплику другому голосу.</summary>
     /// <param name="transcript">Транскрипт.</param>

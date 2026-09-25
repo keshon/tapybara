@@ -93,10 +93,13 @@ internal static class VoicePalette
     [
         Frozen(0x3A, 0x93, 0x86),
         Frozen(0x86, 0x6E, 0xC7),
-        Frozen(0xC0, 0x82, 0x4A),
         Frozen(0x4A, 0x82, 0xBE),
         Frozen(0xB8, 0x62, 0x8E),
         Frozen(0x7E, 0x93, 0x4E),
+
+        // Оранжевый — последним: он ближе всех к своему коричневому, и третий
+        // голос звонка рядом с владельцем читался как его же.
+        Frozen(0xC0, 0x82, 0x4A),
     ];
 
     /// <summary>Владелец микрофона — приглушённый коричневый со значка приложения.</summary>

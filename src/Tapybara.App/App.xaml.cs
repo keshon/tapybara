@@ -1240,7 +1240,9 @@ public partial class App : Application, IDisposable
 
         foreach ((string voice, string name) in session.VoiceNames)
         {
-            if (transcript.VoicePrints.TryGetValue(voice, out float[]? print))
+            // Свой голос в книгу собеседников не кладём: подсказывать «похоже
+            // на вас» на чужой дорожке — не то, ради чего она есть.
+            if (name != CallSpeakers.Me && transcript.VoicePrints.TryGetValue(voice, out float[]? print))
             {
                 _voiceBook.Learn(name, print);
             }
