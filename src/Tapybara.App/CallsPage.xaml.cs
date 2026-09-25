@@ -161,6 +161,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         CopyButton.Content = L.S.CallsCopyText;
         FolderButton.ToolTip = L.S.CallsOpenFolder;
         MoreButton.ToolTip = L.S.CallsMore;
+
+        // У кнопок из одного значка подсказка — не имя: экранный диктор и
+        // UI Automation видели бы безымянную кнопку.
+        System.Windows.Automation.AutomationProperties.SetName(FolderButton, L.S.CallsOpenFolder);
+        System.Windows.Automation.AutomationProperties.SetName(MoreButton, L.S.CallsMore);
         TranscriptTab.Content = L.S.CallsTabTranscript;
         NoteTab.Content = L.S.CallsTabNote;
         NoteBox.PlaceholderText = L.S.CallReviewNotePlaceholder;
