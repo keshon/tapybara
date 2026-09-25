@@ -84,6 +84,15 @@ public sealed record CallTranscript
     public bool VoicesChecked { get; init; }
 
     /// <summary>
+    /// Текст реплик правили руками (<see cref="TranscriptEdit"/>).
+    /// </summary>
+    /// <remarks>
+    /// Повторное распознавание собирает текст заново и правки сотрёт — перед
+    /// ним человека об этом предупреждают.
+    /// </remarks>
+    public bool EditedByHand { get; init; }
+
+    /// <summary>
     /// Сколько голосов было велено искать. Ноль — искали без подсказки.
     /// </summary>
     /// <remarks>
