@@ -1039,17 +1039,32 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
     </div>
 
     <div class="body-cols" style="margin-top:64px">
-      <p class="spine">naming voices</p>
+      <p class="spine">people</p>
       <div>
-        <h3 style="font-size:clamp(22px,2.6vw,30px);margin-bottom:18px">You name a voice by what it said.</h3>
+        <h3 style="font-size:clamp(22px,2.6vw,30px);margin-bottom:18px">A name is a person, not a voice.</h3>
         <p>
-          A voice split off the far track has no name — and guessing one from the
-          order people joined is how transcripts end up confidently wrong. So each
-          voice comes with its quotes and a play button, and you click the name of
-          whoever said them. The name goes into every line of that voice at once,
-          without transcribing again. Two voices that turn out to be one person
-          merge with <em>Same person as…</em>; a wrong count is fixed by splitting
-          again.
+          The splitter finds voices; it cannot know whose they are, and guessing
+          from the order people joined is how transcripts end up confidently
+          wrong. So a voice without a name comes with its quotes and a play
+          button that plays the line from the far track alone, and you pick the
+          name of whoever said it. The name goes into every line of that voice at
+          once, without transcribing again.
+        </p>
+        <p>
+          Now and then the splitter tears one person into two voices — someone
+          moved away from the microphone or started talking louder. The people
+          already on the call are offered first, with their colour; picking one
+          joins the voice to that person. Each person lists the voices they are
+          made of, with <em>Detach</em> by each, so a wrong pick is one click to
+          undo. Your own voice leaking into the far track through speakers is
+          <em>That's me</em>. You are on the list too, with your share of the call.
+        </p>
+        <p>
+          After the split every line of four seconds or more is compared with its
+          voice. A line that does not sound like it is marked with a <em>?</em>;
+          when minutes of speech sound like nobody found, the panel says someone
+          else was probably on the call and offers to split again with one voice
+          more.
         </p>
         <p>
           Named voices are remembered. On the next call Tapybara says
@@ -1061,10 +1076,65 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
 
         <figure class="shot" style="margin-top:32px">
           <img class="t-dark" src="assets/screens/calls-dark.webp" width="1920" height="1200" loading="lazy"
-               alt="The Tapybara window, Calls page: a list of recorded calls, a transcript with coloured speaker names, and a Voices panel where one voice is named, one has the suggestion Sounds like Kirill, and one asks Who is this? with name chips">
+               alt="The Tapybara window, Calls page: a list of recorded calls, a transcript with coloured speaker names, and a People panel: you with your share of the call, Kirill and Marina named, and a voice asking Who is this? with the people already on the call offered first">
           <img class="t-light" src="assets/screens/calls-light.webp" width="1920" height="1200" loading="lazy"
-               alt="The Tapybara window, Calls page: a list of recorded calls, a transcript with coloured speaker names, and a Voices panel where one voice is named, one has the suggestion Sounds like Kirill, and one asks Who is this? with name chips">
-          <figcaption><b>The call from the demo above, in the app.</b> Marina is named, Tapybara recognises Kirill from an earlier call, and the third voice is waiting for a name.</figcaption>
+               alt="The Tapybara window, Calls page: a list of recorded calls, a transcript with coloured speaker names, and a People panel: you with your share of the call, Kirill and Marina named, and a voice asking Who is this? with the people already on the call offered first">
+          <figcaption><b>The call from the demo above, in the app.</b> The splitter found Kirill twice, and both voices are joined to him. Dana's voice is waiting for a name, with the people already on the call offered first.</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="body-cols" style="margin-top:64px">
+      <p class="spine">fixing words</p>
+      <div>
+        <h3 style="font-size:clamp(22px,2.6vw,30px);margin-bottom:18px">Fix a misheard word once, for the whole call.</h3>
+        <p>
+          Whisper mangles an unfamiliar name differently each time it hears it —
+          <em>Kubernetis</em>, <em>Kubernates</em>, or cut in two where a pause
+          falls. Double-click one: the card lists every spelling of it in the call
+          and how often each occurs, all ticked, and one <em>Replace</em> fixes them
+          together. The text is edited in place, nothing is transcribed again, and
+          the spellings go into the dictionary, so the next call and the next
+          dictation come out right. The dictionary can also be applied to calls
+          transcribed before the word was in it.
+        </p>
+        <p>
+          A whole line is edited in place too. A call with edits asks before it is
+          transcribed again, because that would undo them.
+        </p>
+
+        <figure class="shot small" style="margin-top:28px">
+          <img class="t-dark" src="assets/screens/fix-word-dark.webp" width="736" height="530" loading="lazy"
+               alt="The word card over a transcript: Kubernetis crossed out, Kubernetes typed in, four spellings of the word found in the call, all ticked, Remember in the dictionary, and Replace: 5">
+          <img class="t-light" src="assets/screens/fix-word-light.webp" width="736" height="530" loading="lazy"
+               alt="The word card over a transcript: Kubernetis crossed out, Kubernetes typed in, four spellings of the word found in the call, all ticked, Remember in the dictionary, and Replace: 5">
+        </figure>
+      </div>
+    </div>
+
+    <div class="body-cols" style="margin-top:64px">
+      <p class="spine">sharing</p>
+      <div>
+        <h3 style="font-size:clamp(22px,2.6vw,30px);margin-bottom:18px">Show the conversation, not who was in it.</h3>
+        <p>
+          <em>Copy without names</em> gives everyone an alias — yourself and people
+          only mentioned in passing included — and replaces the mentions in the
+          text as well, declining Russian names so a sentence stays grammatical.
+          Only the copy changes: the call keeps the real names. Aliases are
+          remembered, so the same person is the same alias in the next copy.
+        </p>
+        <p>
+          Renaming someone for real is a different action. <em>Rename
+          everywhere</em> changes the name in every call, in the voice book and in
+          the list of people, and shows each mention with what it will become
+          before anything is written.
+        </p>
+
+        <figure class="shot small" style="margin-top:28px">
+          <img class="t-dark" src="assets/screens/anonymize-dark.webp" width="870" height="744" loading="lazy"
+               alt="Copy without names: each person on the call, and Dana who was only mentioned, with an alias field — Participant 1, 2 and 3 — and Replace mentions in the text too">
+          <img class="t-light" src="assets/screens/anonymize-light.webp" width="870" height="744" loading="lazy"
+               alt="Copy without names: each person on the call, and Dana who was only mentioned, with an alias field — Participant 1, 2 and 3 — and Replace mentions in the text too">
         </figure>
       </div>
     </div>
@@ -1146,15 +1216,15 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
                alt="The Dictionary page: replacements grouped by the correct word, several misheard variants on each line, Export and Import buttons, and a list of people with remembered voices">
           <img class="t-light" src="assets/screens/dictionary-light.webp" width="1920" height="1200" loading="lazy"
                alt="The Dictionary page: replacements grouped by the correct word, several misheard variants on each line, Export and Import buttons, and a list of people with remembered voices">
-        <figcaption><b>Dictionary.</b> Replacements grouped by the word they fix — every way the model mishears <em>Hugging Face</em> on one line. Add one from a transcript with a right-click. Export the whole dictionary, people and voices included, and import it on the next computer.</figcaption>
+        <figcaption><b>Dictionary.</b> Replacements grouped by the word they fix — every way the model mishears <em>Hugging Face</em> on one line. Words fixed in a call land here too, and <em>Apply to past calls</em> corrects calls transcribed before. Export the whole dictionary, people and voices included, and import it on the next computer.</figcaption>
       </figure>
 
       <figure class="shot" id="tour-settings" role="tabpanel">
           <img class="t-dark" src="assets/screens/settings-dark.webp" width="1770" height="1106" loading="lazy"
-               alt="Tapybara settings, Calls page: hotkey, output device, your name in transcripts, telling voices apart and remembering voices">
+               alt="Tapybara settings, Models page: recognition models one per row, the one in use marked with a filled circle, the others with Download; below them the speech detector">
           <img class="t-light" src="assets/screens/settings-light.webp" width="1770" height="1106" loading="lazy"
-               alt="Tapybara settings, Calls page: hotkey, output device, your name in transcripts, telling voices apart and remembering voices">
-        <figcaption><b>Settings.</b> Six pages you visit once: hotkeys and microphone, calls and voices, models to download, and under <em>Advanced</em> the knobs for people who want them.</figcaption>
+               alt="Tapybara settings, Models page: recognition models one per row, the one in use marked with a filled circle, the others with Download; below them the speech detector">
+        <figcaption><b>Settings.</b> Pages you visit once. Models are one list per kind — recognition, speech detection and the two voice models: the filled circle is the one in use, a click switches, and <em>Download</em> or <em>Delete</em> sits in the same row. A fine-tune dropped into the folder appears in its list.</figcaption>
       </figure>
     </div>
   </div>
@@ -1190,6 +1260,10 @@ footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
       <div>
         <h3>A speech detector first</h3>
         <p>A small model finds where the speech actually is before Whisper runs, so each line sits where it was said and silence does not come back as <em>thanks for watching</em>.</p>
+      </div>
+      <div>
+        <h3>The line you hear is marked</h3>
+        <p>Point at a line and a ▶ appears by its time. The playing line gets a bar and fills as it sounds, and the transcript scrolls along — unless you scrolled away to read something else.</p>
       </div>
       <div>
         <h3>Calls have their own hotkey</h3>
@@ -1281,12 +1355,17 @@ build.cmd run</pre>
 
       <details>
         <summary>How accurate is it?</summary>
-        <p>Good, not perfect. Names and jargon get mangled in predictable ways, which is what the replacements list is for. On silence Whisper sometimes emits phrases it learned from subtitles — "thanks for watching" and similar — and those are filtered out, deliberately conservatively, so an unusual real sentence is kept rather than an occasional artefact removed.</p>
+        <p>Good, not perfect. Names and jargon get mangled in predictable ways, which is what the replacements list is for — and a word misheard in a call is fixed in place, every spelling at once, without transcribing again. On silence Whisper sometimes emits phrases it learned from subtitles — "thanks for watching" and similar — and those are filtered out, deliberately conservatively, so an unusual real sentence is kept rather than an occasional artefact removed.</p>
       </details>
 
       <details>
         <summary>How well does it tell voices apart?</summary>
-        <p>Honestly: better with help than without. Naming the participants when the call ends gives the splitter the number of voices to look for, and that single hint is worth more than any threshold. The names themselves come from you, picked by what each voice said — never from the order people joined. Several people sharing one room and one microphone defeat every system of this kind, including this one, and the panel lets you merge two voices or split again when the count came out wrong.</p>
+        <p>Honestly: better with help than without. Naming the participants when the call ends gives the splitter the number of voices to look for, and that single hint is worth more than any threshold. After the split every line is checked against its voice, and the ones that do not fit are marked. The names come from you, picked by what each voice said — never from the order people joined. Several people sharing one room and one microphone defeat every system of this kind, including this one; a person torn into two voices is joined back with a click, and a wrong count is fixed by splitting again.</p>
+      </details>
+
+      <details>
+        <summary>Can I share a transcript without the names?</summary>
+        <p>Yes. <em>Copy without names</em> in a call's menu copies the transcript with an alias for each person — yourself included — and replaces their names in the text too. The call itself keeps the real names; only the copy changes, and the aliases are remembered for the next one.</p>
       </details>
 
       <details>
