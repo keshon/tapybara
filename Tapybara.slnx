@@ -4,6 +4,7 @@
     <Project Path="src/Tapybara.Core/Tapybara.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Tapybara.App.Tests/Tapybara.App.Tests.csproj" />
     <Project Path="tests/Tapybara.Core.Tests/Tapybara.Core.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

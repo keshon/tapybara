@@ -65,12 +65,24 @@ somebody's server.
 - Named voices are remembered, so on the next call Tapybara suggests who is
   speaking — a suggestion you accept, never a label it applies on its own. The
   voiceprints stay on this computer and are forgotten with one button.
-- A misheard word is fixed once for the whole call: double-click it, and every
-  way it was misheard is replaced together, in place, without transcribing
-  again. The playing line lights up as it sounds and the transcript follows.
-- A transcript can be copied without the names — everyone as an alias, the
-  mentions in the text included — while the call keeps the real ones. Renaming
-  someone for real changes them in every call at once.
+- A misheard word can be corrected in place without transcribing again.
+  Click the text to type; double-click selects a word. Ctrl+Enter splits at
+  the caret between words. Undo/Redo restores text, speakers and timing;
+  similar spellings and dictionary learning require an explicit choice.
+  Selected text can be assigned with audio boundaries, segments merged, and
+  missing speech added. Approximate split timing is marked until adjusted.
+  Edits persist immediately when the field is committed; Undo history lasts
+  for this app session. Transcript and metadata retain a previous-file copy.
+  The active intervals are marked, including overlap; silence clears them.
+  A docked transport provides pause/resume, seeking, rewind and Follow.
+  Timestamps seek; separate play buttons audition bounded source excerpts.
+- Export copies or saves TXT, Markdown or JSON from the edited transcript.
+  Choose speaker names, aliases or no labels, timestamps and selected text.
+  Known name mentions can be replaced in the exported copy while the call
+  retains the real names. Renaming someone for real changes them across calls.
+- The call library searches titles, people and transcript text. Person, state
+  and date filters expand on demand; each recording has its own action menu.
+  The People/Review helper opens when requested.
 
 ## Getting started
 

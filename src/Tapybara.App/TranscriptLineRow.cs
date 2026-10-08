@@ -13,9 +13,9 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
 {
     private bool _isCurrent;
     private bool _isPlaying;
-    private double _progress;
+    private bool _isExcerptPlaying;
 
-    public required CallLine Line { get; init; }
+    public required CallLine Line { get; set; }
 
     public required string Stamp { get; init; }
 
@@ -38,6 +38,7 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
         : new Thickness(0);
 
     public required string PlayHint { get; init; }
+    public string SeekHint => L.S.PlaybackStamp + ": " + Stamp;
 
     /// <summary>Голос реплики под сомнением (см. <see cref="CallLine.IsDoubtful"/>).</summary>
     public Visibility DoubtVisibility => Line.IsDoubtful ? Visibility.Visible : Visibility.Collapsed;
@@ -74,16 +75,16 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Сколько реплики уже прозвучало, 0–1: столько строки и залито.</summary>
-    public double Progress
+    /// <summary>Кнопка фрагмента относится именно к этому ограниченному прослушиванию.</summary>
+    public bool IsExcerptPlaying
     {
-        get => _progress;
+        get => _isExcerptPlaying;
         set
         {
-            if (Math.Abs(_progress - value) > 0.001)
+            if (_isExcerptPlaying != value)
             {
-                _progress = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Progress)));
+                _isExcerptPlaying = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExcerptPlaying)));
             }
         }
     }

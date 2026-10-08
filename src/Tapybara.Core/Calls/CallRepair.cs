@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Tapybara.Core.Diagnostics;
+using Tapybara.Core.Audio;
 
 namespace Tapybara.Core.Calls;
 
@@ -32,12 +33,13 @@ public static class CallRepair
     /// Проверить и починить обе дорожки звонка.
     /// </summary>
     /// <returns>Сколько файлов пришлось чинить.</returns>
-    public static int RepairCall(CallSession session)
+    public static int RepairCall(CallSession session, CancellationToken cancellationToken = default)
     {
         int repaired = 0;
         foreach (string path in new[] { session.MicPath, session.SystemPath })
         {
-            if (RepairWav(path))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (RepairWav(path, cancellationToken))
             {
                 repaired++;
             }
@@ -96,7 +98,7 @@ public static class CallRepair
     /// Привести размеры в заголовке в соответствие с реальным размером файла.
     /// </summary>
     /// <returns><c>true</c>, если файл был испорчен и починен.</returns>
-    public static bool RepairWav(string path)
+    public static bool RepairWav(string path, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -106,6 +108,7 @@ public static class CallRepair
                 return false;
             }
 
+            using IDisposable access = AudioSourceAccess.Acquire(path, cancellationToken);
             using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             Span<byte> header = stackalloc byte[12];
             if (stream.Read(header) != header.Length)

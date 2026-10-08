@@ -1,6 +1,7 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using Tapybara.Bench;
 using Whisper.net.Logger;
 using Tapybara.Core.Audio;
 using Tapybara.Core.Calls;
@@ -163,6 +164,16 @@ switch (command)
         SplitVoices(positional[1], speakerCount ?? 0, clusterThreshold);
         break;
 
+    case "speaker-audit":
+        if (positional.Length != 4)
+        {
+            Console.Error.WriteLine("bench speaker-audit <папка звонка> <начало, с> <длина, с> [--speakers N]");
+            return 1;
+        }
+        SpeakerAudit.Run(positional[1], double.Parse(positional[2], CultureInfo.InvariantCulture),
+            double.Parse(positional[3], CultureInfo.InvariantCulture), speakerCount ?? 0, clusterThreshold);
+        break;
+
     case "linecheck":
         if (positional.Length < 2)
         {
@@ -206,6 +217,7 @@ switch (command)
               bench transcribe <папка>       собрать транскрипт записанного звонка
               bench vad <файл.wav>           что детектор считает речью в файле
               bench diarize <файл.wav>       разделить голоса в дорожке
+              bench speaker-audit <папка> <начало> <длина>  JSON-свидетельства, до 120 с, без правок
               bench voiceprint <a> [b]       сходство слепков голоса: двух файлов или половин одного
               bench check                    проверить хоткей и буфер обмена
 

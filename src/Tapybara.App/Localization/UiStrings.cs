@@ -1,4 +1,4 @@
-﻿using Tapybara.Core.Calls;
+using Tapybara.Core.Calls;
 using Tapybara.Core.Dictation;
 using Tapybara.Core.Models;
 
@@ -360,6 +360,57 @@ public sealed record UiStrings
     public required string DayToday { get; init; }
     public required string DayYesterday { get; init; }
     public required string CallsListen { get; init; }
+    public required string LibraryFilters { get; init; }
+    public required string LibraryRemoveFilter { get; init; }
+    public required string LibraryAllPeople { get; init; }
+    public required string LibraryAllStates { get; init; }
+    public required string LibraryFromDate { get; init; }
+    public required string LibraryToDate { get; init; }
+    public required string LibraryNoMatches { get; init; }
+    public required string LibrarySearchHelp { get; init; }
+    public required string CallsExport { get; init; }
+    public required string CallsRename { get; init; }
+    public required string CallsReview { get; init; }
+    public required string TimelineSelectRange { get; init; }
+    public required string TimelinePlayRange { get; init; }
+    public required string TimelineClearRange { get; init; }
+    public required string TimelineRangeHelp { get; init; }
+    public required string TimelineTitle { get; init; }
+    public required string TimelineSources { get; init; }
+    public required string TimelineSpeakers { get; init; }
+    public required string TimelineIntervals { get; init; }
+    public required string TimelineMicrophone { get; init; }
+    public required string TimelineSystem { get; init; }
+    public required string TimelineLoading { get; init; }
+    public required string TimelineFailed { get; init; }
+    public required string TimelineUnavailable { get; init; }
+    public required string TimelineSourcesHelp { get; init; }
+    public required string TimelineSpeakersHelp { get; init; }
+    public required string PlaybackPlay { get; init; }
+    public required string PlaybackPause { get; init; }
+    public required string PlaybackStop { get; init; }
+    public required string PlaybackRewind { get; init; }
+    public required string PlaybackForward { get; init; }
+    public required string PlaybackFollow { get; init; }
+    public required string PlaybackSeek { get; init; }
+    public required string PlaybackPosition { get; init; }
+    public required string PlaybackRange { get; init; }
+    public required string PlaybackWholeCall { get; init; }
+    public required string PlaybackFailed { get; init; }
+    public required string PlaybackFragment { get; init; }
+    public required string PlaybackStamp { get; init; }
+    public required string ExportFormat { get; init; }
+    public required string ExportPreview { get; init; }
+    public required string ExportInvalid { get; init; }
+    public required string ExportCopy { get; init; }
+    public required string ExportSave { get; init; }
+    public required string ExportNames { get; init; }
+    public required string ExportAliases { get; init; }
+    public required string ExportNoLabels { get; init; }
+    public required string ExportTimestamps { get; init; }
+    public required string ExportSelection { get; init; }
+    public required string ExportMentions { get; init; }
+    public required string ExportFailed { get; init; }
     public required string CallsStopListening { get; init; }
     public required string CallsCopyText { get; init; }
     public required string CallsMore { get; init; }
@@ -424,6 +475,31 @@ public sealed record UiStrings
     public required string LineFixWord { get; init; }
     public required string LineEditText { get; init; }
     public required string LineDelete { get; init; }
+    public required string FindTitle { get; init; }
+    public required string FindQuery { get; init; }
+    public required string FindReplacement { get; init; }
+    public required string FindReplace { get; init; }
+    public required string FindReplaceAll { get; init; }
+    public required string FindCount { get; init; }
+    public required string FindPrevious { get; init; }
+    public required string FindNext { get; init; }
+    public required string FindScope { get; init; }
+    public required string EditUndo { get; init; }
+    public required string EditRedo { get; init; }
+    public required string EditSplit { get; init; }
+    public required string EditMerge { get; init; }
+    public required string EditTiming { get; init; }
+    public required string EditAddSpeech { get; init; }
+    public required string EditEstimated { get; init; }
+    public required string EditConflict { get; init; }
+    public required string EditFrom { get; init; }
+    public required string EditTo { get; init; }
+    public required string EditApply { get; init; }
+    public required string EditAssignSelection { get; init; }
+    public required string EditBoundaryHelp { get; init; }
+    public required string EditDeleteSelection { get; init; }
+    public required string EditKeepDraft { get; init; }
+    public required string EditDiscardDraft { get; init; }
     public required string LineFixSelection { get; init; }
     public required string CallsStopTranscribing { get; init; }
     public required string PersonRenameEverywhere { get; init; }
@@ -988,6 +1064,57 @@ public sealed record UiStrings
         DayToday = "Today",
         DayYesterday = "Yesterday",
         CallsListen = "Listen",
+        LibraryFilters = "Filters",
+        LibraryRemoveFilter = "Remove filter",
+        LibraryAllPeople = "All people",
+        LibraryAllStates = "All states",
+        LibraryFromDate = "From date",
+        LibraryToDate = "Through date",
+        LibraryNoMatches = "No recordings match these filters.",
+        LibrarySearchHelp = "Search recording titles, people and transcript text",
+        CallsExport = "Export",
+        CallsRename = "Rename…",
+        CallsReview = "People / Review",
+        TimelineSelectRange = "Select range…",
+        TimelinePlayRange = "Play selection",
+        TimelineClearRange = "Clear selection",
+        TimelineRangeHelp = "Enter audio bounds as mm:ss.fff. This selects a listening range without editing the transcript.",
+        TimelineTitle = "Timeline",
+        TimelineSources = "Sources",
+        TimelineSpeakers = "Speakers",
+        TimelineIntervals = "Choose a speech interval",
+        TimelineMicrophone = "Microphone",
+        TimelineSystem = "System",
+        TimelineLoading = "Loading waveform…",
+        TimelineFailed = "Source could not be read",
+        TimelineUnavailable = "No source audio",
+        TimelineSourcesHelp = "Real source peaks on a shared time scale. Click to seek; drag to select audio.",
+        TimelineSpeakersHelp = "Transcript activity, not isolated voices. Click an interval to play its source; drag its handles to adjust timing. ~ estimated timing; ? review speaker.",
+        PlaybackPlay = "Play",
+        PlaybackPause = "Pause",
+        PlaybackStop = "Stop",
+        PlaybackRewind = "Back 5 seconds",
+        PlaybackForward = "Forward 5 seconds",
+        PlaybackFollow = "Follow",
+        PlaybackSeek = "Seek audio",
+        PlaybackPosition = "Playback position and duration",
+        PlaybackRange = "Excerpt",
+        PlaybackWholeCall = "Whole call",
+        PlaybackFailed = "Audio could not be played. Check the source files and output device.",
+        PlaybackFragment = "Play this excerpt",
+        PlaybackStamp = "Seek to this time",
+        ExportFormat = "Format",
+        ExportPreview = "Preview (excerpt)",
+        ExportInvalid = "Check aliases and selected text. Every speaker needs a different alias.",
+        ExportCopy = "Copy to clipboard",
+        ExportSave = "Save as…",
+        ExportNames = "Speaker names",
+        ExportAliases = "Aliases",
+        ExportNoLabels = "Without speaker labels",
+        ExportTimestamps = "Include timestamps",
+        ExportSelection = "Selected text only",
+        ExportMentions = "Replace known name mentions",
+        ExportFailed = "Export failed: {0}",
         CallsStopListening = "Stop",
         CallsCopyText = "Copy text",
         CallsMore = "More",
@@ -1051,6 +1178,31 @@ public sealed record UiStrings
         LineFixWord = "Fix this word…",
         LineEditText = "Edit the line",
         LineDelete = "Delete the line",
+        FindTitle = "Find and replace (Ctrl+F / Ctrl+H)",
+        FindQuery = "Find text",
+        FindReplacement = "Replace with",
+        FindReplace = "Replace",
+        FindReplaceAll = "Replace all ({0})",
+        FindCount = "{0} / {1}",
+        FindPrevious = "Previous match (Shift+Enter)",
+        FindNext = "Next match (Enter)",
+        FindScope = "Current call text · literal, case-insensitive · empty replacement deletes · Undo restores changes.",
+        EditUndo = "Undo",
+        EditRedo = "Redo",
+        EditSplit = "Split here",
+        EditMerge = "Merge with next segment",
+        EditTiming = "Adjust audio boundaries…",
+        EditAddSpeech = "Add missing speech…",
+        EditEstimated = "Estimated timing — adjust audio boundaries",
+        EditConflict = "The transcript changed. Your action was not applied; review the current version.",
+        EditFrom = "Start (mm:ss.fff)",
+        EditTo = "End (mm:ss.fff)",
+        EditApply = "Apply",
+        EditAssignSelection = "Assign selected text…",
+        EditBoundaryHelp = "Listen and enter the audio boundaries. Overlapping speech is allowed.",
+        EditDeleteSelection = "Delete selected text",
+        EditKeepDraft = "Save my draft instead",
+        EditDiscardDraft = "Discard draft and reload",
         LineFixSelection = "Fix “{0}”…",
         CallsStopTranscribing = "Stop",
         PersonRenameEverywhere = "Rename everywhere…",
@@ -1467,6 +1619,57 @@ public sealed record UiStrings
         DayToday = "Сегодня",
         DayYesterday = "Вчера",
         CallsListen = "Слушать",
+        LibraryFilters = "Фильтры",
+        LibraryRemoveFilter = "Снять фильтр",
+        LibraryAllPeople = "Все участники",
+        LibraryAllStates = "Все состояния",
+        LibraryFromDate = "С даты",
+        LibraryToDate = "По дату включительно",
+        LibraryNoMatches = "Нет записей с такими фильтрами.",
+        LibrarySearchHelp = "Поиск по названиям записей, участникам и тексту транскрипта",
+        CallsExport = "Экспорт",
+        CallsRename = "Переименовать…",
+        CallsReview = "Участники / Проверка",
+        TimelineSelectRange = "Выделить диапазон…",
+        TimelinePlayRange = "Прослушать выделение",
+        TimelineClearRange = "Снять выделение",
+        TimelineRangeHelp = "Границы аудио в формате мм:сс.fff. Выделение для прослушивания не меняет транскрипт.",
+        TimelineTitle = "Шкала времени",
+        TimelineSources = "Источники",
+        TimelineSpeakers = "Говорящие",
+        TimelineIntervals = "Выберите интервал речи",
+        TimelineMicrophone = "Микрофон",
+        TimelineSystem = "Система",
+        TimelineLoading = "Загрузка огибающей…",
+        TimelineFailed = "Не удалось прочитать источник",
+        TimelineUnavailable = "Нет аудиоисточника",
+        TimelineSourcesHelp = "Пики реальных источников на общей шкале времени. Щелчок переносит позицию; протягивание выделяет аудио.",
+        TimelineSpeakersHelp = "Интервалы транскрипта, а не изолированные голоса. Щелчок воспроизводит источник; границы выбранного интервала можно двигать. ~ примерное время; ? проверьте говорящего.",
+        PlaybackPlay = "Воспроизвести",
+        PlaybackPause = "Пауза",
+        PlaybackStop = "Стоп",
+        PlaybackRewind = "Назад на 5 секунд",
+        PlaybackForward = "Вперёд на 5 секунд",
+        PlaybackFollow = "Следить",
+        PlaybackSeek = "Позиция аудио",
+        PlaybackPosition = "Позиция и длительность",
+        PlaybackRange = "Фрагмент",
+        PlaybackWholeCall = "Весь звонок",
+        PlaybackFailed = "Не удалось воспроизвести аудио. Проверьте исходные файлы и устройство вывода.",
+        PlaybackFragment = "Воспроизвести фрагмент",
+        PlaybackStamp = "Перейти к этому времени",
+        ExportFormat = "Формат",
+        ExportPreview = "Предпросмотр (фрагмент)",
+        ExportInvalid = "Проверьте псевдонимы и выделенный текст. Каждому говорящему нужен отдельный псевдоним.",
+        ExportCopy = "Копировать в буфер",
+        ExportSave = "Сохранить как…",
+        ExportNames = "Имена говорящих",
+        ExportAliases = "Псевдонимы",
+        ExportNoLabels = "Без подписей говорящих",
+        ExportTimestamps = "Включить время",
+        ExportSelection = "Только выделенный текст",
+        ExportMentions = "Заменять упоминания известных имён",
+        ExportFailed = "Не удалось экспортировать: {0}",
         CallsStopListening = "Остановить",
         CallsCopyText = "Копировать текст",
         CallsMore = "Ещё",
@@ -1530,6 +1733,31 @@ public sealed record UiStrings
         LineFixWord = "Исправить слово…",
         LineEditText = "Исправить реплику",
         LineDelete = "Удалить реплику",
+        FindTitle = "Найти и заменить (Ctrl+F / Ctrl+H)",
+        FindQuery = "Найти текст",
+        FindReplacement = "Заменить на",
+        FindReplace = "Заменить",
+        FindReplaceAll = "Заменить все ({0})",
+        FindCount = "{0} / {1}",
+        FindPrevious = "Предыдущее совпадение (Shift+Enter)",
+        FindNext = "Следующее совпадение (Enter)",
+        FindScope = "Текст текущего звонка · буквальный поиск без учёта регистра · пустая замена удаляет · отмена восстанавливает правки.",
+        EditUndo = "Отменить",
+        EditRedo = "Повторить",
+        EditSplit = "Разделить здесь",
+        EditMerge = "Склеить со следующей репликой",
+        EditTiming = "Уточнить границы аудио…",
+        EditAddSpeech = "Добавить пропущенную речь…",
+        EditEstimated = "Время приблизительное — уточните границы аудио",
+        EditConflict = "Транскрипт изменился. Действие не применено; проверьте актуальную версию.",
+        EditFrom = "Начало (мм:сс.fff)",
+        EditTo = "Конец (мм:сс.fff)",
+        EditApply = "Применить",
+        EditAssignSelection = "Назначить выделенный текст…",
+        EditBoundaryHelp = "Послушайте запись и укажите границы аудио. Перекрытие речи допускается.",
+        EditDeleteSelection = "Удалить выделенный текст",
+        EditKeepDraft = "Сохранить мой текст вместо текущего",
+        EditDiscardDraft = "Отбросить черновик и перечитать",
         LineFixSelection = "Исправить «{0}»…",
         CallsStopTranscribing = "Остановить",
         PersonRenameEverywhere = "Переименовать везде…",

@@ -93,7 +93,10 @@ public static class VoiceCheck
     /// <summary>Снять слепки реплик собеседников и сравнить их с голосами.</summary>
     /// <param name="lines">Реплики транскрипта.</param>
     /// <param name="printOf">Слепок реплики, или <c>null</c>, если речи в ней слишком мало.</param>
-    public static Report Measure(IReadOnlyList<CallLine> lines, Func<CallLine, float[]?> printOf)
+    public static Report Measure(
+        IReadOnlyList<CallLine> lines,
+        Func<CallLine, float[]?> printOf,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(lines);
         ArgumentNullException.ThrowIfNull(printOf);
@@ -101,6 +104,7 @@ public static class VoiceCheck
         var measured = new List<(CallLine Line, string Voice, float[] Print)>();
         foreach (CallLine line in lines)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (line.Channel != CallChannel.Theirs || line.End - line.Start < MinLine)
             {
                 continue;
@@ -111,6 +115,8 @@ public static class VoiceCheck
                 measured.Add((line, line.Voice ?? CallVoices.WholeOtherSide, VoiceBook.Normalize(print)));
             }
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         Dictionary<string, float[]> centres = measured
             .GroupBy(m => m.Voice)
@@ -138,11 +144,14 @@ public static class VoiceCheck
     /// голосов не разделяли, переселять некуда, и сомнение — повод
     /// предложить разделение (<see cref="MoreVoicesLikely"/>).
     /// </remarks>
-    public static CallTranscript Check(CallTranscript transcript, Func<CallLine, float[]?> printOf)
+    public static CallTranscript Check(
+        CallTranscript transcript,
+        Func<CallLine, float[]?> printOf,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(transcript);
 
-        Report report = Measure(transcript.Lines, printOf);
+        Report report = Measure(transcript.Lines, printOf, cancellationToken);
         // Реплики — записи и сравниваются по значению: две одинаковые
         // (тот же текст в ту же секунду) сошлись бы в один ключ.
         Dictionary<CallLine, LineScore> scores = report.Lines
@@ -156,6 +165,10 @@ public static class VoiceCheck
             [
                 .. transcript.Lines.Select(line =>
                 {
+                    if (line.HumanEdits.HasFlag(CallLineEdits.Speaker))
+                    {
+                        return line;
+                    }
                     if (!scores.TryGetValue(line, out LineScore? score))
                     {
                         return line.Fit is null ? line : line with { Fit = null };

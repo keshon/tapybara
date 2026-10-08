@@ -80,7 +80,7 @@ public static class CallPeople
 
         var people = new List<CallPerson>
         {
-            Person(null, isMe: true, mine, -1, transcript, total, l => l.Channel == CallChannel.Mine || (l.Voice is { } v && mine.Contains(v))),
+            Person(null, isMe: true, mine, -1, transcript, total, l => (l.Channel == CallChannel.Mine && l.Voice is null) || (l.Voice is { } v && mine.Contains(v))),
         };
 
         if (voices.Count == 0)
@@ -104,6 +104,12 @@ public static class CallPeople
         foreach ((int color, string voice) in unnamed)
         {
             people.Add(Person(null, isMe: false, [voice], color, transcript, total, l => l.Voice == voice));
+        }
+
+        if (transcript.Lines.Any(l => l.Channel == CallChannel.Theirs && l.Voice is null))
+        {
+            people.Add(Person(null, isMe: false, [CallVoices.WholeOtherSide], voices.Count, transcript, total,
+                l => l.Channel == CallChannel.Theirs && l.Voice is null));
         }
 
         return people;

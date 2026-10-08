@@ -131,7 +131,7 @@ public partial class App : Application, IDisposable
     private CallTranscriptionProgress? _callProgress;
 
     /// <summary>Отмена распознавания текущего звонка — если его удаляют на ходу.</summary>
-    private CancellationTokenSource? _callCancellation;
+    private Tapybara.Core.Concurrency.CancelableOperation? _callCancellation;
 
     /// <summary>
     /// Работа над звонками идёт по одной.
@@ -145,6 +145,8 @@ public partial class App : Application, IDisposable
 
     /// <summary>Звонки, ждущие своей очереди на распознавание.</summary>
     private readonly HashSet<string> _queuedCalls = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _deletingCalls = new(StringComparer.OrdinalIgnoreCase);
+    private bool _exiting;
 
     /// <summary>Откладывает возврат пилюли звонка, пока видна вспышка диктовки.</summary>
     private DispatcherTimer? _callOverlayDelay;
@@ -420,12 +422,14 @@ public partial class App : Application, IDisposable
         if (holdsEngine)
         {
             await _rebuildGate.WaitAsync().ConfigureAwait(true);
+            await _callGate.WaitAsync().ConfigureAwait(true);
             try
             {
                 await DisposeEngineAndControllerAsync().ConfigureAwait(true);
             }
             finally
             {
+                _callGate.Release();
                 _rebuildGate.Release();
             }
         }
@@ -577,11 +581,27 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private async Task RebuildEngineAsync()
     {
+        if (_exiting)
+        {
+            return;
+        }
         await _rebuildGate.WaitAsync().ConfigureAwait(true);
+        // Настройки могут меняться во время звонка; модель этого задания
+        // живёт до его завершения. Порядок замков такой же при удалении.
+        await _callGate.WaitAsync().ConfigureAwait(true);
+        if (_exiting)
+        {
+            _callGate.Release();
+            _rebuildGate.Release();
+            return;
+        }
         _tray!.SetEngineBusy(true);
         try
         {
-            await RebuildEngineCoreAsync().ConfigureAwait(true);
+            if (!_exiting)
+            {
+                await RebuildEngineCoreAsync().ConfigureAwait(true);
+            }
         }
         catch (Exception ex)
         {
@@ -590,7 +610,8 @@ public partial class App : Application, IDisposable
         }
         finally
         {
-            _tray.SetEngineBusy(false);
+            _tray?.SetEngineBusy(false);
+            _callGate.Release();
             _rebuildGate.Release();
         }
     }
@@ -1357,7 +1378,7 @@ public partial class App : Application, IDisposable
         _queuedCalls.Remove(directory);
         if (string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase))
         {
-            _callCancellation?.Cancel();
+            _callCancellation?.TryCancel();
         }
     }
 
@@ -1367,12 +1388,25 @@ public partial class App : Application, IDisposable
     /// заново не случится. Распознавание этого звонка, если оно идёт,
     /// отменяется: иначе оно дописало бы файлы в папку, которой уже нет.
     /// </remarks>
-    private void DeleteCall(string directory)
+    private void DeleteCall(string directory) => _ = DeleteCallAsync(directory);
+
+    private async Task DeleteCallAsync(string directory)
     {
+        if (_exiting || !_deletingCalls.Add(directory))
+        {
+            return;
+        }
         StopCallJob(directory);
+        // Отмена не ждёт native inference. Удаление ждёт завершения, чтобы
+        // папка не исчезла между JSON, метой и Markdown одной фиксации.
+        await _callGate.WaitAsync().ConfigureAwait(true);
 
         try
         {
+            if (_exiting)
+            {
+                return;
+            }
             Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
                 directory,
                 Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
@@ -1382,6 +1416,12 @@ public partial class App : Application, IDisposable
         {
             AppLog.Error("Не удалось удалить папку звонка.", ex);
             _tray?.SetStatus(ex.Message);
+        }
+        finally
+        {
+            _callGate.Release();
+            _deletingCalls.Remove(directory);
+            _mainWindow?.RefreshCalls();
         }
     }
 
@@ -1426,6 +1466,10 @@ public partial class App : Application, IDisposable
         Func<CallTranscriber, IProgress<CallTranscriptionProgress>, CancellationToken, Task<string?>> work,
         bool announce)
     {
+        if (_exiting || _deletingCalls.Contains(directory))
+        {
+            return;
+        }
         if (_callTranscriber is null)
         {
             _tray!.SetStatus(L.S.StatusModelStillLoading);
@@ -1436,21 +1480,28 @@ public partial class App : Application, IDisposable
         await _callGate.WaitAsync().ConfigureAwait(true);
 
         // Пока ждали очереди, звонок могли удалить.
-        if (!_queuedCalls.Remove(directory) || _callTranscriber is not { } transcriber)
+        if (!_queuedCalls.Remove(directory) || _exiting || _deletingCalls.Contains(directory) || _callTranscriber is not { } transcriber)
         {
             _callGate.Release();
             return;
         }
 
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = new Tapybara.Core.Concurrency.CancelableOperation();
         _callCancellation = cancellation;
         _transcribingCallDirectory = directory;
         _tray!.SetCallTranscribing(true);
+        bool completed = false;
+        bool cancelled = false;
 
         try
         {
             var progress = new Progress<CallTranscriptionProgress>(OnCallProgress);
-            string? path = await work(transcriber, progress, cancellation.Token).ConfigureAwait(true);
+            string? path = await work(transcriber.WithCommitBoundary(cancellation.Commit), progress, cancellation.Token).ConfigureAwait(true);
+            if (_exiting)
+            {
+                return;
+            }
+            completed = path is not null;
 
             if (path is not null)
             {
@@ -1464,6 +1515,7 @@ public partial class App : Application, IDisposable
         }
         catch (OperationCanceledException)
         {
+            cancelled = true;
             AppLog.Info($"Работа над звонком отменена: {directory}.");
         }
         catch (Exception ex)
@@ -1476,13 +1528,23 @@ public partial class App : Application, IDisposable
             Volatile.Write(ref _callCancellation, null);
             _transcribingCallDirectory = null;
             _callProgress = null;
-            _tray.SetCallTranscribing(false);
-            _mainWindow?.RefreshCalls();
+            _tray?.SetCallTranscribing(false);
+            if (!_exiting)
+            {
+                _mainWindow?.RefreshCalls();
+            }
             _callGate.Release();
 
-            if (_overlay!.Mode == OverlayMode.CallTranscribing && _overlay.IsVisible)
+            if (!_exiting && _overlay!.Mode == OverlayMode.CallTranscribing && _overlay.IsVisible)
             {
-                _overlay.FlashAndHide(L.S.PillCallReady);
+                if (completed || cancelled)
+                {
+                    _overlay.FlashAndHide(completed ? L.S.PillCallReady : L.S.PillCancelled);
+                }
+                else
+                {
+                    _overlay.Hide();
+                }
             }
         }
     }
@@ -1491,7 +1553,7 @@ public partial class App : Application, IDisposable
     {
         // Прогресс приходит в очередь диспетчера и может опоздать: работа уже
         // кончилась, а сообщение о её середине ещё в пути.
-        if (_transcribingCallDirectory is null)
+        if (_exiting || _transcribingCallDirectory is null)
         {
             return;
         }
@@ -2152,6 +2214,9 @@ public partial class App : Application, IDisposable
     /// </remarks>
     public void Dispose()
     {
+        _exiting = true;
+        _queuedCalls.Clear();
+        _callCancellation?.TryCancel();
         AppLog.Info("Выход.");
 
         _downloads?.CancelAll();
@@ -2172,10 +2237,14 @@ public partial class App : Application, IDisposable
 
         // Запись звонка на выходе не бросаем: файлы дописываются и закрываются.
         _callRecorder.Dispose();
-        _diarizer?.Dispose();
-        _voiceprints?.Dispose();
-
-        DisposeEngineAndControllerOnExit();
+        if (_transcribingCallDirectory is null)
+        {
+            _diarizer?.Dispose();
+            _voiceprints?.Dispose();
+            DisposeEngineAndControllerOnExit();
+        }
+        // Если native inference ещё идёт, её ресурсы освободит завершение
+        // процесса. Dispose модели из-под неё мог обрушить нативный код.
 
         _wakeRegistration?.Unregister(null);
         _wakeRegistration = null;
@@ -2189,8 +2258,8 @@ public partial class App : Application, IDisposable
         // могла не успеть сработать до выхода.
         _settings?.Dispose();
 
-        _rebuildGate.Dispose();
-        _callGate.Dispose();
+        // Продолжения отменённых заданий ещё могут Release эти управляемые
+        // семафоры. На выходе оставляем их сборщику мусора.
 
         _instanceMutex?.Dispose();
         _instanceMutex = null;

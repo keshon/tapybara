@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:app="clr-namespace:Tapybara.App">
+                    xmlns:app="clr-namespace:Tapybara.App"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <!--
         Общие стили окон Tapybara.
 
@@ -80,17 +81,6 @@
         у прозрачной кнопки WPF-UI рамка остаётся, и «ссылка» выглядела
         кнопкой второго сорта.
     -->
-    <!--
-        Заливка звучащей реплики. Акцент — потому что это «сейчас играет»,
-        а не выделение; двенадцать процентов — чтобы текст поверх читался
-        в обеих темах так же, как без заливки.
-    -->
-    <Style x:Key="PlayingLineFill" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-        <Setter Property="Opacity" Value="0.12" />
-        <Setter Property="CornerRadius" Value="{x:Static app:Tokens.ControlRadius}" />
-    </Style>
-
     <Style x:Key="FlatLinkButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Background" Value="Transparent" />
@@ -104,7 +94,7 @@
                             Background="Transparent"
                             CornerRadius="{x:Static app:Tokens.ControlRadius}"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter VerticalAlignment="Center" />
+                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -117,6 +107,20 @@
         </Setter>
     </Style>
 
+    <!-- Общие команды/поля: один ряд 32 DIP, иконки квадратные. -->
+    <Style x:Key="SquareIconButton" TargetType="Button" BasedOn="{StaticResource FlatLinkButton}">
+        <Setter Property="Width" Value="{x:Static app:Tokens.ControlHeight}" />
+        <Setter Property="Height" Value="{x:Static app:Tokens.ControlHeight}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="DialogFooter" TargetType="Border">
+        <Setter Property="Padding" Value="24,12" />
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
     <!--
         Кнопка записи — пилюля индикатора (см. RecordPill). Цвета заданы
         прямо, а не темой: пилюля на экране тёмная в любой теме, и кнопка,
@@ -222,7 +226,9 @@
                          что сейчас это поле, и где оно кончается. -->
                     <Border x:Name="Frame"
                             Background="Transparent"
-                            BorderThickness="0"
+                            BorderThickness="0,0,0,2"
+                            BorderBrush="Transparent"
+                            Padding="6,3"
                             CornerRadius="{x:Static app:Tokens.ControlRadius}">
                         <ScrollViewer x:Name="PART_ContentHost"
                                       Focusable="False"
@@ -230,14 +236,16 @@
                                       VerticalScrollBarVisibility="Hidden" />
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsReadOnly" Value="False">
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsReadOnly" Value="False" />
+                                <Condition Property="IsKeyboardFocusWithin" Value="True" />
+                            </MultiTrigger.Conditions>
                             <Setter TargetName="Frame" Property="Background"
                                     Value="{DynamicResource ControlFillColorDefaultBrush}" />
                             <Setter TargetName="Frame" Property="BorderBrush"
                                     Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                            <Setter TargetName="Frame" Property="BorderThickness" Value="0,0,0,2" />
-                            <Setter TargetName="Frame" Property="Padding" Value="6,3" />
-                        </Trigger>
+                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -348,4 +356,34 @@
                    Style="{StaticResource TextCaption}"
                    Margin="12,12,0,4" />
     </DataTemplate>
+    <!-- Штатный UiContextMenu анимирует Border.Y независимо от PopupAnimation. -->
+    <Style TargetType="{x:Type ContextMenu}" BasedOn="{StaticResource {x:Type ContextMenu}}">
+        <Setter Property="MinWidth" Value="140" />
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="Grid.IsSharedSizeScope" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ContextMenu}">
+                    <Border Margin="{x:Static app:Tokens.MenuShadowMargin}" Padding="0,3,0,3" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="20" Direction="270" Opacity="0.135" ShadowDepth="10" Color="#202020" />
+                        </Border.Effect>
+                        <ScrollViewer Style="{x:Null}" CanContentScroll="True"
+                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="IconToggleButton" TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
 </ResourceDictionary>

@@ -26,6 +26,12 @@ namespace Tapybara.App;
 /// </remarks>
 public static class Tokens
 {
+    /// <summary>Высота команд/полей desktop; кнопка без подписи — квадрат того же размера.</summary>
+    public const double ControlHeight = 32;
+    public const double InlineControlHeight = 24;
+    public const double MenuShadowInset = 30;
+    public static Thickness MenuShadowMargin => new(MenuShadowInset);
+
     // --- шрифт ----------------------------------------------------------------
 
     /// <summary>Подписи, метки времени, вспомогательный текст.</summary>

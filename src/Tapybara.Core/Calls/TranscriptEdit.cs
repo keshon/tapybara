@@ -217,7 +217,7 @@ public static class TranscriptEdit
                 replaced++;
                 return replacementFor(match.Value);
             });
-            lines.Add(text == line.Text ? line : line with { Text = text });
+            lines.Add(text == line.Text ? line : line with { Text = text, HumanEdits = line.HumanEdits | CallLineEdits.Text });
         }
 
         return replaced == 0
@@ -276,15 +276,16 @@ public static class TranscriptEdit
         ArgumentNullException.ThrowIfNull(line);
         ArgumentNullException.ThrowIfNull(text);
 
-        string trimmed = text.Trim();
-        if (trimmed == line.Text || !transcript.Lines.Any(l => l.IsSameAs(line)))
+        if (text == line.Text || !transcript.Lines.Any(l => l.IsSameAs(line)))
         {
             return transcript;
         }
 
         return transcript with
         {
-            Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line) ? l with { Text = trimmed } : l)],
+            Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line)
+                ? l with { Text = text, HumanEdits = l.HumanEdits | CallLineEdits.Text }
+                : l)],
             EditedByHand = true,
         };
     }

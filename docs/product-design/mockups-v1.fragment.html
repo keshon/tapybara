@@ -1,0 +1,306 @@
+<div id="tapybara-ui-review" class="viz-carousel" aria-label="Tapybara call editor designs">
+  <section data-variant="Transcript first" aria-label="Transcript first design"><div class="tp-app" data-design="reading" aria-label="Tapybara transcript first prototype"></div></section>
+  <section data-variant="Review workbench" aria-label="Review workbench design" hidden><div class="tp-app" data-design="review" aria-label="Tapybara review workbench prototype"></div></section>
+</div>
+<style>
+#tapybara-ui-review .tp-app{--tp-bg:light-dark(#f3f3f3,#202020);--tp-panel:light-dark(#fff,#292929);--tp-text:light-dark(#202020,#eee);--tp-muted:light-dark(#676767,#b3b3b3);--tp-border:light-dark(#dedede,#414141);--tp-hover:light-dark(#ededed,#353535);--tp-accent:light-dark(#006cbe,#79c7ff);--tp-soft:light-dark(#e9f2fa,#263b4b);--tp-selected:light-dark(#dceafa,#30475a);--tp-warning:light-dark(#8e650e,#ecc572);--tp-warning-bg:light-dark(#fbf3df,#403721);--tp-person:light-dark(#467577,#8db8bb);--tp-danger:light-dark(#b42b32,#ff9494);--tp-line-height:1.65;font:14px/var(--tp-line-height) 'Segoe UI',system-ui,sans-serif;color:var(--tp-text);background:var(--tp-bg);border:1px solid var(--tp-border);border-radius:8px;min-height:870px;position:relative;isolation:isolate;color-scheme:light dark;overflow-wrap:anywhere}
+#tapybara-ui-review .tp-app *{box-sizing:border-box}
+#tapybara-ui-review .tp-app button,#tapybara-ui-review .tp-app input,#tapybara-ui-review .tp-app select,#tapybara-ui-review .tp-app textarea{font:inherit;color:inherit}
+#tapybara-ui-review .tp-app button{border:1px solid var(--tp-border);border-radius:4px;background:var(--tp-panel);padding:5px 10px;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;text-align:left}
+#tapybara-ui-review .tp-app button:hover{background:var(--tp-hover)}
+#tapybara-ui-review .tp-app button:disabled{opacity:.45}
+#tapybara-ui-review .tp-app button.tp-quiet{background:transparent;border-color:transparent}
+#tapybara-ui-review .tp-app button.tp-primary{background:var(--tp-accent);color:light-dark(#fff,#132332);border-color:transparent}
+#tapybara-ui-review .tp-app button[aria-pressed=true]{background:var(--tp-soft);border-color:var(--tp-border);color:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-icon{padding:5px 7px;min-width:32px}
+#tapybara-ui-review .tp-app input:not([type=checkbox]):not([type=range]),#tapybara-ui-review .tp-app select,#tapybara-ui-review .tp-app textarea{width:100%;background:var(--tp-panel);border:1px solid var(--tp-border);border-radius:4px;padding:7px 9px}
+#tapybara-ui-review .tp-app input[type=range]{width:100%;accent-color:var(--tp-accent)}
+#tapybara-ui-review .tp-app input[type=checkbox]{accent-color:var(--tp-accent)}
+#tapybara-ui-review .tp-app label{display:block}
+#tapybara-ui-review .tp-app h2{font-size:20px;font-weight:500;line-height:1.3;margin:0}
+#tapybara-ui-review .tp-app h3{font-size:14px;font-weight:500;line-height:1.5;margin:0}
+#tapybara-ui-review .tp-app p{margin:0}
+#tapybara-ui-review .tp-app small{font-size:12px}
+#tapybara-ui-review .tp-app .tp-muted{color:var(--tp-muted)}
+#tapybara-ui-review .tp-app .tp-flex{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#tapybara-ui-review .tp-app .tp-spacer{flex:1}
+#tapybara-ui-review .tp-app .tp-chrome{height:42px;display:flex;align-items:center;padding:0 16px;gap:10px;border-bottom:1px solid var(--tp-border);padding-right:105px}
+#tapybara-ui-review .tp-app .tp-chrome small{color:var(--tp-muted)}
+#tapybara-ui-review .tp-app .tp-mark{width:18px;height:18px;background:var(--tp-accent);border-radius:4px}
+#tapybara-ui-review .tp-app .tp-shell{display:grid;grid-template-columns:66px 210px minmax(0,1fr);min-height:788px}
+#tapybara-ui-review .tp-app .tp-rail{border-right:1px solid var(--tp-border);display:flex;flex-direction:column;gap:8px;padding:12px 5px;align-items:center}
+#tapybara-ui-review .tp-app .tp-rail button{flex-direction:column;font-size:11px;padding:7px 3px;gap:3px;width:55px;border:0;background:transparent;white-space:nowrap}
+#tapybara-ui-review .tp-app .tp-rail button.is-active{background:var(--tp-soft);color:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-library{padding:18px 12px 12px;border-right:1px solid var(--tp-border)}
+#tapybara-ui-review .tp-app .tp-library h2{margin:0 4px 16px}
+#tapybara-ui-review .tp-app .tp-record{width:100%;margin-bottom:12px}
+#tapybara-ui-review .tp-app .tp-filter{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
+#tapybara-ui-review .tp-app .tp-filter select{padding:5px;font-size:12px;min-width:0}
+#tapybara-ui-review .tp-app .tp-filter .tp-date{grid-column:1 / -1}
+#tapybara-ui-review .tp-app .tp-list-head{display:flex;justify-content:space-between;align-items:center;margin:20px 4px 6px;color:var(--tp-muted);font-size:12px}
+#tapybara-ui-review .tp-app .tp-call{display:grid;grid-template-columns:minmax(0,1fr) 28px;gap:2px;border-radius:4px;padding:7px 3px;margin:4px 0;border-left:3px solid transparent}
+#tapybara-ui-review .tp-app .tp-call.is-active{background:var(--tp-soft);border-left-color:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-call .tp-call-open{border:0;background:transparent;display:block;padding:2px 5px;width:100%;text-align:left}
+#tapybara-ui-review .tp-app .tp-call .tp-call-title{display:block;font-weight:500;line-height:1.4}
+#tapybara-ui-review .tp-app .tp-call small{display:block;color:var(--tp-muted);margin-top:3px}
+#tapybara-ui-review .tp-app .tp-call .tp-menu-trigger{align-self:start;padding:0;min-width:26px;background:transparent;border:0}
+#tapybara-ui-review .tp-app .tp-tag{color:var(--tp-warning);background:var(--tp-warning-bg);font-size:11px;padding:2px 5px;border-radius:3px;display:inline-block;margin-top:4px}
+#tapybara-ui-review .tp-app .tp-main{min-width:0;padding:0 16px 0 16px;background:var(--tp-panel)}
+#tapybara-ui-review .tp-app .tp-heading{padding:20px 0 14px;border-bottom:1px solid var(--tp-border)}
+#tapybara-ui-review .tp-app .tp-heading-meta{font-size:12px;color:var(--tp-muted);margin:6px 0 12px}
+#tapybara-ui-review .tp-app .tp-actions{gap:6px}
+#tapybara-ui-review .tp-app .tp-tabs{display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--tp-border);margin-bottom:0}
+#tapybara-ui-review .tp-app .tp-tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:10px 0;background:transparent}
+#tapybara-ui-review .tp-app .tp-tabs button.is-active{border-bottom-color:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-editor-layout{display:grid;grid-template-columns:minmax(0,1fr)}
+#tapybara-ui-review .tp-app.has-inspector .tp-editor-layout{grid-template-columns:minmax(0,1fr) 206px}
+#tapybara-ui-review .tp-app .tp-transcript{min-width:0;padding:14px 0 18px}
+#tapybara-ui-review .tp-app.has-inspector .tp-transcript{padding-right:14px}
+#tapybara-ui-review .tp-app .tp-review-banner{display:flex;gap:12px;justify-content:space-between;align-items:center;background:var(--tp-warning-bg);padding:9px 12px;border-radius:4px;margin-bottom:12px;font-size:12px}
+#tapybara-ui-review .tp-app .tp-review-banner button{white-space:nowrap}
+#tapybara-ui-review .tp-app .tp-editbar{background:var(--tp-soft);border:1px solid var(--tp-border);border-radius:4px;padding:10px;margin:0 0 12px}
+#tapybara-ui-review .tp-app .tp-selection-summary{font-size:12px;margin-bottom:7px;display:flex;justify-content:space-between;gap:10px}
+#tapybara-ui-review .tp-app .tp-editbar button{font-size:12px;padding:4px 7px}
+#tapybara-ui-review .tp-app .tp-line{display:grid;grid-template-columns:54px minmax(0,1fr) 28px;gap:9px;padding:11px 0;border-bottom:1px solid var(--tp-border);position:relative}
+#tapybara-ui-review .tp-app .tp-line.is-selected{background:var(--tp-soft);border-radius:4px;padding-left:7px;padding-right:4px}
+#tapybara-ui-review .tp-app .tp-line.is-playing{border-left:3px solid var(--tp-accent);padding-left:7px}
+#tapybara-ui-review .tp-app .tp-stamp{font-size:12px;color:var(--tp-muted);border:0;background:transparent;padding:0;align-self:start;justify-content:flex-start}
+#tapybara-ui-review .tp-app .tp-speaker{font-size:12px;color:var(--tp-person);display:inline-flex;border:0;background:transparent;padding:0;min-height:20px;margin-bottom:3px}
+#tapybara-ui-review .tp-app .tp-speaker.me{color:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-text{white-space:pre-wrap;line-height:var(--tp-line-height);user-select:text}
+#tapybara-ui-review .tp-app .tp-text mark{background:var(--tp-selected);color:inherit}
+#tapybara-ui-review .tp-app .tp-line button.tp-line-menu{border:0;background:transparent;padding:3px;align-self:start;min-width:26px}
+#tapybara-ui-review .tp-app .tp-line-state{display:block;font-size:11px;color:var(--tp-muted);margin-top:4px}
+#tapybara-ui-review .tp-app .tp-inspector{border-left:1px solid var(--tp-border);padding:14px 0 16px 14px;min-width:0}
+#tapybara-ui-review .tp-app .tp-inspector-tabs{display:flex;gap:10px;margin-bottom:13px}
+#tapybara-ui-review .tp-app .tp-inspector-tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:2px 0}
+#tapybara-ui-review .tp-app .tp-inspector-tabs button.is-active{border-bottom-color:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-issue{padding:12px 0;border-bottom:1px solid var(--tp-border)}
+#tapybara-ui-review .tp-app .tp-issue p{font-size:12px;margin:5px 0 9px;color:var(--tp-muted)}
+#tapybara-ui-review .tp-app .tp-person-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--tp-border)}
+#tapybara-ui-review .tp-app .tp-avatar{background:var(--tp-hover);color:var(--tp-person);width:28px;height:28px;display:grid;place-items:center;border-radius:4px}
+#tapybara-ui-review .tp-app .tp-transport{border-top:1px solid var(--tp-border);padding:12px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#tapybara-ui-review .tp-app .tp-transport small{font-variant-numeric:tabular-nums}
+#tapybara-ui-review .tp-app .tp-follow{display:inline-flex;align-items:center;gap:5px;font-size:12px;margin-left:auto}
+#tapybara-ui-review .tp-app .tp-seek{display:flex;gap:10px;align-items:center;width:100%}
+#tapybara-ui-review .tp-app .tp-wave{padding:0 0 12px}
+#tapybara-ui-review .tp-app .tp-wave-heading{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--tp-muted);margin-bottom:6px}
+#tapybara-ui-review .tp-app .tp-wave-track{display:grid;grid-template-columns:74px minmax(0,1fr);align-items:center;gap:8px;font-size:12px;color:var(--tp-muted);margin:4px 0}
+#tapybara-ui-review .tp-app .tp-wave-plot{height:35px;position:relative;display:flex;align-items:center;gap:1px;background:var(--tp-hover);padding:2px 4px;border-radius:3px;min-width:0}
+#tapybara-ui-review .tp-app .tp-wave-plot .tp-bar{flex:1;min-width:0;background:var(--tp-person);opacity:.65}
+#tapybara-ui-review .tp-app .tp-wave-plot.me .tp-bar{background:var(--tp-accent)}
+#tapybara-ui-review .tp-app .tp-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--tp-accent);pointer-events:none}
+#tapybara-ui-review .tp-app .tp-turns{display:flex;gap:3px;margin-left:82px;margin-top:5px;align-items:center;flex-wrap:wrap}
+#tapybara-ui-review .tp-app .tp-turns button{font-size:11px;padding:0 5px;min-height:23px;flex:1;background:var(--tp-hover);border:0;white-space:nowrap}
+#tapybara-ui-review .tp-app .tp-turns .tp-overlap{background:var(--tp-warning-bg);color:var(--tp-warning)}
+#tapybara-ui-review .tp-app .tp-status{padding:8px 16px;border-top:1px solid var(--tp-border);background:var(--tp-bg);font-size:12px;display:flex;gap:10px;justify-content:space-between;color:var(--tp-muted)}
+#tapybara-ui-review .tp-app .tp-floating{position:absolute;z-index:4;background:var(--tp-panel);border:1px solid var(--tp-border);border-radius:6px;padding:6px;min-width:210px;max-width:calc(100% - 24px)}
+#tapybara-ui-review .tp-app .tp-floating button{border:0;background:transparent;display:flex;width:100%;justify-content:flex-start;gap:8px;padding:6px 9px}
+#tapybara-ui-review .tp-app .tp-floating button:hover{background:var(--tp-hover)}
+#tapybara-ui-review .tp-app .tp-floating hr{border:0;border-top:1px solid var(--tp-border);margin:5px 0}
+#tapybara-ui-review .tp-app .tp-danger{color:var(--tp-danger)}
+#tapybara-ui-review .tp-app .tp-modal-layer{position:absolute;inset:42px 0 0;z-index:5;background:light-dark(#30303055,#0008);display:flex;align-items:flex-start;justify-content:center;padding:48px 16px 24px}
+#tapybara-ui-review .tp-app .tp-dialog{background:var(--tp-panel);border:1px solid var(--tp-border);border-radius:8px;width:min(520px,100%);padding:22px;color:var(--tp-text)}
+#tapybara-ui-review .tp-app .tp-dialog h2{margin-bottom:6px}
+#tapybara-ui-review .tp-app .tp-dialog p{margin-bottom:14px}
+#tapybara-ui-review .tp-app .tp-dialog label{margin:13px 0 6px}
+#tapybara-ui-review .tp-app .tp-dialog label.tp-check{display:flex;align-items:center;gap:8px;margin:11px 0;font-size:13px}
+#tapybara-ui-review .tp-app .tp-dialog textarea{min-height:92px;resize:vertical}
+#tapybara-ui-review .tp-app .tp-dialog-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+#tapybara-ui-review .tp-app .tp-preview{padding:12px;background:var(--tp-bg);border-radius:4px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.65 'Segoe UI',sans-serif;max-height:none;margin-top:12px}
+#tapybara-ui-review .tp-app .tp-preview-caption{font-size:12px;color:var(--tp-muted);margin-top:10px}
+#tapybara-ui-review .tp-app .tp-export-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+#tapybara-ui-review .tp-app .tp-mobile-library{display:none}
+#tapybara-ui-review .tp-app .tp-note{min-height:200px;margin:18px 0}
+#tapybara-ui-review .tp-app .tp-timing{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#tapybara-ui-review .tp-app .tp-split-preview{background:var(--tp-bg);padding:12px;margin:12px 0}
+#tapybara-ui-review .tp-app .tp-empty{padding:14px;color:var(--tp-muted);font-size:12px}
+@media(max-width:650px){#tapybara-ui-review .tp-app .tp-rail button{width:32px}#tapybara-ui-review .tp-app .tp-rail button span{display:none}}
+@media(max-width:950px){#tapybara-ui-review .tp-app .tp-shell{grid-template-columns:48px 186px minmax(0,1fr)}#tapybara-ui-review .tp-app.has-inspector .tp-editor-layout{grid-template-columns:minmax(0,1fr)}#tapybara-ui-review .tp-app .tp-inspector{border-left:0;border-top:1px solid var(--tp-border);padding:12px 0;display:grid;grid-template-columns:1fr 1fr;gap:0 16px}#tapybara-ui-review .tp-app .tp-inspector-tabs{grid-column:1 / -1}#tapybara-ui-review .tp-app .tp-main{padding:0 12px}#tapybara-ui-review .tp-app.has-inspector .tp-transcript{padding-right:0}#tapybara-ui-review .tp-app{min-height:1100px}}
+@media(max-width:650px){#tapybara-ui-review .tp-app .tp-shell{grid-template-columns:44px minmax(0,1fr)}#tapybara-ui-review .tp-app .tp-library{display:none}#tapybara-ui-review .tp-app.library-open .tp-library{display:block;grid-column:2;border-bottom:1px solid var(--tp-border);border-right:0}#tapybara-ui-review .tp-app.library-open .tp-main{grid-column:2}#tapybara-ui-review .tp-app .tp-rail{grid-row:1 / span 2}#tapybara-ui-review .tp-app .tp-mobile-library{display:inline-flex}#tapybara-ui-review .tp-app .tp-heading{padding-top:14px}#tapybara-ui-review .tp-app .tp-line{grid-template-columns:42px minmax(0,1fr) 24px;gap:5px}#tapybara-ui-review .tp-app .tp-line .tp-text{font-size:14px}#tapybara-ui-review .tp-app .tp-export-fields{grid-template-columns:1fr}#tapybara-ui-review .tp-app .tp-inspector{grid-template-columns:1fr}#tapybara-ui-review .tp-app .tp-follow{margin-left:0}#tapybara-ui-review .tp-app .tp-chrome{padding-left:9px;gap:6px}#tapybara-ui-review .tp-app .tp-chrome small{font-size:11px}#tapybara-ui-review .tp-app .tp-dialog{padding:16px}#tapybara-ui-review .tp-app .tp-modal-layer{padding-top:24px}#tapybara-ui-review .tp-app .tp-status{flex-direction:column;gap:0}#tapybara-ui-review .tp-app{min-height:1450px}}
+@media(pointer:coarse){#tapybara-ui-review .tp-app button{min-height:44px}#tapybara-ui-review .tp-app input,#tapybara-ui-review .tp-app select,#tapybara-ui-review .tp-app textarea{font-size:16px}}
+</style>
+<script>
+(() => {
+  const root = document.getElementById('tapybara-ui-review');
+  const esc = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const stamp = value => `${Math.floor(value / 60).toString().padStart(2,'0')}:${Math.floor(value % 60).toString().padStart(2,'0')}`;
+  const icon = name => `<i data-lucide="${name}" aria-hidden="true"></i>`;
+  const people = ['Innokentiy','Pavel','Anna'];
+  const calls = [
+    {id:'release',title:'Release planning',date:'Today · 14:00',duration:1938,people:['Pavel','Anna'],review:true},
+    {id:'design',title:'Design review',date:'Today · 10:30',duration:1474,people:['Anna'],review:false},
+    {id:'support',title:'Support handoff',date:'Yesterday · 16:10',duration:2510,people:['Pavel'],review:true},
+    {id:'weekly',title:'Weekly catch-up',date:'7 Oct · 11:00',duration:1104,people:['Pavel','Anna'],review:false},
+    {id:'client',title:'Client onboarding',date:'6 Oct · 09:40',duration:2287,people:['Anna'],review:false}
+  ];
+  const seedLines = [
+    {id:'a',start:12,end:20,speaker:'Innokentiy',text:'Давайте сначала посмотрим, что осталось до релиза.',human:false,issue:''},
+    {id:'b',start:21,end:24,speaker:'Pavel',text:'По интерфейсу осталось исправить экспорт.',human:false,issue:''},
+    {id:'c',start:24,end:31,speaker:'Pavel',text:'Тогда выкладываем сборку сегодня. Подожди, сначала проверим запись звонка.',human:false,issue:'mixed'},
+    {id:'d',start:32,end:38,speaker:'Anna',text:'В Регстат тоже нужно проверить названия участников.',human:false,issue:'word'},
+    {id:'e',start:39,end:44,speaker:'Innokentiy',text:'Хорошо. Давайте проверим это на одном коротком звонке.',human:false,issue:''},
+    {id:'f',start:45,end:50,speaker:'Pavel',text:'Я запишу пример и пришлю результат после обеда.',human:false,issue:''}
+  ];
+  const apps=[];
+  root.querySelectorAll('.tp-app').forEach((app,index) => {
+    const saved = window.openai?.widgetState?.privateContent?.designs?.[index];
+    const state = {call:'release',docs:{},deleted:{},query:'',person:'',status:'',date:'',inspector:index===1,panel:'review',wave:index===1,tab:'transcript',position:24,playing:false,selection:null,menu:null,dialog:null,message:'All changes saved locally',library:false,zoom:30,follow:true,recording:false,rangeEnd:null};
+    calls.forEach(call => {const lines=clone(seedLines);if(!call.review)lines.forEach(l=>l.issue='');state.docs[call.id]={title:call.title,lines,note:call.id==='release'?'Check the interruption at 00:24 before sharing the transcript.':'Follow up with participants after the call.',dictionary:{},undo:[],redo:[]};});
+    if(saved && saved.docs && saved.docs.release){Object.assign(state,saved,{playing:false,menu:null,dialog:null});}
+    const choices = {spacing:1.65,libraryWidth:210};
+    apps.push({state,app});
+    const doc=()=>state.docs[state.call];
+    const call=()=>calls.find(c=>c.id===state.call);
+    const line=()=>doc().lines.find(l=>l.id===state.selection?.id);
+    const button=(action,label,cls='',extra='')=>`<button type="button" class="cursor-interaction ${cls}" data-action="${action}" ${extra}>${label}</button>`;
+    function remember(){
+      if(!window.openai?.setWidgetState)return;
+      const designs=apps.map(({state:s})=>({call:s.call,docs:Object.fromEntries(Object.entries(s.docs).map(([id,d])=>[id,{...d,undo:d.undo.slice(-2),redo:[]}])) ,inspector:s.inspector,panel:s.panel,wave:s.wave,tab:s.tab,position:s.position,selection:s.selection}));
+      const snapshot={modelContent:{prototype:'Tapybara UI review',designs:apps.map(({state:s})=>({call:s.call,inspector:s.inspector,waveform:s.wave,editedSegments:s.docs[s.call].lines.filter(l=>l.human).length}))},privateContent:{designs}};
+      if(JSON.stringify(snapshot).length<16000)window.openai.setWidgetState(snapshot).catch(()=>{});
+    }
+    function transact(label,change){const d=doc();d.undo.push({label,title:d.title,lines:clone(d.lines),note:d.note,dictionary:clone(d.dictionary)});d.redo=[];change(d);state.message=label+' · saved';state.menu=null;state.dialog=null;state.selection=null;render();remember();}
+    function undo(redo=false){const d=doc(),from=redo?d.redo:d.undo,to=redo?d.undo:d.redo;if(!from.length)return;const prior=from.pop();to.push({label:prior.label,title:d.title,lines:clone(d.lines),note:d.note,dictionary:clone(d.dictionary)});d.title=prior.title;d.lines=prior.lines;d.note=prior.note;d.dictionary=prior.dictionary;state.selection=null;state.message=(redo?'Redid: ':'Undid: ')+prior.label;render();remember();}
+    function selectInterruption(){const target=doc().lines.find(l=>l.issue==='mixed');if(!target)return;const at=target.text.indexOf('Подожди');state.selection={id:target.id,start:Math.max(at,0),length:at<0?target.text.length:target.text.length-at};state.inspector=true;state.panel='review';state.position=24;state.tab='transcript';state.message='Selected disputed phrase · 00:24–00:31';render();}
+    function selectedText(){const l=line();return l?l.text.slice(state.selection.start,state.selection.start+state.selection.length):'';}
+    function renderLibrary(){
+      let filtered=calls.filter(c=>state.docs[c.id] && (!state.person||c.people.includes(state.person)) && (!state.status||state.status==='review'&&state.docs[c.id].lines.some(l=>l.issue)) && (!state.date||c.date.startsWith('Today')) && (!state.query||[docTitle(c.id),...state.docs[c.id].lines.map(l=>l.text)].join(' ').toLowerCase().includes(state.query.toLowerCase())));
+      return `<h2>Calls</h2>${button('record',icon(state.recording?'square':'mic')+(state.recording?' Stop recording':' Record a call'),'tp-record')}<input aria-label="Search calls and transcripts" data-field="search" placeholder="Search calls and transcripts" value="${esc(state.query)}"><div class="tp-filter"><select data-field="person" aria-label="Filter by person"><option value="">All people</option>${['Pavel','Anna'].map(p=>`<option ${state.person===p?'selected':''}>${p}</option>`).join('')}</select><select data-field="status" aria-label="Filter by status"><option value="">All statuses</option><option value="review" ${state.status==='review'?'selected':''}>Needs review</option></select><select class="tp-date" data-field="date" aria-label="Filter by date"><option value="">Any date</option><option value="today" ${state.date?'selected':''}>Today</option></select></div>${state.query||state.person||state.status||state.date?button('clear-filters','Clear filters','tp-quiet'):''}<div class="tp-list-head"><span>RECENT CALLS</span><span>Newest first</span></div>${filtered.length?filtered.map(c=>`<div class="tp-call ${state.call===c.id?'is-active':''}">${button('open-call',`<span class="tp-call-title">${esc(docTitle(c.id))}</span><small>${c.date} · ${stamp(c.duration)}</small><small>${c.people.join(', ')}</small>${state.docs[c.id].lines.some(l=>l.issue)?'<span class="tp-tag">Needs review</span>':''}`,'tp-call-open',`data-call="${c.id}"`)}${button('call-menu','⋯','tp-menu-trigger',`data-call="${c.id}" aria-label="Actions for ${esc(docTitle(c.id))}"`)}</div>`).join(''):'<p class="tp-empty">No matching calls. Change or clear the filters.</p>'}<p class="tp-muted" style="font-size:12px;margin:20px 4px 0">${filtered.length} calls · stored on this device</p>`;
+    }
+    function docTitle(id){return state.docs[id].title;}
+    function renderLines(){return doc().lines.map(l=>{
+      const selection=state.selection?.id===l.id?state.selection:null;
+      const text=selection&&selection.length?esc(l.text.slice(0,selection.start))+'<mark>'+esc(l.text.slice(selection.start,selection.start+selection.length))+'</mark>'+esc(l.text.slice(selection.start+selection.length)):esc(l.text);
+      const playing=state.playing&&state.position>=l.start&&state.position<l.end;
+      return `<div class="tp-line ${selection?'is-selected':''} ${playing?'is-playing':''}" data-line="${l.id}">${button('seek-line',stamp(l.start),'tp-stamp',`data-line="${l.id}" aria-label="Seek to ${stamp(l.start)}"`)}<div>${button('speaker',l.speaker+(l.human?' · edited':''),'tp-speaker '+(l.speaker==='Innokentiy'?'me':''),`data-line="${l.id}"`)}<p class="tp-text" data-text="${l.id}">${text}</p>${l.issue==='mixed'?'<small class="tp-line-state">Possible speaker change · 00:27</small>':l.issue==='word'?'<small class="tp-line-state">Word to check</small>':''}</div>${button('line-menu','⋯','tp-line-menu',`data-line="${l.id}" aria-label="Actions for segment at ${stamp(l.start)}"`)}</div>`;
+    }).join('');}
+    function editbar(){if(!state.selection)return '';return `<div class="tp-editbar"><div class="tp-selection-summary"><span>${state.selection.length?'Selected phrase':'Segment selected'} · ${stamp(line()?.start||0)}</span>${button('clear-selection','×','tp-quiet tp-icon','aria-label="Clear selection"')}</div><div class="tp-flex">${button('edit','Correct')}${button('assign','Assign speaker')}${button('split','Split here')}${button('delete-text','Delete')}${button('play-selection','Play selection')}${button('selection-more','⋯','tp-icon','aria-label="More selection actions"')}</div></div>`;}
+    function inspector(){if(!state.inspector)return '';let content='';if(state.panel==='review'){const mixed=doc().lines.find(l=>l.issue==='mixed'),word=doc().lines.find(l=>l.issue==='word');content=`${mixed?`<div class="tp-issue"><h3>Two speakers in one line</h3><p>00:24–00:31<br>Check the change at “Подожди”.</p><div class="tp-flex">${button('review-mixed','Review')}${button('play-issue',icon('play'),'tp-icon','aria-label="Play disputed exchange"')}</div></div>`:''}${word?`<div class="tp-issue"><h3>A word to check</h3><p>00:32 · “Регстат”<br>Correct this occurrence first.</p>${button('review-word','Review word')}</div>`:''}${!mixed&&!word?'<div class="tp-issue"><h3>Review complete</h3><p>The flagged issues have been resolved. Your edits are preserved.</p></div>':''}`;}else{content=people.map(p=>`<div class="tp-person-row"><span class="tp-avatar">${p.slice(0,1)}</span><div><h3>${p}</h3><small class="tp-muted">${doc().lines.filter(l=>l.speaker===p).length} segments</small></div></div>`).join('')+button('add-person',icon('plus')+' Add person','tp-quiet');}
+      return `<aside class="tp-inspector"><div class="tp-inspector-tabs">${button('panel-review','Review '+doc().lines.filter(l=>l.issue).length,state.panel==='review'?'is-active':'')}${button('panel-people','People',state.panel==='people'?'is-active':'')}<span class="tp-spacer"></span>${button('inspector','×','tp-quiet tp-icon','aria-label="Close inspector"')}</div>${content}</aside>`;
+    }
+    function waveform(){if(!state.wave)return '';const bars=(offset)=>Array.from({length:76},(_,i)=>`<span class="tp-bar" style="height:${3+Math.abs(Math.sin(i*1.39+offset)*Math.cos(i*.27+offset))*26}px"></span>`).join('');const x=Math.max(0,Math.min(100,(state.position-18)/state.zoom*100));return `<div class="tp-wave"><div class="tp-wave-heading"><span>Audio timeline · 00:18–${stamp(18+state.zoom)}</span><div class="tp-flex">${button('zoom-in',icon('zoom-in'),'tp-icon','aria-label="Zoom in timeline"')}${button('zoom-out',icon('zoom-out'),'tp-icon','aria-label="Zoom out timeline"')}</div></div><div class="tp-wave-track"><span>Microphone</span><div class="tp-wave-plot me" data-wave="mic" aria-label="Illustrative microphone waveform">${bars(1)}<span class="tp-playhead" style="left:${x}%"></span></div></div><div class="tp-wave-track"><span>System</span><div class="tp-wave-plot" data-wave="system" aria-label="Illustrative system audio waveform">${bars(3)}<span class="tp-playhead" style="left:${x}%"></span></div></div><div class="tp-turns">${button('turn-pavel','Pavel')}${button('review-mixed','Pavel / Anna','tp-overlap')}${button('turn-anna','Anna')}</div></div>`;}
+    function menu(){if(!state.menu)return '';const m=state.menu;let body='';if(m.kind==='call'){body=button('rename','Rename')+button('export','Export…')+button('folder','Show in folder')+'<hr>'+button('retranscribe','Retranscribe…')+'<hr>'+button('delete-call','Delete call…','tp-danger');}else if(m.kind==='header'){body=button('rename','Rename')+button('folder','Show in folder')+'<hr>'+button('retranscribe','Retranscribe…')+button('recompute','Recompute speakers…')+'<hr>'+button('delete-call','Delete call…','tp-danger');}else{body=button('edit','Correct text…')+button('assign','Assign speaker…')+button('split','Split here…')+button('merge','Merge with next')+'<hr>'+button('play-selection','Play selected range')+button('export','Export selection…')+'<hr>'+button('delete-text','Delete selected text','tp-danger');}return `<div class="tp-floating" role="menu" style="left:${m.x}px;top:${m.y}px">${body}</div>`;}
+    function showDialog(kind){state.dialog={kind};state.menu=null;render();setTimeout(()=>app.querySelector('.tp-dialog input,.tp-dialog textarea,.tp-dialog select')?.focus(),0);}
+    function selectedForAction(){if(state.selection)return;const l=doc().lines.find(l=>l.issue==='mixed')||doc().lines[0];state.selection={id:l.id,start:0,length:l.text.length};}
+    function dialog(){if(!state.dialog)return '';const kind=state.dialog.kind;let title='',body='',commit='',label='Apply';
+      if(kind==='edit'){title='Correct selected text';body=`<p class="tp-muted">Only this selection changes. ${stamp(line()?.start||0)}</p><textarea data-dialog-field="replacement" aria-label="Corrected text">${esc(selectedText())}</textarea><label class="tp-check"><input type="checkbox" data-dialog-field="all">Replace other matching occurrences in this call</label><label class="tp-check"><input type="checkbox" data-dialog-field="dictionary">Remember as a dictionary replacement</label>`;commit='apply-edit';label='Apply correction';}
+      if(kind==='assign'||kind==='split'){
+        const l=line(),partial=state.selection&&(state.selection.start>0||state.selection.length<l.text.length);
+        let cut=l.text.indexOf('. ')+1;if(cut<=0)cut=l.text.indexOf(' ',Math.floor(l.text.length/2));if(cut<=0)cut=Math.floor(l.text.length/2);
+        title=kind==='assign'?'Assign selected phrase':'Split segment';
+        body=`<p class="tp-muted">${partial?'Create a separate segment for the selected phrase.':kind==='split'?'Two segments with an adjustable audio boundary.':'Assign this entire segment.'}</p><div class="tp-split-preview"><small class="tp-muted">${partial?'SELECTED PHRASE':'SEGMENT'}</small><p>${esc(selectedText())}</p></div>${kind==='split'&&!partial?`<label>First segment<textarea data-dialog-field="split-text">${esc(l.text.slice(0,cut))}</textarea></label><small class="tp-muted">The remaining text becomes the second segment.</small>`:''}<label>${kind==='split'&&!partial?'Second segment speaker':'Speaker'}<select data-dialog-field="speaker">${people.map(p=>`<option ${p==='Anna'?'selected':''}>${p}</option>`).join('')}<option value="new">New person…</option></select></label><input data-dialog-field="new-name" aria-label="New person name" placeholder="New person's name" hidden>${partial||kind==='split'?`<div class="tp-timing"><label>Starts at · seconds<input type="number" data-dialog-field="boundary" min="${l.start}" max="${l.end}" step="0.1" value="${l.id==='c'?27.6:(l.start+l.end)/2}"></label><label>Ends at · seconds<input type="number" data-dialog-field="end-boundary" min="${l.start}" max="${l.end}" step="0.1" value="${l.end}"></label></div><div class="tp-flex" style="margin-top:10px">${button('preview-boundary',icon('play')+' Around boundary')}</div><label class="tp-check"><input type="checkbox" data-dialog-field="overlap">Both speakers overlap at the boundary</label>`:''}<label class="tp-check"><input type="checkbox" checked disabled>Keep this speaker assignment when analysis runs again</label>`;
+        commit='apply-split';label=partial?'Split & assign':kind==='split'?'Split segment':'Assign speaker';
+      }
+      if(kind==='export'){title='Export transcript';body=`<div class="tp-export-fields"><label>Destination<select data-dialog-field="destination"><option value="file">Save as file</option><option value="copy">Copy to clipboard</option></select></label><label>Format<select data-dialog-field="format"><option value="txt">Plain text · TXT</option><option value="md">Markdown · MD</option><option value="srt">Subtitles · SRT</option><option value="vtt">Subtitles · VTT</option><option value="json">Structured data · JSON</option><option value="docx" disabled>Word · later release</option><option value="pdf" disabled>PDF · later release</option></select></label><label>Names<select data-dialog-field="names"><option value="real">Real names</option><option value="alias">Aliases</option><option value="none">No speaker labels</option></select></label><label>Scope<select data-dialog-field="scope"><option value="whole">Entire call</option><option value="selection" ${state.selection?'':'disabled'}>Selected phrase</option></select></label></div><label class="tp-check"><input type="checkbox" checked data-dialog-field="timestamps">Include timestamps</label><p class="tp-preview-caption">PREVIEW</p><div class="tp-preview" data-export-preview></div>`;commit='prepare-export';label='Save preview';}
+      if(kind==='rename'){title='Rename call';body=`<label>Title<input data-dialog-field="name" value="${esc(doc().title)}"></label>`;commit='apply-rename';label='Rename';}
+      if(kind==='person'){title='Add person';body='<label>Name<input data-dialog-field="name" placeholder="Name"></label>';commit='apply-person';label='Add person';}
+      if(kind==='add-segment'){title='Add missing speech';body=`<p class="tp-muted">Choose its audio range and speaker. Existing segments remain unchanged.</p><label>Text<textarea data-dialog-field="new-text" aria-label="Missing speech text"></textarea></label><label>Speaker<select data-dialog-field="speaker">${people.map(p=>`<option>${p}</option>`).join('')}</select></label><div class="tp-timing"><label>Starts at · seconds<input type="number" data-dialog-field="new-start" min="0" step="0.1" value="${state.position}"></label><label>Ends at · seconds<input type="number" data-dialog-field="new-end" min="0" step="0.1" value="${state.position+2}"></label></div>`;commit='apply-add-segment';label='Add segment';}
+      if(kind==='delete'){title='Delete this call?';body=`<p>“${esc(doc().title)}” will move to Deleted calls. You can restore it.</p>`;commit='apply-delete-call';label='Move to Deleted calls';}
+      if(kind==='retranscribe'){title='Retranscribe this call?';body='<p>A new transcript revision will be created. Your current edits remain available.</p>';commit='start-retranscribe';label='Create new revision';}
+      if(kind==='recompute'){title='Recompute speaker suggestions?';body='<p>Human-assigned speakers stay locked. Only machine-assigned segments will be reconsidered.</p>';commit='start-recompute';label='Recompute suggestions';}
+      return `<div class="tp-modal-layer"><section class="tp-dialog" role="dialog" aria-modal="true" aria-label="${title}"><div class="tp-flex"><h2>${title}</h2><span class="tp-spacer"></span>${button('cancel-dialog','×','tp-quiet tp-icon','aria-label="Close dialog"')}</div>${body}<div class="tp-dialog-footer">${button('cancel-dialog','Cancel')}${button(commit,label,'tp-primary')}</div></section></div>`;
+    }
+    function exportText(){const format=app.querySelector('[data-dialog-field=format]')?.value||'txt',naming=app.querySelector('[data-dialog-field=names]')?.value||'real',scope=app.querySelector('[data-dialog-field=scope]')?.value||'whole',timed=app.querySelector('[data-dialog-field=timestamps]')?.checked??true;let lines=scope==='selection'&&line()?[{...line(),text:selectedText()}]:doc().lines;const name=s=>naming==='none'?'':naming==='alias'?`Speaker ${people.indexOf(s)+1}`:s;const timedStamp=v=>stamp(v).replace(':',':')+':00';if(format==='json')return JSON.stringify({title:doc().title,segments:lines.map(l=>({id:l.id,start:l.start,end:l.end,speaker:name(l.speaker),text:l.text}))},null,2);if(format==='srt'||format==='vtt'){const ts=(v)=>`00:${stamp(v)}${format==='vtt'?'.':','}000`;return (format==='vtt'?'WEBVTT\n\n':'')+lines.map((l,i)=>`${format==='srt'?i+1+'\n':''}${ts(l.start)} --> ${ts(l.end)}\n${name(l.speaker)?name(l.speaker)+': ':''}${l.text}`).join('\n\n');}return lines.map(l=>`${timed?'['+stamp(l.start)+'] ':''}${name(l.speaker)?name(l.speaker)+': ':''}${l.text}`).join('\n\n');}
+    function updateExport(){const preview=app.querySelector('[data-export-preview]');if(preview){const text=exportText();preview.textContent=text.length>780?text.slice(0,780)+'…':text;const dest=app.querySelector('[data-dialog-field=destination]').value;app.querySelector('[data-action=prepare-export]').textContent=dest==='copy'?'Copy preview':'Save preview';}}
+    function render(){
+      app.classList.toggle('has-inspector',state.inspector);app.classList.toggle('library-open',state.library);
+      app.style.setProperty('--tp-line-height',choices.spacing);
+      const d=doc();
+      app.innerHTML=`<div class="tp-chrome"><span class="tp-mark" aria-hidden="true"></span><span>Tapybara</span><small>UI prototype · sample call</small></div><div class="tp-shell"><nav class="tp-rail" aria-label="App navigation">${button('nav-dictations',icon('mic')+'<span>Dictation</span>')}${button('nav-calls',icon('phone')+'<span>Calls</span>','is-active')}${button('nav-dictionary',icon('book-open')+'<span>Dictionary</span>')}<span class="tp-spacer"></span>${button('nav-settings',icon('settings')+'<span>Settings</span>')}</nav><aside class="tp-library">${renderLibrary()}</aside><main class="tp-main"><header class="tp-heading"><div class="tp-flex">${button('library',icon('panel-left'),'tp-mobile-library tp-icon','aria-label="Show call library"')}<h2>${esc(d.title)}</h2></div><p class="tp-heading-meta">8 October 2026 · ${stamp(call().duration)} · ${call().people.join(', ')}, you</p><div class="tp-flex tp-actions">${button('play',icon(state.playing?'pause':'play')+(state.playing?' Pause':' Play'))}${button('undo',icon('undo-2'),'tp-icon',`aria-label="Undo" data-tooltip="${esc(d.undo.length?'Undo '+d.undo.at(-1).label:'Undo')}" ${d.undo.length?'':'disabled'}`)}${button('redo',icon('redo-2'),'tp-icon','aria-label="Redo" '+(d.redo.length?'':'disabled'))}<span class="tp-spacer"></span>${button('export',icon('download')+' Export ▾')}${button('inspector',icon('panel-right')+' Review','',`aria-pressed="${state.inspector}"`)}${button('header-menu','⋯','tp-icon','aria-label="More call actions"')}</div></header><div class="tp-tabs">${button('transcript','Transcript',state.tab==='transcript'?'is-active':'')}${button('notes','Notes',state.tab==='notes'?'is-active':'')}</div>${state.tab==='notes'?`<textarea class="tp-note" data-field="note" aria-label="Call notes">${esc(d.note)}</textarea>${button('save-note','Save note')}`:`<div class="tp-editor-layout"><section class="tp-transcript">${doc().lines.some(l=>l.issue==='mixed')?`<div class="tp-review-banner"><span>Speaker change to review at 00:24</span>${button('review-mixed','Review phrase')}</div>`:''}${editbar()}${renderLines()}</section>${inspector()}</div>`}<div class="tp-transport">${button('rewind',icon('rotate-ccw')+' 3s')}${button('play',icon(state.playing?'pause':'play'),'tp-icon',`aria-label="${state.playing?'Pause':'Play'} preview playback"`)}<small>${stamp(state.position)} / ${stamp(call().duration)}</small>${button('play-selection',icon('audio-lines')+' Selection','',state.selection?'':'disabled')}${button('wave','Waveform','',`aria-pressed="${state.wave}"`)}<label class="tp-follow"><input type="checkbox" data-field="follow" ${state.follow?'checked':''}>Follow</label><div class="tp-seek"><input type="range" data-field="seek" min="0" max="${call().duration}" value="${state.position}" step=".1" aria-label="Playback position"></div></div>${waveform()}</main></div><div class="tp-status"><span aria-live="polite">${esc(state.message)}</span><span>Sample waveform · playback simulated</span></div>${menu()}${dialog()}`;
+      app.querySelectorAll('.tp-rail button').forEach(btn=>btn.setAttribute('aria-label',btn.textContent.trim()));
+      if(state.tab==='transcript'){const add=document.createElement('button');add.type='button';add.className='cursor-interaction tp-quiet';add.dataset.action='add-segment';add.textContent='+ Add missing speech';app.querySelector('.tp-transcript').appendChild(add);}
+      if(Object.keys(state.deleted).length){const restore=document.createElement('button');restore.type='button';restore.className='cursor-interaction tp-quiet';restore.dataset.action='restore-call';restore.textContent='Restore deleted call';app.querySelector('.tp-library').appendChild(restore);}
+      if(globalThis.lucide)lucide.createIcons({attrs:{width:16,height:16}});updateExport();
+    }
+    function openMenu(kind,event,id){const rect=app.getBoundingClientRect();state.menu={kind,x:Math.max(10,Math.min(event.clientX-rect.left,rect.width-230)),y:Math.max(50,event.clientY-rect.top+8)};if(id&&kind==='call'){state.call=id;state.selection=null;}render();}
+    app.addEventListener('click',event=>{
+      const target=event.target.closest('[data-action]');
+      if(!target){const wave=event.target.closest('[data-wave]');if(wave){const r=wave.getBoundingClientRect();state.position=18+(event.clientX-r.left)/r.width*state.zoom;state.message='Seek to '+stamp(state.position);render();remember();}else if(state.menu&&!event.target.closest('.tp-floating')){state.menu=null;render();}return;}
+      const action=target.dataset.action;
+      if(action==='open-call'){state.call=target.dataset.call;state.selection=null;state.menu=null;state.position=24;state.message='All changes saved locally';render();remember();return;}
+      if(action==='call-menu'){openMenu('call',event,target.dataset.call);return;}
+      if(action==='header-menu'){openMenu('header',event);return;}
+      if(action==='line-menu'||action==='selection-more'){if(target.dataset.line){const l=doc().lines.find(l=>l.id===target.dataset.line);state.selection={id:l.id,start:0,length:l.text.length};}openMenu('line',event);return;}
+      if(action==='review-mixed'){selectInterruption();return;}
+      if(action==='review-word'){const l=doc().lines.find(l=>l.issue==='word');if(l){const at=l.text.indexOf('Регстат');state.selection={id:l.id,start:at,length:7};showDialog('edit');}return;}
+      if(action==='speaker'){const l=doc().lines.find(l=>l.id===target.dataset.line);state.selection={id:l.id,start:0,length:l.text.length};showDialog('assign');return;}
+      if(action==='edit'||action==='assign'||action==='split'){selectedForAction();showDialog(action);return;}
+      if(action==='delete-text'){selectedForAction();const sel=clone(state.selection);transact('Delete selection',d=>{const l=d.lines.find(l=>l.id===sel.id);const text=l.text.slice(0,sel.start)+l.text.slice(sel.start+sel.length);if(!text.trim())d.lines=d.lines.filter(x=>x.id!==l.id);else{l.text=text.trim();l.human=true;}});return;}
+      if(action==='merge'){selectedForAction();transact('Merge segments',d=>{const at=d.lines.findIndex(l=>l.id===state.selection.id);if(at>=0&&at<d.lines.length-1){d.lines[at].text+=' '+d.lines[at+1].text;d.lines[at].end=d.lines[at+1].end;d.lines[at].human=true;d.lines.splice(at+1,1);}});return;}
+      if(action==='apply-edit'){const replacement=app.querySelector('[data-dialog-field=replacement]').value;const all=app.querySelector('[data-dialog-field=all]').checked,dict=app.querySelector('[data-dialog-field=dictionary]').checked,sel=clone(state.selection),before=selectedText();transact('Correct selected text',d=>{if(all&&before)d.lines.forEach(l=>{if(l.text.includes(before)){l.text=l.text.replaceAll(before,replacement);l.human=true;}});else{const l=d.lines.find(l=>l.id===sel.id);l.text=l.text.slice(0,sel.start)+replacement+l.text.slice(sel.start+sel.length);l.human=true;l.issue='';}if(dict&&before)d.dictionary[before]=replacement;});return;}
+      if(action==='apply-split'){
+        const selected=line(),sel=clone(state.selection),kind=state.dialog.kind;
+        const boundaryField=app.querySelector('[data-dialog-field=boundary]'),endField=app.querySelector('[data-dialog-field=end-boundary]');
+        const boundary=boundaryField?Number(boundaryField.value):selected.start,end=endField?Number(endField.value):selected.end;
+        const overlap=app.querySelector('[data-dialog-field=overlap]')?.checked;
+        let speaker=app.querySelector('[data-dialog-field=speaker]').value;if(speaker==='new')speaker=app.querySelector('[data-dialog-field=new-name]').value.trim();
+        const splitText=app.querySelector('[data-dialog-field=split-text]')?.value;
+        if(!speaker||boundary<selected.start||end>selected.end||end<=boundary||splitText!==undefined&&(!selected.text.startsWith(splitText)||!splitText.trim()||splitText.length>=selected.text.length)){app.querySelector('.tp-status span').textContent='Choose a valid name, text boundary and audio range';return;}
+        if(!people.includes(speaker))people.push(speaker);
+        transact(kind==='assign'&&!boundaryField?'Assign speaker':'Split & assign speaker',d=>{
+          const at=d.lines.findIndex(l=>l.id===selected.id),uid='split-'+Date.now(),pieces=[];
+          const head=splitText!==undefined?splitText:selected.text.slice(0,sel.start);
+          const middle=splitText!==undefined?selected.text.slice(splitText.length):selected.text.slice(sel.start,sel.start+sel.length);
+          const tail=splitText!==undefined?'':selected.text.slice(sel.start+sel.length);
+          if(head.trim())pieces.push({...selected,text:head.trim(),end:overlap?Math.min(end,boundary+.7):boundary,human:true,issue:''});
+          pieces.push({...selected,id:head.trim()?uid:selected.id,start:head.trim()?boundary:selected.start,end:tail.trim()?end:selected.end,text:middle.trim(),speaker,human:true,issue:'',overlap:!!overlap});
+          if(tail.trim())pieces.push({...selected,id:uid+'-tail',start:end,text:tail.trim(),human:true,issue:''});
+          d.lines.splice(at,1,...pieces);
+        });return;
+      }
+      if(action==='undo'){undo();return;}if(action==='redo'){undo(true);return;}
+      if(action==='clear-selection'){state.selection=null;render();return;}
+      if(action==='seek-line'){const l=doc().lines.find(l=>l.id===target.dataset.line);state.position=l.start;state.message='Playhead at '+stamp(l.start);render();remember();return;}
+      if(action==='play'||action==='play-selection'||action==='play-issue'||action==='preview-boundary'){
+        if(action==='play-issue'){state.position=24;state.rangeEnd=31;state.playing=true;state.message='Preview: disputed exchange · 00:24–00:31';}
+        else if(action==='play-selection'){state.position=line()?.start||24;state.rangeEnd=line()?.end||31;state.playing=true;state.message='Preview: selected segment · '+stamp(state.position)+'–'+stamp(state.rangeEnd);}
+        else if(action==='preview-boundary'){state.message='Preview boundary at '+app.querySelector('[data-dialog-field=boundary]').value+' seconds';app.querySelector('.tp-status span').textContent=state.message;return;}
+        else{state.rangeEnd=null;state.playing=!state.playing;state.message=state.playing?'Preview playback · no audio':'Paused at '+stamp(state.position);}
+        render();return;
+      }
+      if(action==='rewind'){state.position=Math.max(0,state.position-3);render();return;}
+      if(action==='wave'){state.wave=!state.wave;render();remember();return;}
+      if(action==='inspector'){state.inspector=!state.inspector;render();remember();return;}
+      if(action==='panel-review'||action==='panel-people'){state.panel=action==='panel-review'?'review':'people';render();remember();return;}
+      if(action==='transcript'||action==='notes'){state.tab=action;render();return;}
+      if(action==='save-note'){const value=app.querySelector('[data-field=note]').value;transact('Edit note',d=>{d.note=value;});return;}
+      if(action==='export'||action==='rename'||action==='retranscribe'||action==='recompute'){showDialog(action);return;}
+      if(action==='delete-call'){showDialog('delete');return;}
+      if(action==='add-person'){showDialog('person');return;}
+      if(action==='add-segment'){showDialog('add-segment');return;}
+      if(action==='apply-add-segment'){const text=app.querySelector('[data-dialog-field=new-text]').value.trim(),start=Number(app.querySelector('[data-dialog-field=new-start]').value),end=Number(app.querySelector('[data-dialog-field=new-end]').value),speaker=app.querySelector('[data-dialog-field=speaker]').value;if(!text||start<0||end<=start||end>call().duration){app.querySelector('.tp-status span').textContent='Enter text and a valid audio range';return;}transact('Add missing speech',d=>{d.lines.push({id:'new-'+Date.now(),start,end,speaker,text,human:true,issue:''});d.lines.sort((a,b)=>a.start-b.start);});return;}
+      if(action==='apply-person'){const p=app.querySelector('[data-dialog-field=name]').value.trim();if(p&&!people.includes(p))people.push(p);state.dialog=null;state.panel='people';render();return;}
+      if(action==='apply-rename'){const name=app.querySelector('[data-dialog-field=name]').value.trim();if(name)transact('Rename call',d=>d.title=name);return;}
+      if(action==='apply-delete-call'){if(Object.keys(state.docs).length<=1){app.querySelector('.tp-status span').textContent='Keep one sample call available in this prototype';return;}const deleted=state.call;state.deleted[deleted]=state.docs[deleted];delete state.docs[deleted];state.call=Object.keys(state.docs)[0];state.dialog=null;state.message='Call moved to Deleted calls · Restore available in call library';render();return;}
+      if(action==='restore-call'){const id=Object.keys(state.deleted).at(-1);if(id){state.docs[id]=state.deleted[id];delete state.deleted[id];state.message='Call restored';render();}return;}
+      if(action==='prepare-export'){const dest=app.querySelector('[data-dialog-field=destination]').value,fmt=app.querySelector('[data-dialog-field=format]').value;state.dialog=null;state.message=dest==='copy'?'Clipboard copy preview prepared':'File preview prepared · '+doc().title+'.'+fmt;render();return;}
+      if(action==='start-retranscribe'||action==='start-recompute'){state.dialog=null;state.message=action==='start-retranscribe'?'New revision requested · existing edits preserved':'Speaker analysis requested · human assignments locked';render();return;}
+      if(action==='cancel-dialog'){state.dialog=null;render();return;}
+      if(action==='folder'){state.menu=null;state.message='Folder preview · Calls / '+doc().title;render();return;}
+      if(action==='clear-filters'){state.query='';state.person='';state.status='';state.date='';render();return;}
+      if(action==='library'){state.library=!state.library;render();return;}
+      if(action==='zoom-in'||action==='zoom-out'){state.zoom=Math.max(15,Math.min(120,state.zoom*(action==='zoom-in'?.5:2)));render();return;}
+      if(action==='turn-pavel'||action==='turn-anna'){state.position=action==='turn-pavel'?24:32;render();return;}
+      if(action==='record'){state.recording=!state.recording;state.message=state.recording?'Recording state preview · microphone not active':'Recording stopped · prototype';render();return;}
+      if(action.startsWith('nav-')){state.message='This prototype focuses on the Calls workspace';render();}
+    });
+    app.addEventListener('change',event=>{
+      const t=event.target;if(t.dataset.field==='person'||t.dataset.field==='status'||t.dataset.field==='date'){state[t.dataset.field]=t.value;render();return;}
+      if(t.dataset.field==='follow'){state.follow=t.checked;return;}
+      if(t.dataset.dialogField==='speaker'){app.querySelector('[data-dialog-field=new-name]').hidden=t.value!=='new';}
+      if(t.dataset.dialogField)updateExport();
+    });
+    app.addEventListener('input',event=>{const t=event.target;if(t.dataset.field==='search'){state.query=t.value;const start=t.selectionStart;render();const input=app.querySelector('[data-field=search]');input.focus();input.setSelectionRange(start,start);}if(t.dataset.field==='seek'){state.position=Number(t.value);state.message='Seek to '+stamp(state.position);const values=app.querySelectorAll('.tp-transport small');values.forEach(v=>v.textContent=stamp(state.position)+' / '+stamp(call().duration));}if(t.dataset.dialogField)updateExport();});
+    app.addEventListener('mouseup',event=>{const p=event.target.closest('[data-text]');if(!p||event.button!==0)return;const selection=window.getSelection();if(!selection||selection.isCollapsed||!p.contains(selection.anchorNode)||!p.contains(selection.focusNode))return;const range=selection.getRangeAt(0),prefix=range.cloneRange();prefix.selectNodeContents(p);prefix.setEnd(range.startContainer,range.startOffset);state.selection={id:p.dataset.text,start:prefix.toString().length,length:range.toString().length};setTimeout(()=>render(),0);});
+    app.addEventListener('contextmenu',event=>{const row=event.target.closest('[data-line]'),callRow=event.target.closest('.tp-call');if(row){event.preventDefault();const l=doc().lines.find(l=>l.id===row.dataset.line);if(state.selection?.id!==l.id)state.selection={id:l.id,start:0,length:l.text.length};openMenu('line',event);}else if(callRow){event.preventDefault();openMenu('call',event,callRow.querySelector('[data-call]').dataset.call);}});
+    app.addEventListener('dblclick',event=>{const p=event.target.closest('[data-text]');if(p){const l=doc().lines.find(l=>l.id===p.dataset.text);state.selection={id:l.id,start:0,length:l.text.length};showDialog('edit');}});
+    app.addEventListener('keydown',event=>{if(event.key==='Escape'){state.dialog=null;state.menu=null;render();}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'&&!event.target.matches('input,textarea')){event.preventDefault();undo(event.shiftKey);}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='y'&&!event.target.matches('input,textarea')){event.preventDefault();undo(true);}if(event.key==='Enter'&&state.dialog?.kind==='edit'&&!event.shiftKey){event.preventDefault();app.querySelector('[data-action=apply-edit]').click();}});
+    setInterval(()=>{if(!state.playing||app.closest('[data-variant]').hidden||state.dialog||state.menu)return;const end=state.rangeEnd??call().duration;state.position=Math.min(end,state.position+.25);if(state.position>=end){state.playing=false;state.message='Paused at '+stamp(state.position);render();return;}app.querySelectorAll('.tp-transport small').forEach(v=>v.textContent=stamp(state.position)+' / '+stamp(call().duration));const seek=app.querySelector('[data-field=seek]');if(seek)seek.value=state.position;app.querySelectorAll('.tp-line').forEach(el=>{const l=doc().lines.find(l=>l.id===el.dataset.line);el.classList.toggle('is-playing',state.position>=l.start&&state.position<l.end);});app.querySelectorAll('.tp-playhead').forEach(el=>el.style.left=Math.max(0,Math.min(100,(state.position-18)/state.zoom*100))+'%');},250);
+    render();
+    if(globalThis.Tweak){const tweak=new Tweak({container:app,onChange:render});tweak.addSlider(choices,'spacing',{label:'Transcript line spacing',min:1.4,max:2,step:.05,reference:'transcript.lineSpacing'});tweak.addToggle(state,'inspector',{label:'Inspector open'});tweak.addToggle(state,'wave',{label:'Waveform expanded'});}
+  });
+  window.addEventListener('openai:set_globals',event=>{const saved=event.detail?.globals?.widgetState?.privateContent?.designs;if(!saved)return;apps.forEach(({state},i)=>{if(saved[i]){state.inspector=saved[i].inspector??state.inspector;state.wave=saved[i].wave??state.wave;}});});
+})();
+</script>

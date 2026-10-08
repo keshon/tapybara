@@ -50,9 +50,6 @@ internal sealed class TimelineWavWriter : IDisposable
     /// </remarks>
     private static readonly TimeSpan HeaderRefresh = TimeSpan.FromSeconds(5);
 
-    /// <summary>Предел разовой добивки — защита от испорченных опорных часов.</summary>
-    private static readonly TimeSpan MaxSinglePad = TimeSpan.FromMinutes(10);
-
     private readonly Lock _gate = new();
     private readonly WaveFileWriter _writer;
     private readonly float[] _silence = new float[AudioCapture.TargetSampleRate / 10];
@@ -191,13 +188,8 @@ internal sealed class TimelineWavWriter : IDisposable
 
     private void PadLocked(long samples)
     {
-        long limit = (long)(MaxSinglePad.TotalSeconds * AudioCapture.TargetSampleRate);
-        if (samples > limit)
-        {
-            AppLog.Warn($"Добивка {samples} сэмплов ограничена пределом — опорные часы разошлись.");
-            samples = limit;
-        }
-
+        // Опора — длительность микрофона, а не внешние часы. Долгая тишина
+        // допустима: её обрезка сдвигала первую вернувшуюся речь на минуты.
         while (samples > 0)
         {
             int chunk = (int)Math.Min(samples, _silence.Length);

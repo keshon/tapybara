@@ -87,7 +87,7 @@ public static class CallSpeakers
         ArgumentNullException.ThrowIfNull(line);
         ArgumentNullException.ThrowIfNull(session);
 
-        if (line.Channel == CallChannel.Mine)
+        if (line.Channel == CallChannel.Mine && line.Voice is null)
         {
             return myName;
         }

@@ -132,6 +132,7 @@ public partial class CallsPage
 
     private void ShowVoicesPane(bool visible)
     {
+        visible &= _reviewVisible;
         VoicesPane.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         VoicesColumn.Width = visible ? new GridLength(320) : new GridLength(0);
     }
@@ -154,6 +155,11 @@ public partial class CallsPage
     {
         VoicesHost.Children.Clear();
         _quoteButtons.Clear();
+        if (!_reviewVisible)
+        {
+            ShowVoicesPane(false);
+            return;
+        }
 
         if (_transcript is null || _session is null || !_transcript.Lines.Any(l => l.Channel == CallChannel.Theirs))
         {
@@ -644,7 +650,8 @@ public partial class CallsPage
     {
         foreach (CallPerson person in People())
         {
-            bool current = line.Voice is { } voice && person.Voices.Contains(voice);
+            bool current = (line.Voice is { } voice && person.Voices.Contains(voice))
+                || (person.IsMe && line.Channel == CallChannel.Mine && line.Voice is null);
             if (reject && current)
             {
                 continue;
@@ -679,7 +686,14 @@ public partial class CallsPage
                 // реплика становится новым голосом, сразу названным «я».
                 if (target.Voices.Count > 0)
                 {
-                    ReassignLine(line, target.Voices[0]);
+                    if (target.Voices[0] == CallVoices.WholeOtherSide)
+                    {
+                        ReassignLine(line, CallVoices.NextFree(_transcript!.Voices), target.Name);
+                    }
+                    else
+                    {
+                        ReassignLine(line, target.Voices[0]);
+                    }
                 }
                 else
                 {

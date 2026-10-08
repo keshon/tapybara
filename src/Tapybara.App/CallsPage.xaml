@@ -3,6 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:app="clr-namespace:Tapybara.App"
+             xmlns:components="clr-namespace:Tapybara.App.Controls"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
              FontFamily="{StaticResource AppFontFamily}"
              FontSize="{StaticResource AppFontSize}">
     <!--
@@ -44,12 +46,9 @@
                 <ContentControl x:Name="RecordHost" Margin="-4,12,0,0" />
             </StackPanel>
 
-            <ui:TextBox x:Name="SearchBox"
+            <components:SearchFilterBar x:Name="LibrarySearch"
                         Grid.Row="1"
-                        Margin="0,0,8,8"
-                        Icon="{ui:SymbolIcon Search24}"
-                        ClearButtonEnabled="True"
-                        TextChanged="OnSearchChanged" />
+                        Margin="0,0,8,8" />
 
             <ListBox x:Name="CallList"
                      Grid.Row="2"
@@ -59,16 +58,17 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                      ItemContainerStyle="{StaticResource ListRowStyle}"
-                     SelectionChanged="OnSelectionChanged">
+                    SelectionChanged="OnSelectionChanged">
                 <ListBox.GroupStyle>
                     <GroupStyle HeaderTemplate="{StaticResource GroupHeader}" />
                 </ListBox.GroupStyle>
 
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type app:CallRow}">
-                        <Grid>
+                        <Grid ContextMenuOpening="OnCallRowContextMenuOpening">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
@@ -93,6 +93,10 @@
                                            FontSize="{x:Static app:Tokens.Caption}"
                                            Foreground="{Binding StateForeground}" />
                             </Border>
+                            <Button Grid.Column="2" Style="{StaticResource SquareIconButton}" Margin="4,0,0,0"
+                                    Click="OnCallRowMoreClick" ToolTip="{Binding ActionsHint}" AutomationProperties.Name="{Binding ActionsHint}">
+                                <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
+                            </Button>
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -130,6 +134,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Margin="24,20,24,12">
@@ -139,50 +144,47 @@
                                  LostKeyboardFocus="OnTitleLostFocus" />
                         <TextBlock x:Name="DetailMeta"
                                    Style="{StaticResource TextCaption}"
-                                   Margin="0,4,0,16" />
+                                   Margin="0,4,0,12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
 
-                        <Grid>
-                            <StackPanel Orientation="Horizontal">
-                                <ui:Button x:Name="ListenButton"
-                                           Margin="0,0,8,0"
-                                           Icon="{ui:SymbolIcon Play24}"
-                                           Click="OnListenClick" />
-                                <ui:Button x:Name="CopyButton"
-                                           Icon="{ui:SymbolIcon Copy24}"
-                                           Click="OnCopyClick" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <ui:Button x:Name="FolderButton"
-                                           Margin="0,0,8,0"
-                                           Icon="{ui:SymbolIcon FolderOpen24}"
-                                           Click="OnFolderClick" />
-                                <ui:Button x:Name="MoreButton"
-                                           Icon="{ui:SymbolIcon MoreHorizontal24}"
-                                           Click="OnMoreClick" />
-                            </StackPanel>
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <components:HistoryBar x:Name="EditHistory" Margin="0,0,12,0" />
+                            <ui:Button x:Name="ExportButton" Grid.Column="1" components:ControlSizing.Compact="True"
+                                       Click="OnExportClick" Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="1.5"
+                                          Stroke="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,8,0"
+                                          Data="M3,10 L3,14 L13,14 L13,10 M8,11 L8,2 M4,6 L8,2 L12,6" />
+                                    <TextBlock x:Name="ExportCaption" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+                            <ToggleButton x:Name="NotesToggle" Style="{StaticResource IconToggleButton}" Grid.Column="2" components:ControlSizing.IconOnly="True"
+                                          Checked="OnNotesToggle" Unchecked="OnNotesToggle">
+                                <ui:SymbolIcon Symbol="Note24" FontSize="16" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                            </ToggleButton>
+                            <ui:Button x:Name="FindButton" Grid.Column="3" components:ControlSizing.IconOnly="True"
+                                       Icon="{ui:SymbolIcon Search24}" Click="OnFindClick" Margin="8,0,0,0" />
+                            <ui:Button x:Name="ReviewButton" Grid.Column="5" components:ControlSizing.IconOnly="True"
+                                       Icon="{ui:SymbolIcon People24}" Click="OnReviewClick" Margin="0,0,8,0" />
+                            <ui:Button x:Name="MoreButton" Grid.Column="6" components:ControlSizing.IconOnly="True"
+                                       Icon="{ui:SymbolIcon MoreHorizontal24}" Click="OnMoreClick" />
                         </Grid>
+                        <ui:TextBox x:Name="NoteBox" Visibility="Collapsed" Margin="0,8,0,0"
+                                    MinHeight="64" MaxHeight="96" AcceptsReturn="True" TextWrapping="Wrap"
+                                    VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
-
-                    <!-- вкладки — по левому краю содержимого, под ними черта -->
-                    <Border Grid.Row="1"
-                            Padding="24,0"
-                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                            BorderThickness="0,0,0,1">
-                        <StackPanel Orientation="Horizontal">
-                            <RadioButton x:Name="TranscriptTab"
-                                         GroupName="CallTabs"
-                                         IsChecked="True"
-                                         Style="{StaticResource TabHeader}"
-                                         Checked="OnTabChecked" />
-                            <RadioButton x:Name="NoteTab"
-                                         GroupName="CallTabs"
-                                         Style="{StaticResource TabHeader}"
-                                         Checked="OnTabChecked" />
-                        </StackPanel>
-                    </Border>
 
                     <Grid x:Name="TranscriptView" Grid.Row="2">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
@@ -242,8 +244,9 @@
                             левый отступ строки — место для ▶ при наведении и полосы
                             звучащей реплики, не сдвигающих колонку времени.
                         -->
+                        <components:FindReplaceBar x:Name="DocumentSearch" Grid.Row="1" Visibility="Collapsed" Margin="24,8,24,8" />
                         <ListBox x:Name="LineList"
-                                 Grid.Row="1"
+                                 Grid.Row="2"
                                  Background="Transparent"
                                  BorderThickness="0"
                                  Margin="4,8,16,16"
@@ -264,22 +267,9 @@
                                     <Border x:Name="LineFill"
                                             CornerRadius="{x:Static app:Tokens.ControlRadius}"
                                             Margin="{Binding Spacing}"
-                                            Background="Transparent"
-                                            PreviewMouseLeftButtonDown="OnLinePressed">
+                                            Background="Transparent">
                                         <Grid>
-                                            <!--
-                                                Звучащая реплика: заливка бежит по строке вместе со
-                                                звуком — прозвучало 58% реплики, залито 58% строки, — и
-                                                полоса слева. Видно и без звука, и краем глаза.
-                                            -->
-                                            <Border x:Name="Sweep"
-                                                    Style="{StaticResource PlayingLineFill}"
-                                                    Visibility="Collapsed"
-                                                    RenderTransformOrigin="0,0.5">
-                                                <Border.RenderTransform>
-                                                    <ScaleTransform ScaleX="{Binding Progress}" />
-                                                </Border.RenderTransform>
-                                            </Border>
+                                            <!-- Активные интервалы обозначены полосой; без выдуманного выравнивания слов. -->
                                             <Border x:Name="NowBar"
                                                     Width="3"
                                                     Margin="0,4"
@@ -289,7 +279,7 @@
                                                     Visibility="Collapsed" />
                                             <Grid Margin="20,3,8,3">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="56" />
+                                                    <ColumnDefinition Width="96" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <Grid.RowDefinitions>
@@ -316,41 +306,35 @@
                                                     </StackPanel>
                                                 </Button>
 
-                                                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
-                                                    <!--
-                                                        Время проигрывает реплику, но выглядело обычным
-                                                        текстом. При наведении на строку слева от него
-                                                        появляется ▶ и оно синеет: видно, что будет по щелчку.
-                                                    -->
-                                                    <Button Style="{StaticResource FlatLinkButton}"
-                                                            VerticalAlignment="Top"
-                                                            HorizontalAlignment="Left"
-                                                            Margin="0,2,0,0"
+                                                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top" Height="24">
+                                                    <Button x:Name="FragmentPlay"
+                                                            Style="{StaticResource FlatLinkButton}"
+                                                            Margin="0,0,4,0"
+                                                            Padding="0" Width="20" Height="24"
+                                                            VerticalAlignment="Center"
                                                             ToolTip="{Binding PlayHint}"
+                                                            AutomationProperties.Name="{Binding PlayHint}"
+                                                            Click="OnFragmentClick">
+                                                        <ui:SymbolIcon x:Name="StampPlay" Symbol="Play16" FontSize="14" />
+                                                    </Button>
+                                                    <Button Style="{StaticResource FlatLinkButton}"
+                                                            VerticalAlignment="Center" Height="24"
+                                                            Margin="0"
+                                                            ToolTip="{Binding SeekHint}"
+                                                            AutomationProperties.Name="{Binding SeekHint}"
                                                             Click="OnStampClick">
-                                                        <Grid>
-                                                            <ui:SymbolIcon x:Name="StampPlay"
-                                                                           Symbol="Play16"
-                                                                           Filled="True"
-                                                                           FontSize="11"
-                                                                           Margin="-16,0,0,0"
-                                                                           HorizontalAlignment="Left"
-                                                                           VerticalAlignment="Center"
-                                                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
-                                                                           Visibility="Hidden" />
-                                                            <TextBlock x:Name="StampText"
-                                                                       Text="{Binding Stamp}"
-                                                                       FontFamily="Cascadia Mono, Consolas"
-                                                                       FontSize="{x:Static app:Tokens.Caption}"
-                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                                        </Grid>
+                                                        <TextBlock x:Name="StampText"
+                                                                   Text="{Binding Stamp}"
+                                                                   FontFamily="Cascadia Mono, Consolas"
+                                                                   FontSize="{x:Static app:Tokens.Caption}"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     </Button>
                                                     <!-- Голос реплики под сомнением: «?» открывает то же
                                                          меню «Сказал…», что и имя говорящего. -->
                                                     <Button Style="{StaticResource FlatLinkButton}"
-                                                            VerticalAlignment="Top"
-                                                            Margin="4,2,0,0"
-                                                            Padding="2,0"
+                                                            VerticalAlignment="Center" Height="24" Width="16"
+                                                            Margin="4,0,0,0"
+                                                            Padding="0"
                                                             Visibility="{Binding DoubtVisibility}"
                                                             ToolTip="{Binding DoubtHint}"
                                                             Click="OnSpeakerClick">
@@ -361,12 +345,13 @@
                                                     </Button>
                                                 </StackPanel>
 
-                                                <TextBox Grid.Row="1"
+                                                <components:InlineTextEditor Grid.Row="1"
                                                          Grid.Column="1"
                                                          Style="{StaticResource TranscriptTextStyle}"
+                                                         IsReadOnly="False"
                                                          Text="{Binding Text, Mode=OneWay}"
-                                                         MouseDoubleClick="OnLineDoubleClick"
-                                                         PreviewMouseLeftButtonUp="OnLineMouseUp"
+                                                         Loaded="OnEditorLoaded"
+                                                         GotKeyboardFocus="OnEditorFocused"
                                                          ContextMenuOpening="OnLineContextMenuOpening" />
                                             </Grid>
                                         </Grid>
@@ -379,12 +364,11 @@
                                             <Setter TargetName="StampText" Property="Foreground"
                                                     Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                                         </Trigger>
-                                        <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                        <DataTrigger Binding="{Binding IsExcerptPlaying}" Value="True">
                                             <Setter TargetName="StampPlay" Property="Symbol" Value="Stop16" />
                                             <Setter TargetName="StampPlay" Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                            <Setter TargetName="Sweep" Property="Visibility" Value="Visible" />
                                             <Setter TargetName="NowBar" Property="Visibility" Value="Visible" />
                                             <Setter TargetName="StampText" Property="Foreground"
                                                     Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
@@ -395,7 +379,7 @@
                         </ListBox>
 
                         <ScrollViewer x:Name="LegacyScroll"
-                                      Grid.Row="1"
+                                      Grid.Row="2"
                                       Visibility="Collapsed"
                                       VerticalScrollBarVisibility="Auto"
                                       Padding="24,16,24,16">
@@ -403,14 +387,23 @@
                         </ScrollViewer>
                     </Grid>
 
-                    <ui:TextBox x:Name="NoteBox"
-                                Grid.Row="2"
-                                Visibility="Collapsed"
-                                Margin="24,16,24,24"
-                                AcceptsReturn="True"
-                                TextWrapping="Wrap"
-                                VerticalContentAlignment="Top"
-                                VerticalScrollBarVisibility="Auto" />
+                    <Border Grid.Row="3" Padding="24,8,24,12"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            BorderThickness="0,1,0,0">
+                        <StackPanel>
+                            <components:AudioTimelineView x:Name="Timeline" Visibility="Collapsed" Margin="0,0,0,8" />
+                            <components:AudioTransportBar x:Name="Transport">
+                                <components:AudioTransportBar.Tools>
+                                    <ToggleButton x:Name="TimelineToggle" Style="{StaticResource IconToggleButton}" components:ControlSizing.IconOnly="True"
+                                                  Checked="OnTimelineToggle" Unchecked="OnTimelineToggle">
+                                        <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="1.5"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                              Data="M1,8 L1,10 M4,4 L4,14 M7,1 L7,16 M10,4 L10,14 M13,6 L13,12 M16,8 L16,10" />
+                                    </ToggleButton>
+                                </components:AudioTransportBar.Tools>
+                            </components:AudioTransportBar>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Grid>
         </Border>

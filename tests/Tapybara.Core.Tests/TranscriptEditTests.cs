@@ -166,7 +166,7 @@ public sealed class TranscriptEditTests
 
         CallTranscript fixedCall = TranscriptEdit.EditLine(call, call.Lines[1], "  Стало иначе  ");
 
-        Assert.Equal("Стало иначе", fixedCall.Lines[1].Text);
+        Assert.Equal("  Стало иначе  ", fixedCall.Lines[1].Text);
         Assert.Equal("Было так", fixedCall.Lines[0].Text);
         Assert.True(fixedCall.EditedByHand);
     }

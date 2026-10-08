@@ -79,11 +79,13 @@ public sealed class DictationController : IAsyncDisposable
     private readonly SemaphoreSlim _busy = new(1, 1);
 
     private MicrophoneCapture? _capture;
+    private Action<Exception>? _captureFailureHandler;
     private Stopwatch? _recordingTimer;
     private CancellationTokenSource? _transcribeCancellation;
     private Timer? _unloadTimer;
     private Timer? _lengthFuse;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private Task _prepareTask = Task.CompletedTask;
 
     public DictationController(SpeechTranscriber transcriber, Func<AppSettings> settings)
     {
@@ -135,6 +137,10 @@ public sealed class DictationController : IAsyncDisposable
     /// <summary>Начать диктовку, если стоим; закончить, если пишем.</summary>
     public async Task ToggleAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
         if (!await _busy.WaitAsync(0).ConfigureAwait(false))
         {
             return; // распознавание ещё идёт — нажатие игнорируем
@@ -142,6 +148,10 @@ public sealed class DictationController : IAsyncDisposable
 
         try
         {
+            if (_disposed)
+            {
+                return;
+            }
             if (_capture is null)
             {
                 StartRecording();
@@ -173,6 +183,10 @@ public sealed class DictationController : IAsyncDisposable
     /// </remarks>
     public async Task CancelAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
         if (State == DictationState.Transcribing)
         {
             // Читаем в локальную переменную: поле обнуляется из другого потока
@@ -212,17 +226,17 @@ public sealed class DictationController : IAsyncDisposable
 
         var capture = new MicrophoneCapture { DeviceId = settings.MicrophoneDeviceId };
         capture.LevelChanged += OnLevel;
-        capture.Failed += OnCaptureFailed;
-        capture.Start();
-
+        _captureFailureHandler = error => OnCaptureFailed(capture, error);
+        capture.Failed += _captureFailureHandler;
         _capture = capture;
+        capture.Start();
         _recordingTimer = Stopwatch.StartNew();
         StartLengthFuse(settings);
         SetState(DictationState.Recording);
 
         // Модель грузим ПАРАЛЛЕЛЬНО записи: пока пользователь говорит, она уже
         // прогревается — на распознавании экономится холодный старт целиком.
-        _ = Task.Run(async () =>
+        _prepareTask = Task.Run(async () =>
         {
             try
             {
@@ -275,9 +289,35 @@ public sealed class DictationController : IAsyncDisposable
         await ToggleAsync().ConfigureAwait(false);
     }
 
-    private void OnCaptureFailed(Exception error)
+    private void OnCaptureFailed(MicrophoneCapture failedCapture, Exception error)
     {
-        Status?.Invoke(new DictationStatus(DictationNotice.DeviceLost, error.Message));
+        // WASAPI callback не должен ждать StopRecording того же устройства.
+        _ = Task.Run(() => RecoverCaptureAsync(failedCapture, error));
+    }
+
+    private async Task RecoverCaptureAsync(MicrophoneCapture failedCapture, Exception error)
+    {
+        await _busy.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!_disposed && ReferenceEquals(_capture, failedCapture))
+            {
+                Status?.Invoke(new DictationStatus(DictationNotice.DeviceLost, error.Message));
+                // Записанное не выбрасываем: устройство уже потеряно, но
+                // накопленные сэмплы ещё можно распознать и сохранить.
+                await StopAndTranscribeAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Не удалось сохранить диктовку после потери устройства.", ex);
+            await ResetToIdleAsync().ConfigureAwait(false);
+            Status?.Invoke(new DictationStatus(DictationNotice.Failed, ex.Message));
+        }
+        finally
+        {
+            _busy.Release();
+        }
     }
 
     private async Task StopAndTranscribeAsync()
@@ -288,31 +328,41 @@ public sealed class DictationController : IAsyncDisposable
         StopLengthFuse();
 
         capture.LevelChanged -= OnLevel;
-        capture.Failed -= OnCaptureFailed;
-        float[] samples = await capture.StopAsync().ConfigureAwait(false);
-        capture.Dispose();
-
-        var duration = TimeSpan.FromSeconds(samples.Length / (double)AudioCapture.TargetSampleRate);
-        if (duration < TimeSpan.FromSeconds(0.5))
-        {
-            SetState(DictationState.Idle);
-            Status?.Invoke(new DictationStatus(DictationNotice.TooShort));
-            ScheduleUnload();
-            return;
-        }
-
-        SetState(DictationState.Transcribing);
-
+        capture.Failed -= _captureFailureHandler;
+        _captureFailureHandler = null;
         var cancellation = new CancellationTokenSource();
         Volatile.Write(ref _transcribeCancellation, cancellation);
         try
         {
+            SetState(DictationState.Transcribing);
+            float[] samples;
+            try
+            {
+                samples = await capture.StopAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                capture.Dispose();
+            }
+
+            cancellation.Token.ThrowIfCancellationRequested();
+            var duration = TimeSpan.FromSeconds(samples.Length / (double)AudioCapture.TargetSampleRate);
+            if (duration < TimeSpan.FromSeconds(0.5))
+            {
+                Status?.Invoke(new DictationStatus(DictationNotice.TooShort));
+                return;
+            }
+
             var progress = new Progress<int>(p => ProgressChanged?.Invoke(p));
             IReadOnlyList<TranscriptSegment> segments = await _transcriber
                 .TranscribeAsync(samples, progress, cancellationToken: cancellation.Token)
                 .ConfigureAwait(false);
 
-            Publish(segments);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!_disposed)
+            {
+                Publish(segments);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -383,9 +433,17 @@ public sealed class DictationController : IAsyncDisposable
         {
             _capture = null;
             capture.LevelChanged -= OnLevel;
-            capture.Failed -= OnCaptureFailed;
-            await capture.StopAsync().ConfigureAwait(false);
-            capture.Dispose();
+            capture.Failed -= _captureFailureHandler;
+            _captureFailureHandler = null;
+            try
+            {
+                await capture.StopAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                capture.Dispose();
+                SetState(DictationState.Idle);
+            }
         }
 
         SetState(DictationState.Idle);
@@ -410,6 +468,10 @@ public sealed class DictationController : IAsyncDisposable
     /// </remarks>
     private void ScheduleUnload()
     {
+        if (_disposed)
+        {
+            return;
+        }
         var delay = TimeSpan.FromMinutes(Math.Clamp(_settings().IdleUnloadMinutes, 1, 24 * 60));
 
         _unloadTimer?.Dispose();
@@ -458,7 +520,19 @@ public sealed class DictationController : IAsyncDisposable
             _unloadTimer = null;
         }
 
-        await ResetToIdleAsync().ConfigureAwait(false);
-        _busy.Dispose();
+        // Toggle держит семафор до выхода из finally. Освобождение его
+        // раньше вызывало ObjectDisposedException при смене модели.
+        await _busy.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await ResetToIdleAsync().ConfigureAwait(false);
+            await _prepareTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            _busy.Release();
+        }
+        // Оставляем управляемый семафор сборщику мусора: поздний callback
+        // захвата может уже ждать его и должен спокойно увидеть _disposed.
     }
 }

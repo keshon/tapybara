@@ -353,7 +353,8 @@ public sealed class CallTranscriptTests : IDisposable
         CallTranscript? restored = CallTranscriptStore.Load(session.Directory);
 
         Assert.NotNull(restored);
-        Assert.Equal(transcript.Lines, restored.Lines);
+        Assert.Equal(transcript.Lines, restored.Lines.Select(l => l with { Id = Guid.Empty }));
+        Assert.All(restored.Lines, l => Assert.NotEqual(Guid.Empty, l.Id));
         Assert.True(restored.VoicesSplit);
         Assert.Equal(2, restored.ExpectedVoices);
         Assert.Equal(3, restored.RemovedByText);

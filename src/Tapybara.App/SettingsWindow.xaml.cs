@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -1136,15 +1136,6 @@ public partial class SettingsWindow : FluentWindow
             L.S.FieldOtherSideLanguage,
             L.S.FieldOtherSideLanguageHint,
             LanguageCombo(() => Settings.OtherSideLanguage, code => Apply(s => s with { OtherSideLanguage = code })));
-
-        AddGroup(L.S.GroupListening);
-
-        AddToggleCard(
-            SymbolRegular.Play24,
-            L.S.FieldPlayingProgress,
-            description: null,
-            () => Settings.ShowPlayingProgress,
-            value => Apply(s => s with { ShowPlayingProgress = value }));
 
         AddGroup(L.S.GroupStorage);
 

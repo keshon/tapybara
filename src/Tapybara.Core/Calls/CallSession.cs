@@ -226,9 +226,7 @@ public static class CallMeta
         {
             System.IO.Directory.CreateDirectory(session.Directory);
 
-            string temp = session.MetaPath + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(session, Options));
-            File.Move(temp, session.MetaPath, overwrite: true);
+            Storage.RecoverableFile.WriteAllText(session.MetaPath, JsonSerializer.Serialize(session, Options));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

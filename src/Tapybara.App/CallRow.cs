@@ -16,6 +16,7 @@ namespace Tapybara.App;
 /// </remarks>
 public sealed class CallRow
 {
+    public string ActionsHint => Localization.L.S.CallsMore + ": " + Title;
     public required CallEntry Entry { get; init; }
 
     public required string Title { get; init; }
@@ -45,5 +46,5 @@ public sealed class CallRow
     public string Directory => Entry.Directory;
 
     /// <summary>Всё видимое одной строкой — чтобы не пересобирать список без изменений.</summary>
-    public string Signature => $"{Directory}|{Title}|{Subtitle}|{Day}|{StateText}";
+    public string Signature => $"{Directory}|{Title}|{Subtitle}|{Day}|{StateText}|{Entry.HasTranscriptData}|{Entry.HasNote}|{Entry.AudioBytes}";
 }

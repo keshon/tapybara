@@ -156,7 +156,16 @@ public abstract class AudioCapture : IDisposable
             return [];
         }
 
-        _capture.StopRecording();
+        try
+        {
+            _capture.StopRecording();
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            // Устройство могло исчезнуть. Буфер уже записанного голоса
+            // всё ещё нужен: ошибка StopRecording не должна выбросить его.
+            AppLog.Warn("Не удалось остановить потерянное устройство записи.", ex);
+        }
         if (_stopped is not null)
         {
             // Устройство отвалилось до события — не висим здесь навсегда.

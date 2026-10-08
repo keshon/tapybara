@@ -90,8 +90,25 @@ public sealed class CallTranscriber(
     Func<AppSettings> settings,
     Func<CallTranscriptLabels>? labels = null,
     Func<SpeakerDiarizer?>? diarizer = null,
-    Func<VoiceprintExtractor?>? voiceprints = null)
+    Func<VoiceprintExtractor?>? voiceprints = null,
+    Action<Action>? commitBoundary = null)
 {
+    /// <summary>Задание получает свою точку фиксации, не меняя общий распознаватель.</summary>
+    public CallTranscriber WithCommitBoundary(Action<Action> commit) =>
+        new(transcriber, settings, labels, diarizer, voiceprints, commit);
+
+    private T Commit<T>(Func<T> write, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (commitBoundary is null)
+        {
+            return write();
+        }
+
+        T result = default!;
+        commitBoundary(() => result = write());
+        return result;
+    }
     /// <summary>
     /// Где кончается каждый этап — в процентах всей работы.
     /// </summary>
@@ -114,6 +131,7 @@ public sealed class CallTranscriber(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
+        long? startingRevision = CallTranscriptStore.Load(session.Directory)?.Revision;
         AppSettings current = settings();
 
         if (!File.Exists(session.MicPath) || !File.Exists(session.SystemPath))
@@ -124,7 +142,7 @@ public sealed class CallTranscriber(
 
         // Оборванная запись — обычное дело: приложение могли закрыть жёстко.
         // Чиним заголовки, прежде чем пытаться читать.
-        CallRepair.RepairCall(session);
+        CallRepair.RepairCall(session, cancellationToken);
 
         progress?.Report(new(CallTranscriptionStage.ReadingTracks, 0));
 
@@ -185,7 +203,9 @@ public sealed class CallTranscriber(
         transcript = await CheckVoicesAsync(session, transcript, current, cancellationToken).ConfigureAwait(false);
         transcript = await WithPrintsAsync(session, transcript, current, cancellationToken).ConfigureAwait(false);
 
-        string path = Store(session.Directory, transcript, current);
+        cancellationToken.ThrowIfCancellationRequested();
+        string path = Commit(() => Store(session.Directory, transcript, current, startingRevision)
+            ?? throw new InvalidOperationException("Транскрипт изменился во время распознавания; результат не сохранён."), cancellationToken);
 
         AppLog.Info($"Транскрипт готов: {path}, отсеяно {filtered.RemovedTotal} реплик, голосов {transcript.Voices.Count}.");
         progress?.Report(new(CallTranscriptionStage.Done, 100));
@@ -231,7 +251,12 @@ public sealed class CallTranscriber(
         split = await CheckVoicesAsync(session, split, current, cancellationToken).ConfigureAwait(false);
         split = await WithPrintsAsync(session, split, current, cancellationToken).ConfigureAwait(false);
 
-        string path = Store(callDirectory, split, current);
+        cancellationToken.ThrowIfCancellationRequested();
+        string? path = Commit(() => Store(callDirectory, split, current, transcript.Revision), cancellationToken);
+        if (path is null)
+        {
+            return null;
+        }
         progress?.Report(new(CallTranscriptionStage.Done, 100));
         return path;
     }
@@ -266,7 +291,8 @@ public sealed class CallTranscriber(
         }
 
         checkedOne = await WithPrintsAsync(session, checkedOne, current, cancellationToken).ConfigureAwait(false);
-        return Keep(callDirectory, checkedOne);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Commit(() => Keep(callDirectory, checkedOne), cancellationToken);
     }
 
     /// <summary>
@@ -292,9 +318,10 @@ public sealed class CallTranscriber(
         }
 
         CallTranscript refreshed = await WithPrintsAsync(session, transcript, settings(), cancellationToken).ConfigureAwait(false);
-        return CallTranscriptStore.Update(callDirectory, t => t with { VoicePrints = refreshed.VoicePrints }) is null
+        cancellationToken.ThrowIfCancellationRequested();
+        return Commit(() => CallTranscriptStore.TryUpdate(callDirectory, transcript.Revision, t => t with { VoicePrints = refreshed.VoicePrints }) is null
             ? null
-            : Render(callDirectory);
+            : Render(callDirectory), cancellationToken);
     }
 
     /// <summary>
@@ -327,7 +354,7 @@ public sealed class CallTranscriber(
             return await ResplitAsync(callDirectory, expected, progress, cancellationToken).ConfigureAwait(false);
         }
 
-        return Render(callDirectory);
+        return Commit(() => Render(callDirectory), cancellationToken);
     }
 
     /// <summary>Перерисовать <c>transcript.md</c> по сохранённым данным. Мгновенно.</summary>
@@ -383,7 +410,7 @@ public sealed class CallTranscriber(
 
         progress?.Report(new(CallTranscriptionStage.SplittingVoices, FilteringEnds));
 
-        float[] samples = AudioFile.ReadMono16k(session.SystemPath);
+        float[] samples = AudioFile.ReadMono16k(session.SystemPath, cancellationToken);
         if (samples.Length == 0)
         {
             return transcript;
@@ -396,11 +423,9 @@ public sealed class CallTranscriber(
             () => splitter.Split(audio, expected > 0 ? expected : 0, percent, cancellationToken),
             cancellationToken).ConfigureAwait(false);
 
-        List<CallLine> unassigned = [.. transcript.Lines.Select(l => l.Voice is null ? l : l with { Voice = null })];
-
         return transcript with
         {
-            Lines = CallVoices.Assign(unassigned, spans),
+            Lines = CallVoices.Assign(transcript.Lines, spans),
             VoicesSplit = true,
             ExpectedVoices = Math.Max(expected, 0),
         };
@@ -431,6 +456,7 @@ public sealed class CallTranscriber(
             return await Task.Run(
                 () =>
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     float[] audio = ReadOtherSide(session, current);
                     if (audio.Length == 0)
                     {
@@ -443,9 +469,10 @@ public sealed class CallTranscriber(
                     {
                         lock (extractor)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             return extractor.Embed(VoiceCheck.Slice(audio, line));
                         }
-                    });
+                    }, cancellationToken);
 
                     int moved = checkedOne.Lines.Zip(transcript.Lines).Count(p => p.First.Voice != p.Second.Voice);
                     int doubtful = checkedOne.Lines.Count(l => l.IsDoubtful);
@@ -478,8 +505,12 @@ public sealed class CallTranscriber(
     /// </remarks>
     private string? Keep(string callDirectory, CallTranscript transcript)
     {
-        CallTranscriptStore.Save(callDirectory, transcript);
-        CallMeta.Update(callDirectory, s => s with { Voices = transcript.Voices });
+        CallTranscript? saved = CallTranscriptStore.TrySave(callDirectory, transcript.Revision, transcript,
+            saved => CallMeta.Update(callDirectory, s => s with { Voices = saved.Voices }));
+        if (saved is null)
+        {
+            return null;
+        }
         return Render(callDirectory);
     }
 
@@ -509,7 +540,14 @@ public sealed class CallTranscriber(
                 {
                     float[] samples = AudioFile.ReadMono16k(session.SystemPath);
                     float[] audio = current.NormalizeAudio ? AudioNormalizer.Normalize(samples) : samples;
-                    return CallVoices.Prints(audio, transcript, extractor.Embed);
+                    return CallVoices.Prints(audio, transcript, speech =>
+                    {
+                        lock (extractor)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            return extractor.Embed(speech);
+                        }
+                    }, cancellationToken: cancellationToken);
                 },
                 cancellationToken).ConfigureAwait(false);
 
@@ -531,14 +569,18 @@ public sealed class CallTranscriber(
     /// прежнего. Оставить старые имена значило бы молча подписать реплики
     /// чужим именем, а именно с этим переделка и боролась.
     /// </remarks>
-    private string Store(string callDirectory, CallTranscript transcript, AppSettings current)
+    private string? Store(string callDirectory, CallTranscript transcript, AppSettings current, long? expectedRevision)
     {
-        CallTranscriptStore.Save(callDirectory, transcript);
-        CallMeta.Update(callDirectory, s => s with
+        if (CallTranscriptStore.TrySave(callDirectory, expectedRevision, transcript, saved =>
+            CallMeta.Update(callDirectory, s => s with
+            {
+                Voices = saved.Voices,
+                VoiceNames = s.VoiceNames.Where(p => saved.Lines.Any(l => l.Voice == p.Key
+                    && l.HumanEdits.HasFlag(CallLineEdits.Speaker))).ToDictionary(),
+            })) is null)
         {
-            Voices = transcript.Voices,
-            VoiceNames = new Dictionary<string, string>(),
-        });
+            return null;
+        }
 
         CallTranscriptLabels text = Labels();
         return CallTranscriptRenderer.Write(callDirectory, current.EffectiveMyName, Fallback(current, text), text)
@@ -559,7 +601,16 @@ public sealed class CallTranscriber(
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
-        float[] samples = AudioFile.ReadMono16k(path);
+        // Чтение и огибающая до первого await иначе занимали UI-поток.
+        (float[] samples, EnergyEnvelope energy) = await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            float[] audio = AudioFile.ReadMono16k(path, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            EnergyEnvelope envelope = audio.Length == 0 ? EnergyEnvelope.Empty : EnergyEnvelope.Build(audio);
+            cancellationToken.ThrowIfCancellationRequested();
+            return (audio, envelope);
+        }, cancellationToken).ConfigureAwait(false);
         if (samples.Length == 0)
         {
             return ([], EnergyEnvelope.Empty);
@@ -567,8 +618,6 @@ public sealed class CallTranscriber(
 
         // Огибающую снимаем ДО нормализации: анти-bleed сравнивает каналы
         // между собой, а нормализация усиливает каждый по-своему.
-        EnergyEnvelope energy = EnergyEnvelope.Build(samples);
-
         IReadOnlyList<TranscriptSegment> segments = await transcriber
             .TranscribeAsync(samples, progress, language: language, cancellationToken: cancellationToken)
             .ConfigureAwait(false);

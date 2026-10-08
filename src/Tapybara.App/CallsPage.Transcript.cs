@@ -42,6 +42,10 @@ public partial class CallsPage
     /// </remarks>
     private void RebuildLines()
     {
+        if (_activeEditor?.IsKeyboardFocusWithin == true || _activeEditor?.HasDraftChanges == true)
+        {
+            return;
+        }
         TimeSpan? current = _lines.FirstOrDefault(l => l.IsCurrent)?.Line.Start;
         _lines.Clear();
 
@@ -61,7 +65,7 @@ public partial class CallsPage
         foreach (CallLine line in _transcript.Lines.OrderBy(l => l.Start))
         {
             string speaker = CallSpeakers.Label(line, _session, voices.Count, myName, fallback, L.S.TranscriptVoice);
-            bool named = line.Channel == CallChannel.Mine
+            bool named = (line.Channel == CallChannel.Mine && line.Voice is null)
                          || line.Voice is null
                          || CallSpeakers.NameOf(_session, line.Voice) is not null
                          || voices.Count <= 1;
@@ -69,13 +73,14 @@ public partial class CallsPage
             _lines.Add(new TranscriptLineRow
             {
                 Line = line,
-                Stamp = CallTranscriptRenderer.Stamp(line.Start),
+                Stamp = (line.TimingEstimated ? "~" : string.Empty) + CallTranscriptRenderer.Stamp(line.Start),
                 Speaker = speaker,
                 SpeakerBrush = BrushOf(line, colors),
                 SpeakerForeground = named ? primary : secondary,
                 SpeakerFontStyle = named ? FontStyles.Normal : FontStyles.Italic,
                 SpeakerVisibility = speaker == previous ? Visibility.Collapsed : Visibility.Visible,
-                PlayHint = string.Format(L.S.Formatting, L.S.LinePlayFrom, CallTranscriptRenderer.Stamp(line.Start)),
+                PlayHint = (line.TimingEstimated ? L.S.EditEstimated + "\n" : string.Empty)
+                    + L.S.PlaybackFragment,
                 IsCurrent = current == line.Start,
             });
 
@@ -86,7 +91,7 @@ public partial class CallsPage
     /// <summary>Цвет реплики — цвет её человека: у голосов одного человека он общий.</summary>
     private static Brush BrushOf(CallLine line, IReadOnlyDictionary<string, int> colors)
     {
-        if (line.Channel == CallChannel.Mine)
+        if (line.Channel == CallChannel.Mine && line.Voice is null)
         {
             return VoicePalette.Me;
         }
@@ -103,24 +108,25 @@ public partial class CallsPage
     /// <param name="name">Имя нового голоса — когда голос заводится ради этой реплики.</param>
     private void ReassignLine(CallLine line, string voice, string? name = null)
     {
+        if (_activeEditor?.Flush() == false)
+        {
+            return;
+        }
         if (_session is null)
         {
             return;
         }
 
         string directory = _session.Directory;
-        CallTranscript? changed = CallTranscriptStore.Update(directory, t => CallVoices.Reassign(t, line, voice));
-        if (changed is null)
+        if (!ExecuteEdit(directory, t => CallVoices.Reassign(t, line, voice), refresh: false,
+            metadataChange: name is null ? null : s => s with
+            {
+                VoiceNames = new Dictionary<string, string>(s.VoiceNames) { [voice] = name },
+            }))
         {
             return;
         }
-
-        _session = CallMeta.Update(directory, s => s with
-        {
-            Voices = changed.Voices,
-            VoiceNames = name is null ? s.VoiceNames : new Dictionary<string, string>(s.VoiceNames) { [voice] = name },
-        }) ?? _session;
-        _services.Render(directory);
+        _activeEditor = null;
         RefreshAfterEdit();
 
         // Слепок голоса снят и с этой реплики — снять заново без неё, иначе
@@ -143,7 +149,7 @@ public partial class CallsPage
     {
         if (sender is TextBox { DataContext: TranscriptLineRow row } box)
         {
-            box.ContextMenu = LineMenu(row, box);
+            Controls.ContextMenuBehavior.Open(box, e, LineMenu(row, box));
         }
     }
 
@@ -151,36 +157,22 @@ public partial class CallsPage
     /// Меню реплики: кто её сказал, послушать, скопировать, исправить, удалить.
     /// </summary>
     /// <remarks>
-    /// Переназначить можно только реплику собеседника и только другому
-    /// голосу собеседника. Своя дорожка — это микрофон владельца по
-    /// построению; реплика, ошибочно на ней оказавшаяся, — эхо, которое
-    /// пропустил фильтр, и её не переназначают, а удаляют.
+    /// Источник аудио не меняется при назначении человека. Микрофон —
+    /// подсказка по умолчанию, а не запрет на явную ручную коррекцию.
     /// </remarks>
     private ContextMenu LineMenu(TranscriptLineRow row, TextBox? box = null)
     {
         var menu = new ContextMenu();
 
-        if (row.Line.Channel == CallChannel.Theirs && _transcript is { Voices.Count: > 0 })
+        if (_transcript is not null && _session is not null)
         {
             menu.Items.Add(new MenuItem { Header = L.S.LineSaidBy, IsEnabled = false });
             AddSaidBy(menu, row.Line, reject: false);
             menu.Items.Add(new Separator());
         }
-        else if (row.Line.Channel == CallChannel.Theirs && _transcript is { Voices.Count: 0 } && _session is not null)
-        {
-            // Голоса не разделялись — отдать реплику некому, кроме как
-            // разделив голоса: «кто-то другой» здесь и значит «их было больше».
-            menu.Items.Add(SplitOrGetModelItem(_session.Directory));
-            menu.Items.Add(new Separator());
-        }
-        else if (row.Line.Channel == CallChannel.Mine)
-        {
-            menu.Items.Add(new MenuItem { Header = L.S.LineYourMicrophone, IsEnabled = false });
-            menu.Items.Add(new Separator());
-        }
 
         var play = new MenuItem { Header = row.PlayHint, Icon = new SymbolIcon { Symbol = SymbolRegular.Play24 } };
-        play.Click += (_, _) => PlayFrom(row.Line.Start);
+        play.Click += (_, _) => PlayQuote(row.Line);
         menu.Items.Add(play);
 
         var copy = new MenuItem { Header = L.S.LineCopy, Icon = new SymbolIcon { Symbol = SymbolRegular.Copy24 } };
@@ -209,6 +201,7 @@ public partial class CallsPage
             var edit = new MenuItem { Header = L.S.LineEditText, Icon = new SymbolIcon { Symbol = SymbolRegular.Edit24 } };
             edit.Click += (_, _) => EditLineInPlace(box, row);
             menu.Items.Add(edit);
+            AddEditingItems(menu, row, box);
         }
 
         menu.Items.Add(new Separator());
@@ -226,19 +219,20 @@ public partial class CallsPage
     /// </remarks>
     private void DeleteLine(CallLine line)
     {
+        if (_activeEditor?.Flush() == false)
+        {
+            return;
+        }
         if (_session is null)
         {
             return;
         }
 
         string directory = _session.Directory;
-        if (CallTranscriptStore.Update(directory, t => TranscriptEdit.RemoveLine(t, line)) is null)
+        if (!ExecuteEdit(directory, t => TranscriptEdit.RemoveLine(t, line)))
         {
             return;
         }
-
-        _services.Render(directory);
-        RefreshAfterEdit();
 
         // Слепок голоса снимался и с этой реплики.
         if (line.Voice is not null)

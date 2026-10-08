@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using Tapybara.Core.Windows;
 
 namespace Tapybara.Core.Settings;
@@ -298,13 +298,7 @@ public sealed record AppSettings
     /// </remarks>
     public bool RememberVoices { get; init; } = true;
 
-    /// <summary>
-    /// Заливать звучащую реплику по ходу прослушивания.
-    /// </summary>
-    /// <remarks>
-    /// Выключенная оставляет только полосу слева от звучащей реплики — кому
-    /// бегущая заливка мешает читать.
-    /// </remarks>
+    /// <summary>Старый ключ настроек сохранён для совместимости; недостоверная заливка строки удалена.</summary>
     public bool ShowPlayingProgress { get; init; } = true;
 
     /// <summary>

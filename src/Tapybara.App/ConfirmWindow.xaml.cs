@@ -48,9 +48,11 @@ public partial class ConfirmWindow : FluentWindow
         WindowTitleBar.Title = title;
         HeadingText.Text = title;
         BodyText.Text = message;
+        BodyText.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
         PrimaryButton.Content = primaryButton;
         CancelButton.Content = cancelButton;
         HeadingIcon.Symbol = icon;
+        HeadingIcon.Visibility = icon == SymbolRegular.QuestionCircle24 && !danger ? Visibility.Collapsed : Visibility.Visible;
 
         if (danger)
         {
@@ -113,13 +115,10 @@ public partial class ConfirmWindow : FluentWindow
     /// </remarks>
     public void AddContent(UIElement element)
     {
-        DetailCard.Visibility = Visibility.Visible;
-        if (element is FrameworkElement framed && DetailRows.Children.Count > 0)
-        {
-            framed.Margin = new Thickness(0, 12, 0, 0);
-        }
-
-        DetailRows.Children.Add(element);
+        ContentRows.Visibility = Visibility.Visible;
+        if (element is FrameworkElement framed && ContentRows.Children.Count > 0)
+        { framed.Margin = new Thickness(0, Tokens.Space3, 0, 0); }
+        ContentRows.Children.Add(element);
     }
 
     /// <summary>Показать и дождаться ответа.</summary>
@@ -130,6 +129,16 @@ public partial class ConfirmWindow : FluentWindow
             window.Owner = owner;
         }
 
+        window.MaxHeight = SystemParameters.WorkArea.Height - Tokens.Space5 * 2;
+        window.MaxWidth = SystemParameters.WorkArea.Width - Tokens.Space5 * 2;
+        window.Loaded += (_, _) =>
+        {
+            if (window.ContentRows.Visibility == Visibility.Visible)
+            {
+                window.ContentRows.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First));
+                if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBox field) { field.SelectAll(); }
+            }
+        };
         window.ShowDialog();
         return window.Choice;
     }

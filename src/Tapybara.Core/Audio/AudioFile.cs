@@ -11,8 +11,9 @@ namespace Tapybara.Core.Audio;
 public static class AudioFile
 {
     /// <summary>Прочитать любой поддерживаемый файл и привести к 16 кГц моно float32.</summary>
-    public static float[] ReadMono16k(string path)
+    public static float[] ReadMono16k(string path, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var reader = new AudioFileReader(path);
 
         // Больше двух каналов StereoToMonoSampleProvider не понимает — там
@@ -34,9 +35,11 @@ public static class AudioFile
         int read;
         while ((read = source.Read(scratch, 0, scratch.Length)) > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             samples.AddRange(scratch.AsSpan(0, read));
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return [.. samples];
     }
 

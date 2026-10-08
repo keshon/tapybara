@@ -278,3 +278,77 @@ their IDs. Add `--verbose` to see which native backend actually loaded.
 During development, models are also picked up from a `models/` directory in the
 repository root, so there is no need to copy gigabytes into `%APPDATA%` after
 every build.
+
+
+## Editable call documents
+
+`CallTranscript` v2 separates the editable lines from their original baseline.
+Persistent line IDs survive changes to timing and speaker identity; a source
+channel is an audio routing fact, not a person. Human field locks prevent
+resplitting/verification from silently changing an explicit assignment.
+Background work commits against the revision it read.
+
+`CallDocumentCommands` implements split, selection isolation, merge, missing
+speech and timing changes independently of WPF. `CallEditSession` persists
+these commands and adapts the reusable `DocumentHistory<T>` to the call's
+revision and affected speaker metadata. History lasts for the app session;
+recovery copies and the original baseline survive restart.
+
+WPF controls under `Controls/` emit interaction requests. `InlineTextEditor`
+keeps native caret/selection behavior, `InlineEditScope` coordinates pending
+drafts, `HistoryBar` exposes history actions, and `AudioBoundaryEditor` validates
+an interval. None reads transcript files or invokes a model. CallsPage composes
+them and routes requests to document commands. Later sections can reuse these
+controls and history without inheriting a Calls screen or its domain rules.
+
+
+`SearchFilterBar` owns progressive disclosure and removable filter chips;
+`TranscriptExportPanel` owns reusable delivery options and emits option changes.
+Screens supply their domain-specific filters and compose a bounded flyout.
+Neither control reads files or knows how calls are recognized. Typed transcript
+export options live in `Core/Export`; `CallExport` projects the current call
+snapshot into external formats without recognition baselines or voiceprints.
+The Calls screen reloads the document for delivery and protects source files.
+
+`CallLibraryIndex` runs on one sequential worker and caches discovery/search data
+by source-file signatures. The screen applies live job state, runs filters over
+snapshots, rejects obsolete results and updates only changed rows. Search does
+not read transcript files in a WPF collection-view filter callback.
+
+
+`AudioTransportBar` emits playback, seek and range-reset requests and owns
+scrub interaction independently of audio and document types. Calls composes it
+into a stable bottom dock; editor focus, playback position and audition range
+are separate states. Source channels stay authoritative after speaker edits.
+`CallPlaybackActivity` defines half-open intervals so silence and overlap are
+represented correctly without claiming word-level timing.
+
+`CallPlayer` reports output-device time through NAudio's `IWavePosition`, retains
+the output queue on pause and replaces it on seek. The internal output factory
+is a test seam for device-clock and lifecycle behavior. Preparing an idle
+position releases file handles; playback reopens current sources so recovery
+and processing are not blocked merely by selecting a call. It remains owned
+by one UI thread and uses that synchronization context for output callbacks.
+
+
+`AudioTimelineView` accepts generic source/activity lanes, immutable peak data
+and opaque interval keys. It emits seek and interval requests; it never resolves
+Calls documents, reads files or infers identity. Calls maps current rows to lanes
+and resolves actions against current IDs before playing their physical source.
+Native interval selection complements the drawn timeline for keyboard access.
+
+`WaveformEnvelope` streams bounded peak bins with explicit bin duration.
+`WaveformCache` performs file-signature validation and decoding off the UI thread
+and bounds retained sources. Calls owns cancellation and stale-result epochs.
+`AudioSourceAccess` coordinates waveform readers with WAV repair through a
+cancelable per-file gate whose registry entry lives only while used. This gate
+is not held by the audio output device; existing playback stop/idle-reader rules
+continue to protect processing.
+
+
+`AudioTimelineSelection` holds range and boundary previews independently of WPF,
+audio output and transcript persistence. Context and duration changes invalidate
+its state. Timeline gestures emit source-aware listening ranges or timing
+proposals with original bounds; Calls resolves current rows and routes proposals
+through `AudioBoundaryEditor` and existing revision-safe history. Dragging never
+writes a transcript directly or shifts neighboring intervals.

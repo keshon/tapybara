@@ -90,6 +90,14 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         InitializeComponent();
 
         _services = services;
+        InitializeLibraryFilters();
+        SearchBox.TextChanged += OnSearchChanged;
+        EditHistory.UndoRequested += () => RestoreHistory(redo: false);
+        EditHistory.RedoRequested += () => RestoreHistory(redo: true);
+        PreviewKeyDown += OnDocumentKey;
+        InitializeDocumentSearch();
+        InitializeTransport();
+        InitializeTimeline();
 
         _record.Click += (_, _) => _services.ToggleRecording();
         RecordHost.Content = _record;
@@ -101,13 +109,20 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         CallList.ItemsSource = _view;
         LineList.ItemsSource = _lines;
 
+        NoteBox.GotKeyboardFocus += (_, _) => { _noteHistoryActive = true; UpdateHistory(); };
+        LineList.GotKeyboardFocus += (_, _) => { _noteHistoryActive = false; UpdateHistory(); };
+        NoteBox.TextChanged += (_, _) =>
+        {
+            UpdateNoteSummary();
+            Dispatcher.BeginInvoke(UpdateHistory);
+        };
         NoteBox.LostFocus += (_, _) => SaveNote();
 
         _refresh = new DispatcherTimer { Interval = RefreshInterval };
         _refresh.Tick += (_, _) => Reload(keepSelection: true);
 
-        // Десять раз в секунду: заливка строки должна бежать, а не шагать.
-        _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        // Обновляем часы транспорта; активность строк следует реальным интервалам.
+        _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _playbackTimer.Tick += (_, _) => FollowPlayback();
         _player.Stopped += OnPlayerStopped;
 
@@ -115,6 +130,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         // выбрана. Пересматривать папку, пока её не видно, незачем.
         Loaded += (_, _) =>
         {
+            UpdateTimeline(_current);
+            if (_player.IsPlaying) { _playbackTimer.Start(); }
             Reload(keepSelection: true);
 
             // Открыли окно — показываем последний звонок, а не пустую панель
@@ -129,7 +146,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         Unloaded += (_, _) =>
         {
+            CancelTimelineLoading();
+            if (_exportPopup is not null) { _exportPopup.IsOpen = false; }
+            _activeEditor?.Flush();
             _refresh.Stop();
+            _playbackTimer.Stop();
             SaveNote();
             SaveTitle();
         };
@@ -142,6 +163,21 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Дописать правки и отпустить устройство вывода. Зовётся при закрытии окна.</summary>
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        CancelTimelineLoading();
+        if (_exportPopup is not null) { _exportPopup.IsOpen = false; }
+        _filterCancellation?.Cancel();
+        _filterCancellation?.Dispose();
+        _libraryCancellation.Cancel();
+        if (!_reloadRunning)
+        {
+            _libraryCancellation.Dispose();
+        }
+        _activeEditor?.Flush();
         _services.Live.Changed -= UpdateRecordButton;
         _refresh.Stop();
         _playbackTimer.Stop();
@@ -154,25 +190,37 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Подставить надписи текущего языка.</summary>
     public void ApplyLanguage()
     {
+        if (_exportPopup is not null) { _exportPopup.IsOpen = false; }
+        EditHistory.ApplyLanguage();
+        Transport.ApplyLanguage();
+        Timeline.ApplyLanguage();
+        TimelineToggle.ToolTip = L.S.TimelineTitle;
+        System.Windows.Automation.AutomationProperties.SetName(TimelineToggle, L.S.TimelineTitle);
         ListTitle.Text = L.S.SectionCalls;
         SearchBox.PlaceholderText = L.S.CallsSearchPlaceholder;
+        SearchBox.ToolTip = L.S.LibrarySearchHelp;
+        LibrarySearch.ApplyLanguage();
+        InitializeLibraryFilters();
         EmptyHint.Text = L.S.CallsEmpty;
         NothingSelected.Text = L.S.CallsNothingSelected;
-        CopyButton.Content = L.S.CallsCopyText;
-        FolderButton.ToolTip = L.S.CallsOpenFolder;
+        DocumentSearch.ApplyLanguage();
+        FindButton.ToolTip = L.S.FindTitle;
+        System.Windows.Automation.AutomationProperties.SetName(FindButton, L.S.FindTitle);
+        ExportCaption.Text = L.S.CallsExport;
+        System.Windows.Automation.AutomationProperties.SetName(ExportButton, L.S.CallsExport);
+        ReviewButton.ToolTip = L.S.CallsReview;
         MoreButton.ToolTip = L.S.CallsMore;
 
         // У кнопок из одного значка подсказка — не имя: экранный диктор и
         // UI Automation видели бы безымянную кнопку.
-        System.Windows.Automation.AutomationProperties.SetName(FolderButton, L.S.CallsOpenFolder);
+        System.Windows.Automation.AutomationProperties.SetName(ReviewButton, L.S.CallsReview);
         System.Windows.Automation.AutomationProperties.SetName(MoreButton, L.S.CallsMore);
-        TranscriptTab.Content = L.S.CallsTabTranscript;
-        NoteTab.Content = L.S.CallsTabNote;
+        NotesToggle.ToolTip = L.S.CallsTabNote;
+        System.Windows.Automation.AutomationProperties.SetName(NotesToggle, L.S.CallsTabNote);
         NoteBox.PlaceholderText = L.S.CallReviewNotePlaceholder;
-        UpdateListenButton();
         UpdateRecordButton();
 
-        _rows.Clear(); // подписи строк зависят от языка — пересобрать с нуля
+        // Фоновое обновление заменит локализованные строки, сохраняя выбранную запись.
         Reload(keepSelection: true);
         ShowDetail(_current, force: true);
     }
@@ -196,28 +244,85 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Выбрать звонок по его папке — например, по щелчку на уведомлении.</summary>
     public void Select(string directory)
     {
+        _requestedDirectory = directory;
+        SearchBox.Text = string.Empty;
+        ClearLibraryFilters();
         Reload(keepSelection: true);
-
-        CallRow? row = _rows.FirstOrDefault(
-            r => string.Equals(r.Directory, directory, StringComparison.OrdinalIgnoreCase));
-
-        if (row is not null)
-        {
-            SearchBox.Text = string.Empty;
-            CallList.SelectedItem = row;
-            CallList.ScrollIntoView(row);
-        }
     }
 
     // --- список --------------------------------------------------------------
 
+    private readonly CallLibraryIndex _libraryIndex = new();
+    private readonly CancellationTokenSource _libraryCancellation = new();
+    private readonly Dictionary<string, CallLibraryItem> _libraryItems = new(StringComparer.OrdinalIgnoreCase);
+    private bool _reloadRunning;
+    private bool _reloadPending;
+    private bool _disposed;
+    private CancellationTokenSource? _filterCancellation;
+    private int _filterVersion;
+    private HashSet<string> _matchingDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private string? _requestedDirectory;
+    private Wpf.Ui.Controls.TextBox SearchBox => LibrarySearch.Search;
+
     private void Reload(bool keepSelection)
     {
-        string? selected = keepSelection ? _current?.Directory : null;
+        if (_disposed)
+        {
+            return;
+        }
+        _reloadPending = true;
+        if (!_reloadRunning)
+        {
+            _ = ReloadAsync();
+        }
+    }
 
-        IReadOnlyList<CallEntry> entries = CallLibrary.Scan(_services.CallsDirectory(), _services.LiveState);
+    private async Task ReloadAsync()
+    {
+        _reloadRunning = true;
+        try
+        {
+            while (_reloadPending && !_disposed)
+            {
+                _reloadPending = false;
+                string root = _services.CallsDirectory();
+                IReadOnlyList<CallLibraryItem> snapshot = await Task.Run(
+                    () => _libraryIndex.Scan(root, _libraryCancellation.Token), _libraryCancellation.Token);
+                if (_disposed)
+                {
+                    return;
+                }
+                ApplyLibrary(snapshot);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("Не удалось обновить библиотеку звонков.", ex);
+        }
+        finally
+        {
+            _reloadRunning = false;
+            if (_disposed)
+            {
+                _libraryCancellation.Dispose();
+            }
+        }
+    }
+
+    private void ApplyLibrary(IReadOnlyList<CallLibraryItem> snapshot)
+    {
+        string? selected = _current?.Directory;
+        _libraryItems.Clear();
+        foreach (CallLibraryItem item in snapshot)
+        {
+            CallState state = _services.LiveState(item.Entry.Directory) ?? item.Entry.State;
+            _libraryItems[item.Entry.Directory] = item with { Entry = item.Entry with { State = state } };
+        }
+        IReadOnlyList<CallEntry> entries = [.. _libraryItems.Values.Select(i => i.Entry)];
         List<CallRow> fresh = [.. entries.Select(ToRow)];
-
+        var freshDirectories = new HashSet<string>(fresh.Select(r => r.Directory), StringComparer.OrdinalIgnoreCase);
+        var existingDirectories = new HashSet<string>(_rows.Select(r => r.Directory), StringComparer.OrdinalIgnoreCase);
         // Пересобираем список, только если в нём что-то поменялось. Раньше он
         // пересобирался каждые две секунды целиком: сбрасывалась прокрутка,
         // мигала подсветка, а открытое меню у строки закрывалось само.
@@ -226,10 +331,31 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             _loading = true;
             try
             {
-                _rows.Clear();
-                foreach (CallRow row in fresh)
+                for (int i = _rows.Count - 1; i >= 0; i--)
                 {
-                    _rows.Add(row);
+                    if (!freshDirectories.Contains(_rows[i].Directory))
+                    {
+                        _rows.RemoveAt(i);
+                    }
+                }
+                for (int i = 0; i < fresh.Count; i++)
+                {
+                    if (i < _rows.Count && _rows[i].Signature == fresh[i].Signature)
+                    {
+                        continue;
+                    }
+                    if (i < _rows.Count && _rows[i].Directory == fresh[i].Directory)
+                    {
+                        _rows[i] = fresh[i];
+                        continue;
+                    }
+                    int existing = existingDirectories.Contains(fresh[i].Directory)
+                        ? _rows.ToList().FindIndex(r => r.Directory == fresh[i].Directory) : -1;
+                    if (existing >= 0)
+                    {
+                        _rows.RemoveAt(existing);
+                    }
+                    _rows.Insert(i, fresh[i]);
                 }
 
                 CallList.SelectedItem = _rows.FirstOrDefault(
@@ -260,12 +386,12 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         UpdateRecordButton();
 
         CallRow? current = CallList.SelectedItem as CallRow;
-        if (current is null && _current is not null)
+        if (current is null && _current is not null && !freshDirectories.Contains(_current.Directory)
+            && _activeEditor?.Flush() != false)
         {
-            // Выбранное могли удалить из Проводника, пока окно открыто.
+            // Удаление из Проводника не должно молча выбросить отклонённый черновик.
             _current = null;
             ShowDetail(null);
-            return;
         }
 
         if (current is not null)
@@ -273,6 +399,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             _current = current.Entry;
             ShowDetail(_current);
         }
+        UpdateFilterPeople(entries);
+        RequestLibraryFilter();
+
     }
 
     private CallRow ToRow(CallEntry entry)
@@ -396,31 +525,14 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
     // --- поиск ---------------------------------------------------------------
 
-    private void OnSearchChanged(object sender, TextChangedEventArgs e) => _view.Refresh();
+    private void OnSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        RequestLibraryFilter();
+    }
 
-    /// <summary>
-    /// Подходит ли звонок под строку поиска.
-    /// </summary>
-    /// <remarks>
-    /// Ищем и по тому, что видно в списке, и по тексту транскрипта: звонок
-    /// помнят скорее по тому, о чём говорили, чем по дате. Текст читается с
-    /// диска один раз и лежит в кэше, пока файл не поменялся.
-    /// </remarks>
     private bool MatchesSearch(object item)
     {
-        string query = SearchBox.Text.Trim();
-        if (query.Length == 0 || item is not CallRow row)
-        {
-            return true;
-        }
-
-        if (row.Title.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-            || row.Subtitle.Contains(query, StringComparison.CurrentCultureIgnoreCase))
-        {
-            return true;
-        }
-
-        return TranscriptText(row.Entry.Session.TranscriptPath).Contains(query, StringComparison.CurrentCultureIgnoreCase);
+        return item is CallRow row && _matchingDirectories.Contains(row.Directory);
     }
 
     private string TranscriptText(string path)
@@ -458,8 +570,19 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
 
         // Уходим с записи — недописанные заметка и название не должны пропасть.
+        if (_activeEditor?.Flush() == false)
+        {
+            _loading = true;
+            CallList.SelectedItem = _rows.FirstOrDefault(row => row.Directory == _current?.Directory);
+            _loading = false;
+            return;
+        }
         SaveNote();
         SaveTitle();
+        if (CallList.SelectedItem is CallRow)
+        {
+            _requestedDirectory = null;
+        }
 
         _current = (CallList.SelectedItem as CallRow)?.Entry;
         ShowDetail(_current, force: true);
@@ -475,7 +598,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             entry.State,
             Ticks(entry.Session.MetaPath),
             Ticks(entry.Session.TranscriptDataPath),
-            Ticks(entry.Session.TranscriptPath));
+            Ticks(entry.Session.TranscriptPath),
+            Ticks(entry.Session.MicPath),
+            Ticks(entry.Session.SystemPath));
     }
 
     /// <summary>Показать звонок. Без <paramref name="force"/> — только если что-то поменялось.</summary>
@@ -486,8 +611,13 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         if (entry is null)
         {
+            _searchHighlight.Clear();
+            DocumentSearch.Visibility = Visibility.Collapsed;
+            ConfigurePlayback(null);
+            UpdateTimeline(null);
             _session = null;
             _transcript = null;
+            EditHistory.SetAvailability(false, false);
             _lines.Clear();
             ShowVoicesPane(false);
             _detailStamp = string.Empty;
@@ -502,9 +632,22 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         bool sameCall = _session is not null
                         && string.Equals(_session.Directory, entry.Directory, StringComparison.OrdinalIgnoreCase);
+        if (!sameCall) { _searchHighlight.Clear(); _noteHistoryActive = false; DocumentSearch.Visibility = Visibility.Collapsed; _searchHits = []; _searchHitIndex = -1; }
         _detailStamp = stamp;
         _session = CallMeta.Load(entry.Directory) ?? entry.Session;
         _transcript = entry.HasTranscriptData ? CallTranscriptStore.Load(entry.Directory) : null;
+        if (_transcript is not null)
+        {
+            if (_editSessions.TryGetValue(entry.Directory, out CallEditSession? editSession))
+            {
+                editSession.Synchronize(_transcript);
+            }
+            else
+            {
+                _editSessions[entry.Directory] = new CallEditSession(entry.Directory, _transcript);
+            }
+        }
+        UpdateHistory();
 
         if (!sameCall)
         {
@@ -531,7 +674,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         if (!sameCall || !NoteBox.IsKeyboardFocused)
         {
+            if (!sameCall) { NoteBox.IsUndoEnabled = false; }
             NoteBox.Text = ReadNote(entry.Directory);
+            if (!sameCall) { NoteBox.IsUndoEnabled = true; _noteHistoryActive = false; }
         }
 
         var meta = new List<string>
@@ -546,15 +691,17 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
 
         meta.Add(L.S.Size(entry.AudioBytes));
-        DetailMeta.Text = string.Join(" · ", meta);
+        _detailMetadata = string.Join(" · ", meta);
+        UpdateNoteSummary();
 
-        bool hasAudio = entry.State is not (CallState.Damaged or CallState.Recording);
-        ListenButton.IsEnabled = hasAudio;
-        CopyButton.IsEnabled = File.Exists(_session.TranscriptPath);
+        ConfigurePlayback(entry);
+        ExportButton.IsEnabled = _transcript is not null || File.Exists(_session.TranscriptPath);
 
-        _suggestions = Suggest();
+        _suggestions = _reviewVisible ? Suggest() : [];
         ShowBanner(entry);
         ShowTranscript(entry);
+        RefreshDocumentSearch();
+        UpdateTimeline(entry);
         ShowVoices();
     }
 
@@ -634,23 +781,27 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private void OnBannerButtonClick(object sender, RoutedEventArgs e) => _bannerAction?.Invoke();
 
     /// <summary>Переключить вкладку «Транскрипт» / «Заметка».</summary>
-    private void OnTabChecked(object sender, RoutedEventArgs e)
+    private string _detailMetadata = string.Empty;
+
+    private void UpdateNoteSummary()
     {
-        // Первая вкладка отмечена в разметке, и Checked приходит ещё до
-        // того, как InitializeComponent связал остальные элементы.
-        if (TranscriptView is null || NoteBox is null || NoteTab is null)
-        {
-            return;
-        }
+        if (DetailMeta is null || NoteBox is null) { return; }
+        string note = string.Join(" ", NoteBox.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        DetailMeta.Text = _detailMetadata + (note.Length == 0 ? string.Empty : " · " + L.S.CallsTabNote + ": " + note);
+        DetailMeta.ToolTip = note.Length == 0 ? null : NoteBox.Text.Trim();
+    }
 
-        bool note = NoteTab.IsChecked == true;
-        TranscriptView.Visibility = note ? Visibility.Collapsed : Visibility.Visible;
-        NoteBox.Visibility = note ? Visibility.Visible : Visibility.Collapsed;
-
-        if (!note)
+    private void OnNotesToggle(object sender, RoutedEventArgs e)
+    {
+        if (NoteBox is null) { return; }
+        bool expanded = NotesToggle.IsChecked == true;
+        NoteBox.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        if (expanded)
         {
-            SaveNote();
+            if (_activeEditor?.Flush() == false) { NotesToggle.IsChecked = false; return; }
+            NoteBox.Focus();
         }
+        else { _noteHistoryActive = false; SaveNote(); UpdateHistory(); }
     }
 
     // --- подсказки книги голосов ---------------------------------------------
@@ -746,106 +897,24 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         {
             return;
         }
-
-        var menu = new ContextMenu { PlacementTarget = MoreButton, Placement = PlacementMode.Bottom };
-        bool busy = _current.State is CallState.Recording or CallState.Transcribing;
-
-        var again = new MenuItem
-        {
-            Header = _current.State == CallState.NotTranscribed ? L.S.CallsTranscribe : L.S.CallsTranscribeAgain,
-            Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowClockwise24 },
-            IsEnabled = !busy && _current.State != CallState.Damaged,
-        };
-        again.Click += (_, _) => Transcribe();
-        menu.Items.Add(again);
-
-        var anonymous = new MenuItem
-        {
-            Header = L.S.CallsCopyAnonymized,
-            Icon = new SymbolIcon { Symbol = SymbolRegular.PersonProhibited24 },
-            IsEnabled = _transcript is not null,
-        };
-        anonymous.Click += (_, _) => CopyAnonymized();
-        menu.Items.Add(anonymous);
-
-        var file = new MenuItem
-        {
-            Header = L.S.CallsOpenTranscriptFile,
-            Icon = new SymbolIcon { Symbol = SymbolRegular.DocumentText24 },
-            IsEnabled = File.Exists(_current.Session.TranscriptPath),
-        };
-        file.Click += (_, _) => Open(_current.Session.TranscriptPath);
-        menu.Items.Add(file);
-
-        menu.Items.Add(new Separator());
-
-        var delete = new MenuItem
-        {
-            Header = L.S.CallReviewDelete,
-            Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
-            IsEnabled = _current.State != CallState.Recording,
-        };
-        delete.Click += (_, _) => DeleteCurrent();
-        menu.Items.Add(delete);
-
-        menu.IsOpen = true;
+        ContextMenu menu = CallActions(_current);
+        Tapybara.App.Controls.AnchoredMenu.Open(menu, MoreButton);
     }
 
     private void Transcribe()
     {
-        if (_current is null)
+        if (_current is not null)
         {
-            return;
+            TranscribeCall(_current);
         }
-
-        // Ручные правки повторное распознавание сотрёт — спросить, а не
-        // молча потерять полчаса исправлений.
-        if (_transcript is { EditedByHand: true }
-            && ConfirmWindow.Ask(Window.GetWindow(this), new ConfirmWindow(
-                L.S.RetranscribeEditedTitle,
-                L.S.RetranscribeEditedBody,
-                primaryButton: L.S.CallsTranscribeAgain,
-                cancelButton: L.S.ButtonCancel,
-                icon: SymbolRegular.Warning24)) != ConfirmChoice.Primary)
-        {
-            return;
-        }
-
-        CallSession session = CallMeta.Load(_current.Directory) ?? _current.Session;
-        _ = _services.Transcribe(session);
-        Reload(keepSelection: true);
     }
 
     private void DeleteCurrent()
     {
-        if (_current is null)
+        if (_current is not null)
         {
-            return;
+            DeleteCall(_current);
         }
-
-        ConfirmChoice choice = ConfirmWindow.Ask(Window.GetWindow(this), new ConfirmWindow(
-            L.S.CallDeleteTitle,
-            L.S.CallDeleteBody,
-            primaryButton: L.S.CallDeleteConfirm,
-            cancelButton: L.S.ButtonCancel,
-            icon: SymbolRegular.Delete24,
-            danger: true));
-
-        if (choice != ConfirmChoice.Primary)
-        {
-            return;
-        }
-
-        string directory = _current.Directory;
-        if (string.Equals(_player.CallDirectory, directory, StringComparison.OrdinalIgnoreCase))
-        {
-            _player.Stop();
-        }
-
-        _current = null;
-        ShowDetail(null);
-        _services.Delete(directory);
-        Reload(keepSelection: false);
     }
 
     private static void Open(string path)

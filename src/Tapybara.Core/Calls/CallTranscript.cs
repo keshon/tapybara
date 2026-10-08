@@ -38,13 +38,25 @@ public sealed record CallLine(
     string? Voice = null,
     double? Fit = null)
 {
+    /// <summary>Постоянный ключ, не зависящий от текста, канала и границ.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Ключ исходной реплики для вручную выделенных фрагментов.</summary>
+    public Guid? OriginId { get; init; }
+
+    /// <summary>Поля, зафиксированные человеком и закрытые для авторазметки.</summary>
+    public CallLineEdits HumanEdits { get; init; }
+
+    /// <summary>Границы после ручного деления приблизительны, пока их не уточнили на слух.</summary>
+    public bool TimingEstimated { get; init; }
+
     /// <summary>
     /// Голос реплики под сомнением: слепок не похож на голос, которому она отдана.
     /// </summary>
     public bool IsDoubtful => Fit < VoiceCheck.Sure;
 
     /// <summary>
-    /// Та же реплика — по дорожке и началу, а не по всем полям.
+    /// Та же реплика — по постоянному ключу; старые несохранённые данные сравниваются по месту.
     /// </summary>
     /// <remarks>
     /// Окно держит реплику, какой её прочитало. Пока человек правил в ней
@@ -54,13 +66,14 @@ public sealed record CallLine(
     public bool IsSameAs(CallLine other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        return Channel == other.Channel && Start == other.Start;
+        return Id != Guid.Empty && other.Id != Guid.Empty
+            ? Id == other.Id
+            : Channel == other.Channel && Start == other.Start;
     }
 }
 
 /// <summary>
-/// Всё, из чего собирается транскрипт звонка, — в том виде, в каком это
-/// выдала машина.
+/// Редактируемый документ звонка и сохранённые исходные данные.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -71,7 +84,7 @@ public sealed record CallLine(
 /// заново, минутами.
 /// </para>
 /// <para>
-/// Разделение ответственности: этот файл — то, что услышала машина, а
+/// Этот файл хранит исходные реплики отдельно от текущего текста, а
 /// <c>meta.json</c> — то, что знает человек (кто был, как зовут какой голос).
 /// <c>transcript.md</c> — отрисовка обоих и пересобирается за миллисекунды,
 /// см. <see cref="CallTranscriptRenderer"/>.
@@ -80,7 +93,16 @@ public sealed record CallLine(
 public sealed record CallTranscript
 {
     /// <summary>Версия формата. Растёт, когда старое чтение перестаёт быть верным.</summary>
-    public int Version { get; init; } = 1;
+    public int Version { get; init; } = 2;
+
+    /// <summary>Монотонная ревизия для проверки отложенных результатов.</summary>
+    public long Revision { get; init; }
+
+    /// <summary>Первоначальные данные; никогда не заменяются ручными правками.</summary>
+    public IReadOnlyList<CallLine>? OriginalLines { get; init; }
+
+    /// <summary>У старого уже правленного звонка исходное распознавание неизвестно.</summary>
+    public bool OriginalWasEdited { get; init; }
 
     /// <summary>Реплики обеих дорожек в хронологическом порядке.</summary>
     public IReadOnlyList<CallLine> Lines { get; init; } = [];
@@ -170,6 +192,33 @@ public static class CallTranscriptStore
     /// <summary>Прочитать, или <c>null</c>, если файла нет или он испорчен.</summary>
     public static CallTranscript? Load(string callDirectory)
     {
+        lock (Gate)
+        {
+            CallTranscript? loaded = Read(callDirectory);
+            if (loaded is null || loaded.Version > 2)
+            {
+                return null;
+            }
+
+            CallTranscript normalized = Normalize(loaded);
+            if (!ReferenceEquals(loaded, normalized))
+            {
+                try
+                {
+                    Write(callDirectory, normalized);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    AppLog.Warn("Не удалось сохранить миграцию транскрипта.", ex);
+                    return null;
+                }
+            }
+            return normalized;
+        }
+    }
+
+    private static CallTranscript? Read(string callDirectory)
+    {
         string path = Path.Combine(callDirectory, CallSession.TranscriptDataFileName);
         try
         {
@@ -189,7 +238,8 @@ public static class CallTranscriptStore
     {
         lock (Gate)
         {
-            Write(callDirectory, transcript);
+            CallTranscript? current = Load(callDirectory);
+            WriteChanged(callDirectory, current, transcript);
         }
     }
 
@@ -205,17 +255,111 @@ public static class CallTranscriptStore
             }
 
             CallTranscript updated = change(current);
-            Write(callDirectory, updated);
-            return updated;
+            return WriteChanged(callDirectory, current, updated);
         }
+    }
+
+    /// <summary>Сохранить результат только если документ с начала работы не менялся.</summary>
+    public static CallTranscript? TrySave(string callDirectory, long? expectedRevision, CallTranscript transcript,
+        Action<CallTranscript>? committed = null)
+    {
+        lock (Gate)
+        {
+            CallTranscript? current = Load(callDirectory);
+            if (current?.Revision != expectedRevision)
+            {
+                return null;
+            }
+            CallTranscript saved = WriteChanged(callDirectory, current, transcript);
+            committed?.Invoke(saved);
+            return saved;
+        }
+    }
+
+    /// <summary>Применить команду к ожидаемой ревизии, не затирая более свежие данные.</summary>
+    public static CallTranscript? TryUpdate(string callDirectory, long expectedRevision, Func<CallTranscript, CallTranscript> change,
+        Action<CallTranscript>? committed = null)
+    {
+        lock (Gate)
+        {
+            CallTranscript? current = Load(callDirectory);
+            if (current?.Revision != expectedRevision)
+            {
+                return null;
+            }
+            CallTranscript saved = WriteChanged(callDirectory, current, change(current));
+            committed?.Invoke(saved);
+            return saved;
+        }
+    }
+
+    private static CallTranscript WriteChanged(string directory, CallTranscript? current, CallTranscript transcript)
+    {
+        if (Read(directory) is { Version: > 2 })
+        {
+            throw new InvalidDataException("Неизвестная версия транскрипта.");
+        }
+        if (current is not null && transcript.Lines.Count == current.Lines.Count
+            && transcript.Lines.Select((line, i) => line.Id == Guid.Empty
+                ? line == (current.Lines[i] with { Id = Guid.Empty })
+                : line == current.Lines[i]).All(same => same))
+        {
+            transcript = transcript with
+            {
+                Lines = current.Lines,
+                OriginalLines = transcript.OriginalLines ?? current.OriginalLines,
+                OriginalWasEdited = transcript.OriginalLines is null ? current.OriginalWasEdited : transcript.OriginalWasEdited,
+            };
+        }
+        CallTranscript normalized = Normalize(transcript) with { Revision = current?.Revision ?? 0 };
+        if (current is not null && JsonSerializer.Serialize(current, Options) == JsonSerializer.Serialize(normalized, Options))
+        {
+            return current;
+        }
+        normalized = normalized with { Revision = (current?.Revision ?? 0) + 1 };
+        Write(directory, normalized);
+        return normalized;
+    }
+
+    private static CallTranscript Normalize(CallTranscript transcript)
+    {
+        if (transcript.Version > 2)
+        {
+            throw new InvalidDataException("Неизвестная версия транскрипта.");
+        }
+        var used = new HashSet<Guid>();
+        bool changed = transcript.Version != 2 || transcript.OriginalLines is null;
+        List<CallLine> lines = [];
+        foreach (CallLine line in transcript.Lines)
+        {
+            CallLine preserved = transcript.OriginalLines is null && transcript.EditedByHand
+                ? line with { HumanEdits = line.HumanEdits | CallLineEdits.Text | CallLineEdits.Speaker }
+                : line;
+            if (line.Id == Guid.Empty || !used.Add(line.Id))
+            {
+                Guid id = Guid.NewGuid();
+                used.Add(id);
+                lines.Add(preserved with { Id = id });
+                changed = true;
+            }
+            else
+            {
+                lines.Add(preserved);
+            }
+        }
+        return changed ? transcript with
+        {
+            Version = 2,
+            Lines = lines,
+            OriginalLines = transcript.OriginalLines ?? lines.ToArray(),
+            OriginalWasEdited = transcript.OriginalLines is null ? transcript.EditedByHand : transcript.OriginalWasEdited,
+        } : transcript;
     }
 
     private static void Write(string callDirectory, CallTranscript transcript)
     {
         string path = Path.Combine(callDirectory, CallSession.TranscriptDataFileName);
-        string temp = path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(transcript, Options));
-        File.Move(temp, path, overwrite: true);
+        Storage.RecoverableFile.WriteAllText(path, JsonSerializer.Serialize(transcript, Options));
     }
 }
 
@@ -253,7 +397,8 @@ public static class CallVoices
         float[] audio,
         CallTranscript transcript,
         Func<float[], float[]?> embed,
-        int sampleRate = 16_000)
+        int sampleRate = 16_000,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
         ArgumentNullException.ThrowIfNull(transcript);
@@ -268,6 +413,7 @@ public static class CallVoices
 
         foreach (IGrouping<string, CallLine> group in groups)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             float[] speech = Gather(audio, group, sampleRate);
             if (speech.Length < PrintMinimum.TotalSeconds * sampleRate)
             {
@@ -280,6 +426,7 @@ public static class CallVoices
             }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return prints;
     }
 
@@ -350,12 +497,22 @@ public static class CallVoices
         ArgumentNullException.ThrowIfNull(spans);
 
         Dictionary<int, string> letters = Letters(spans);
+        HashSet<string> reserved = [.. lines.Where(l => l.HumanEdits.HasFlag(CallLineEdits.Speaker) && l.Voice is not null).Select(l => l.Voice!)];
+        foreach (int cluster in letters.Keys.ToArray())
+        {
+            if (reserved.Count > 0)
+            {
+                string voice = NextFree([.. reserved]);
+                letters[cluster] = voice;
+                reserved.Add(voice);
+            }
+        }
 
         return
         [
             .. lines.Select(line =>
             {
-                if (line.Channel != CallChannel.Theirs)
+                if (line.Channel != CallChannel.Theirs || line.HumanEdits.HasFlag(CallLineEdits.Speaker))
                 {
                     return line;
                 }
@@ -491,7 +648,10 @@ public static class CallVoices
         {
             // Голос назначил человек — это вернее любого замера, и сомнение
             // с реплики снимается.
-            Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line) ? l with { Voice = voice, Fit = null } : l)],
+            Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line)
+                ? l with { Voice = voice, Fit = null, HumanEdits = l.HumanEdits | CallLineEdits.Speaker }
+                : l)],
+            EditedByHand = true,
         };
     }
 
