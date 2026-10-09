@@ -25,6 +25,9 @@ public partial class CallsPage
         var status = new TextBlock { Text = SpeakerText("Analysing audio…", "Анализируем звук…"),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 12) };
         body.Children.Add(status);
+        var showAll = new CheckBox { Content = SpeakerText("Show all groups", "Показать все группы"),
+            IsChecked = false, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 12) };
+        body.Children.Add(showAll);
         var groupsHost = new StackPanel();
         body.Children.Add(groupsHost);
         var apply = new Button { Content = SpeakerText("Apply named groups", "Применить подписанные группы"),
@@ -36,7 +39,8 @@ public partial class CallsPage
         window.Closed += (_, _) => { cancel.Cancel(); cancel.Dispose(); };
         cancelButton.Click += (_, _) => window.Close();
         window.Show();
-        var choices = new List<(SpeakerReanalysis.Group Group, CheckBox Include, ComboBox Name, List<(CheckBox Box, CallLine Line)> Lines)>();
+        var choices = new List<(SpeakerReanalysis.Group Group, CheckBox Include, ComboBox Name,
+            List<(CheckBox Box, CallLine Line)> Lines, FrameworkElement Card, bool NeedsAttention)>();
         var names = People().Where(p => !p.IsMe && p.Name is not null).Select(p => p.Name!)
             .Concat(call.Participants).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         bool applied = false;
@@ -44,7 +48,7 @@ public partial class CallsPage
         void UpdateApply()
         {
             if (applied) return;
-            int count = choices.Where(c => c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text))
+            int count = choices.Where(c => c.Card.Visibility == Visibility.Visible && c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text))
                 .Sum(c => c.Lines.Count(l => l.Box.IsChecked == true));
             apply.IsEnabled = count > 0;
             apply.Content = SpeakerText($"Apply assignments for {count} phrases", $"Назначить реплики: {count}");
@@ -115,13 +119,44 @@ public partial class CallsPage
                 }
                 card.Children.Add(new Expander { Header = SpeakerText("Review or exclude individual phrases", "Проверить или исключить отдельные реплики"),
                     Content = allLines, Margin = new Thickness(0, 8, 0, 0) });
-                groupsHost.Children.Add(Ui.Card(card));
-                choices.Add((group, include, name, lineChoices));
+                var surface = Ui.Card(card);
+                groupsHost.Children.Add(surface);
+                choices.Add((group, include, name, lineChoices, surface,
+                    SpeakerReanalysis.NeedsAttention(group, voice => CallSpeakers.NameOf(call, voice))));
                 include.Checked += (_, _) => UpdateApply(); include.Unchecked += (_, _) => UpdateApply();
                 name.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdateApply()));
                 name.SelectionChanged += (_, _) => UpdateApply();
             }
-            UpdateApply();
+            void FilterGroups()
+            {
+                if (applied) return;
+                int visible = 0;
+                foreach (var choice in choices)
+                {
+                    bool show = showAll.IsChecked == true || choice.NeedsAttention;
+                    choice.Card.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                    if (show)
+                    {
+                        visible++;
+                        choice.Include.Content = SpeakerText($"Group {visible} · {choice.Group.Lines.Count} phrases",
+                            $"Группа {visible} · реплик: {choice.Group.Lines.Count}");
+                    }
+                }
+                int hidden = choices.Count - visible;
+                status.Text = choices.Count == 0
+                    ? SpeakerText("No suitable unconfirmed speech. Short or overlapping phrases need individual review.",
+                        "Нет подходящих неподтверждённых реплик. Короткие реплики и наложения требуют отдельной проверки.")
+                    : visible == 0
+                        ? SpeakerText($"No proposed corrections in this view. {hidden} groups agree with their current labels. Show all to inspect them.",
+                            $"В этом режиме нет предложенных исправлений. Групп с совпадающими подписями: {hidden}. Их можно открыть через «Показать все группы».")
+                        : SpeakerText($"{visible} groups to review · {hidden} matching groups hidden · {report.Skipped} phrases skipped. Unnamed and hidden groups stay unchanged.",
+                            $"Групп для проверки: {visible} · скрыто с совпадающими подписями: {hidden} · пропущено реплик: {report.Skipped}. Неподписанные и скрытые группы не изменятся.");
+                UpdateApply();
+            }
+            showAll.Visibility = choices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            showAll.Checked += (_, _) => FilterGroups();
+            showAll.Unchecked += (_, _) => FilterGroups();
+            FilterGroups();
             var retry = new Button { Content = SpeakerText("Analyse again", "Проанализировать снова"), Margin = new Thickness(0, 12, 0, 0) };
             retry.Click += (_, _) => { window.Close(); AnalyseSpeakerGroups(); };
             body.Children.Add(retry);
@@ -156,7 +191,7 @@ public partial class CallsPage
             var voiceNames = new Dictionary<string, string>(_session.VoiceNames);
             var voices = _transcript.Voices.ToList();
             var assignments = new List<SpeakerReanalysis.Assignment>();
-            foreach (var choice in choices.Where(c => c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text)))
+            foreach (var choice in choices.Where(c => c.Card.Visibility == Visibility.Visible && c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text)))
             {
                 var lines = choice.Lines.Where(l => l.Box.IsChecked == true).Select(l => l.Line).ToList();
                 if (lines.Count == 0) continue;
@@ -176,6 +211,7 @@ public partial class CallsPage
                 if (!ExecuteEdit(directory, t => SpeakerReanalysis.Apply(t, assignments), metadataChange: s => s with { VoiceNames = voiceNames }))
                 { status.Text = SpeakerText("The transcript changed. Analyse again before applying.", "Транскрипт изменился. Повторите анализ."); return; }
                 applied = true; apply.IsEnabled = false; groupsHost.IsEnabled = false;
+                showAll.IsEnabled = false;
                 status.Text = SpeakerText($"Updated {assignments.Sum(a => a.Lines.Count)} phrases. Confirmed assignments were preserved.",
                     $"Обновлено реплик: {assignments.Sum(a => a.Lines.Count)}. Подтверждённые подписи сохранены.");
                 cancelButton.Content = SpeakerText("Done", "Готово");

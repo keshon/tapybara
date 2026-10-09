@@ -9,6 +9,10 @@ public static class SpeakerReanalysis
     public sealed record Assignment(IReadOnlyList<CallLine> Lines, string Voice);
     public sealed record Report(IReadOnlyList<Group> Groups, int Skipped);
 
+    public static bool NeedsAttention(Group group, Func<string, string?> nameOf) =>
+        string.IsNullOrWhiteSpace(group.SuggestedName) || group.Lines.Any(line => line.IsDoubtful
+            || line.Voice is null || !string.Equals(nameOf(line.Voice), group.SuggestedName, StringComparison.OrdinalIgnoreCase));
+
     public static Report Analyse(CallTranscript transcript, Func<CallLine, float[]?> printOf,
         Func<string, string?> nameOf, Func<float[], string?> rememberedName,
         IProgress<int>? progress = null, CancellationToken token = default)

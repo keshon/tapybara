@@ -10,6 +10,18 @@ public sealed class SpeakerReanalysisTests
         { Id = Guid.NewGuid(), HumanEdits = confirmed ? CallLineEdits.Speaker : CallLineEdits.None };
 
     [Fact]
+    public void AttentionFilterHidesAgreementButPreservesUnknownConflictingAndDoubtfulGroups()
+    {
+        var line = Line(0);
+        string? Name(string voice) => voice == "A" ? "Кирилл" : "Константин";
+        Assert.False(SpeakerReanalysis.NeedsAttention(new([line], [line], "Кирилл"), Name));
+        Assert.True(SpeakerReanalysis.NeedsAttention(new([line], [line], null), Name));
+        Assert.True(SpeakerReanalysis.NeedsAttention(new([line], [line], "Константин"), Name));
+        Assert.True(SpeakerReanalysis.NeedsAttention(new([line with { Fit = .3 }], [line], "Кирилл"), Name));
+        Assert.True(SpeakerReanalysis.NeedsAttention(new([line, Line(10, "B")], [line], "Кирилл"), Name));
+    }
+
+    [Fact]
     public void SeparatesPeopleEvenWhenAllTheirMachineLabelsAndHighScoresAreTheSame()
     {
         var lines = new[] { Line(0), Line(10), Line(20), Line(30) };
