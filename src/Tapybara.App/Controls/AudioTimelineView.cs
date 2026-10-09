@@ -56,7 +56,7 @@ public sealed partial class AudioTimelineView : Grid
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        ControlSizing.Apply(_mode);
+        ControlSizing.Apply(_mode, toolbarField: true);
         ControlSizing.Apply(_info, iconOnly: true);
         var scroll = new ScrollViewer { Content = _surface, MaxHeight = 150, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, CanContentScroll = false };

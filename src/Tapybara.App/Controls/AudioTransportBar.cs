@@ -21,10 +21,11 @@ public sealed class AudioTransportBar : Grid
     private readonly Wpf.Ui.Controls.Button _range = new();
     private readonly Wpf.Ui.Controls.Button _forward = new() { Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowClockwise24 } };
     private readonly ContentControl _tools = new();
+    private readonly StackPanel _buttons = new() { Orientation = System.Windows.Controls.Orientation.Horizontal };
     private (TimeSpan Start, TimeSpan End)? _excerpt;
     public UIElement? Tools { get => _tools.Content as UIElement; set => _tools.Content = value; }
     private readonly TextBlock _rangeText = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _clock = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _clock = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ToggleButton _follow = new() { IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
     private readonly ToggleButton _loop = new();
@@ -51,17 +52,17 @@ public sealed class AudioTransportBar : Grid
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         foreach (bool stretch in new[] { false, false, true, false, false, false })
         { ColumnDefinitions.Add(new ColumnDefinition { Width = stretch ? new GridLength(1, GridUnitType.Star) : GridLength.Auto }); }
-        var buttons = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
         foreach (Wpf.Ui.Controls.Button button in new[] { _play, _stop, _rewind, _forward })
         {
             ControlSizing.Apply(button, iconOnly: true);
             button.Margin = new Thickness(0, 0, Tokens.Space1, 0);
-            buttons.Children.Add(button);
+            _buttons.Children.Add(button);
         }
-        ControlSizing.Apply(_loop);
+        _loop.SetResourceReference(StyleProperty, "IconToggleButton");
+        ControlSizing.Apply(_loop, iconOnly: true);
         _loop.Margin = new Thickness(0, 0, Tokens.Space1, 0);
-        buttons.Children.Add(_loop);
-        Children.Add(buttons);
+        _buttons.Children.Add(_loop);
+        Children.Add(_buttons);
         _clock.FontSize = Tokens.Caption;
         _clock.FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas");
         _clock.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
@@ -76,6 +77,7 @@ public sealed class AudioTransportBar : Grid
         Children.Add(_seek);
         SetColumn(_tools, 3);
         Children.Add(_tools);
+        _follow.SetResourceReference(StyleProperty, "CommandToggleButton");
         ControlSizing.Apply(_follow);
         _follow.Margin = new Thickness(Tokens.Space1, 0, 0, 0);
         SetColumn(_follow, 4);
@@ -157,6 +159,7 @@ public sealed class AudioTransportBar : Grid
             if (changed) { ApplyLanguage(); }
             _play.ToolTip = _playing ? L.S.PlaybackPause : range is not null ? L.S.TimelinePlayRange : L.S.PlaybackPlay;
             AutomationProperties.SetName(_play, (string)_play.ToolTip);
+            ArrangeRail();
         }
         finally { _updating = false; }
     }
@@ -170,7 +173,10 @@ public sealed class AudioTransportBar : Grid
         _forward.ToolTip = L.S.PlaybackForward;
         _follow.ToolTip = L.S.PlaybackFollowHint;
         _follow.Content = L.S.PlaybackFollow;
-        _loop.Content = L.S.PlaybackLoop;
+        _loop.Content = new SymbolIcon { Symbol = SymbolRegular.ArrowRepeatAll24, FontSize = 16,
+            Foreground = _loop.Foreground };
+        ((SymbolIcon)_loop.Content).SetBinding(SymbolIcon.ForegroundProperty,
+            new System.Windows.Data.Binding(nameof(System.Windows.Controls.Control.Foreground)) { Source = _loop });
         _loop.ToolTip = L.S.PlaybackLoopHelp;
         AutomationProperties.SetName(_loop, L.S.PlaybackLoop);
         _range.ToolTip = L.S.PlaybackWholeCall;
@@ -186,24 +192,30 @@ public sealed class AudioTransportBar : Grid
 
     private void ArrangeRail()
     {
-        bool compact = ActualWidth < 820;
+        double required = Math.Max(_buttons.DesiredSize.Width, 5 * (Tokens.ControlHeight + Tokens.Space1))
+            + _clock.Width + Tokens.Space1 + Tokens.Space2
+            + _tools.DesiredSize.Width + _follow.DesiredSize.Width
+            + (_range.Visibility == Visibility.Visible ? Tokens.ControlHeight + Tokens.Space1 : 0) + 120;
+        bool compact = ActualWidth > 0 && ActualWidth < required;
+        SetRow(_buttons, compact ? 1 : 0);
         SetRow(_clock, compact ? 1 : 0);
-        SetColumn(_clock, compact ? 0 : 1);
-        SetColumnSpan(_clock, compact ? 6 : 1);
-        _clock.Margin = compact ? new Thickness(0, Tokens.Space1, 0, 0) : new Thickness(Tokens.Space1, 0, Tokens.Space2, 0);
-        SetColumn(_seek, compact ? 1 : 2);
-        SetColumnSpan(_seek, compact ? 2 : 1);
+        SetColumn(_clock, 1);
+        SetColumnSpan(_clock, compact ? 5 : 1);
+        _buttons.Margin = compact ? new Thickness(0, Tokens.Space2, 0, 0) : new Thickness(0);
+        _clock.Margin = new Thickness(Tokens.Space1, compact ? Tokens.Space2 : 0, Tokens.Space2, 0);
+        SetColumn(_seek, compact ? 0 : 2);
+        SetColumnSpan(_seek, compact ? 3 : 1);
     }
 
     private void UpdateClock(TimeSpan position)
     {
         // Резервируем всю шкалу длительности: цифры и переход минут не двигают ползунок.
-        string sample = Stamp(_duration) + " / " + Stamp(_duration) + (_excerpt is null ? string.Empty : " · " + L.S.PlaybackRange);
+        string sample = Stamp(_duration) + " / " + Stamp(_duration);
         var measure = new System.Windows.Media.FormattedText(sample, L.S.Formatting, System.Windows.FlowDirection.LeftToRight,
             new System.Windows.Media.Typeface(_clock.FontFamily, _clock.FontStyle, _clock.FontWeight, _clock.FontStretch),
             _clock.FontSize, System.Windows.Media.Brushes.Black, 1);
         _clock.Width = Math.Ceiling(measure.WidthIncludingTrailingWhitespace) + Tokens.Space1;
-        _clock.Text = Stamp(position) + " / " + Stamp(_duration) + (_excerpt is null ? string.Empty : " · " + L.S.PlaybackRange);
+        _clock.Text = Stamp(position) + " / " + Stamp(_duration);
         _clock.ToolTip = _excerpt is { } range ? Stamp(range.Start) + "–" + Stamp(range.End) : null;
     }
     private static string Stamp(TimeSpan value) => string.Create(L.S.Formatting,

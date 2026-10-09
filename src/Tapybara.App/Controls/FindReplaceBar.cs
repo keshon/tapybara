@@ -33,6 +33,7 @@ public sealed class FindReplaceBar : StackPanel
 
     public FindReplaceBar()
     {
+        _mode.SetResourceReference(StyleProperty, "CommandToggleButton");
         foreach (System.Windows.Controls.Control field in new System.Windows.Controls.Control[] { _find, _replace, _mode, _one, _all }) { ControlSizing.Apply(field); }
         foreach (UiButton button in new[] { _previous, _next, _close }) { ControlSizing.Apply(button, iconOnly: true); }
         var actions = new StackPanel { Orientation = Orientation.Horizontal };

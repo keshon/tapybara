@@ -15,17 +15,16 @@ public static class ControlSizing
     public static bool GetIconOnly(DependencyObject target) => (bool)target.GetValue(IconOnlyProperty);
     public static void SetIconOnly(DependencyObject target, bool value) => target.SetValue(IconOnlyProperty, value);
 
-    public static void Apply(System.Windows.Controls.Control control, bool iconOnly = false)
+    public static void Apply(System.Windows.Controls.Control control, bool iconOnly = false, bool toolbarField = false)
     {
-        control.Height = Tokens.ControlHeight;
-        control.MinHeight = Tokens.ControlHeight;
+        bool field = control is System.Windows.Controls.TextBox or System.Windows.Controls.ComboBox or DatePicker;
+        control.Height = field && !toolbarField ? Tokens.FieldHeight : Tokens.ControlHeight;
+        control.MinHeight = control.Height;
         control.VerticalAlignment = VerticalAlignment.Center;
         control.VerticalContentAlignment = VerticalAlignment.Center;
-        // Штатные поля рассчитаны на более высокий ряд: их вертикальные
-        // отступы обрезают строку при компактной высоте, особенно Segoe Variable.
-        if (control is System.Windows.Controls.TextBox or System.Windows.Controls.ComboBox or DatePicker)
+        if (field)
         {
-            control.Padding = new Thickness(10, 4, 10, 4);
+            control.Padding = toolbarField ? new Thickness(10, 4, 10, 4) : new Thickness(10, 6, 10, 6);
         }
         if (iconOnly)
         {

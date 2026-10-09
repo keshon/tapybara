@@ -96,7 +96,9 @@ public sealed class NativeLayoutTests
         bitmap.Render(element);
         if (Environment.GetEnvironmentVariable("TAPYBARA_RENDER_LAYOUTS") == "1")
         {
-            string path = System.IO.Path.Combine(Repository(), "docs/product-design/validation", name + ".png");
+            string directory = Environment.GetEnvironmentVariable("TAPYBARA_LAYOUT_DIR")
+                ?? System.IO.Path.Combine(Repository(), "docs/product-design/validation");
+            string path = System.IO.Path.Combine(directory, name + ".png");
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
             var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
             using var stream = System.IO.File.Create(path); encoder.Save(stream);
@@ -122,6 +124,7 @@ public sealed class NativeLayoutTests
         capture.ShowIdle("Dictate", "Ctrl+Alt+D");
         ((ContentControl)page.FindName("DictateHost")).Content = capture;
         Render(page, 900, 550, "dictations-header-" + theme.ToLowerInvariant());
+        Assert.Equal(Tokens.FieldHeight, ((Wpf.Ui.Controls.TextBox)page.FindName("SearchBox")).ActualHeight);
         Assert.Equal(Visibility.Visible, ((Grid)capture.Content).Children.OfType<TextBlock>().Last().Visibility);
         var rail = new SectionHeader
         {
@@ -195,7 +198,8 @@ public sealed class NativeLayoutTests
         Assert.Null(page.FindName("TranscriptTab"));
         Assert.Equal(Tokens.ControlHeight, export.ActualHeight);
         var toggle = search.Children.OfType<Grid>().Single().Children.OfType<Wpf.Ui.Controls.Button>().Single();
-        Assert.Equal(search.Search.ActualHeight, toggle.ActualHeight);
+        Assert.Equal(Tokens.FieldHeight, search.Search.ActualHeight);
+        Assert.Equal(Tokens.ControlHeight, toggle.ActualHeight);
         Assert.Equal(Tokens.ControlHeight, toggle.ActualWidth);
         Render(page, 780, 650, "calls-compact-" + theme.ToLowerInvariant());
     });
@@ -260,7 +264,7 @@ public sealed class NativeLayoutTests
         var footer = content.Children.OfType<Border>().Single();
         Assert.InRange(footer.ActualHeight, 55, 58);
         Assert.Equal(Visibility.Collapsed, ((Border)window.FindName("DetailCard")).Visibility);
-        Assert.Equal(Tokens.ControlHeight, field.ActualHeight);
+        Assert.Equal(Tokens.FieldHeight, field.ActualHeight);
         window.Close();
     });
 
@@ -282,7 +286,7 @@ public sealed class NativeLayoutTests
         Wpf.Ui.Controls.TextBox[] fields = [.. editor.Children.OfType<Wpf.Ui.Controls.TextBox>()];
         Assert.Equal("14:22.390", fields[0].Text);
         Assert.Equal("14:26.110", fields[1].Text);
-        Assert.All(fields, field => Assert.Equal(Tokens.ControlHeight, field.ActualHeight));
+        Assert.All(fields, field => Assert.Equal(Tokens.FieldHeight, field.ActualHeight));
         var endLabel = editor.Children.OfType<TextBlock>().Last();
         Assert.Equal(Tokens.Space3, endLabel.Margin.Top);
         Assert.Equal(Tokens.Space1, endLabel.Margin.Bottom);
@@ -340,7 +344,7 @@ public sealed class NativeLayoutTests
         {
             var field = row.Children.OfType<Wpf.Ui.Controls.TextBox>().Single();
             Assert.InRange(field.ActualWidth, 80, 420);
-            Assert.Equal(Tokens.ControlHeight, field.ActualHeight);
+            Assert.Equal(Tokens.FieldHeight, field.ActualHeight);
             var commands = row.Children.OfType<StackPanel>().Single();
             Assert.True(field.TranslatePoint(new Point(field.ActualWidth, 0), row).X <= commands.TranslatePoint(new Point(), row).X);
         }
@@ -466,6 +470,61 @@ public sealed class NativeLayoutTests
         transport.UpdateLayout();
         Assert.Equal(x, slider.TranslatePoint(new Point(), transport).X);
         Assert.Equal(width, slider.ActualWidth);
+    });
+
+    [Theory]
+    [InlineData(420)]
+    [InlineData(600)]
+    [InlineData(900)]
+    public void TransportKeepsClockWithPlaybackCommandsWithoutOverlappingSeek(int width) => OnSta(() =>
+    {
+        var transport = new AudioTransportBar { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
+        transport.SetState(TimeSpan.FromSeconds(73), TimeSpan.FromMinutes(42), false, true,
+            (TimeSpan.FromSeconds(70), TimeSpan.FromSeconds(80)));
+        Render(transport, width, 96, "transport-" + width);
+        var slider = transport.Children.OfType<Slider>().Single();
+        var clock = transport.Children.OfType<TextBlock>().Single(text => text.Text.Contains(" / ", StringComparison.Ordinal));
+        var commands = transport.Children.OfType<StackPanel>().Single();
+        Rect Bounds(FrameworkElement element) => new(element.TranslatePoint(new Point(), transport), element.RenderSize);
+        Rect clockBounds = Bounds(clock);
+        Rect commandBounds = Bounds(commands);
+        Assert.InRange(Math.Abs(clockBounds.Top + clockBounds.Height / 2 - commandBounds.Top - commandBounds.Height / 2), 0, 1);
+        Assert.False(clockBounds.IntersectsWith(Bounds(slider)));
+        Assert.True(clockBounds.Right <= width);
+        Assert.True(Bounds(slider).Right <= width);
+        Assert.True(slider.ActualWidth >= 96);
+    });
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    public void LoopIconUsesTheToggleForegroundInBothThemes(string theme) => OnSta(() =>
+    {
+        UserControl page = Page(theme);
+        ((Grid)page.FindName("DetailPane")).Visibility = Visibility.Visible;
+        ((ColumnDefinition)page.FindName("VoicesColumn")).Width = new GridLength(0);
+        var transport = (AudioTransportBar)page.FindName("Transport");
+        transport.SetState(TimeSpan.Zero, TimeSpan.FromMinutes(20), false, true,
+            (TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20)));
+        Render(page, 1160, 460, "loop-theme-" + theme.ToLowerInvariant());
+        var loop = transport.Children.OfType<StackPanel>().Single().Children.OfType<System.Windows.Controls.Primitives.ToggleButton>().Single();
+        var icon = (Wpf.Ui.Controls.SymbolIcon)loop.Content;
+        Assert.Equal(((SolidColorBrush)transport.FindResource("TextFillColorPrimaryBrush")).Color, ((SolidColorBrush)loop.Foreground).Color);
+        Assert.Equal(((SolidColorBrush)loop.Foreground).Color, ((SolidColorBrush)icon.Foreground).Color);
+        loop.IsChecked = true;
+        transport.UpdateLayout();
+        Assert.Equal(((SolidColorBrush)transport.FindResource("TextOnAccentFillColorPrimaryBrush")).Color, ((SolidColorBrush)icon.Foreground).Color);
+    });
+
+    [Fact]
+    public void SettingsFieldHeightMatchesSharedFields() => OnSta(() =>
+    {
+        var settingsField = new TextBox { Text = "Settings value", FontSize = Tokens.Body,
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI") };
+        var panel = new StackPanel { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
+        panel.Children.Add(settingsField);
+        Render(panel, 240, 80, "settings-field-size");
+        Assert.InRange(settingsField.ActualHeight, Tokens.FieldHeight - 1, Tokens.FieldHeight);
     });
 
     [Fact]

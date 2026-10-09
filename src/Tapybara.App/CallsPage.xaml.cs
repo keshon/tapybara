@@ -90,6 +90,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         InitializeComponent();
 
         _services = services;
+        InitializePanelSizing();
         InitializeLibraryFilters();
         SearchBox.TextChanged += OnSearchChanged;
         EditHistory.UndoRequested += () => RestoreHistory(redo: false);
@@ -197,6 +198,10 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         TimelineToggle.ToolTip = L.S.TimelineTitle;
         System.Windows.Automation.AutomationProperties.SetName(TimelineToggle, L.S.TimelineTitle);
         ListTitle.Text = L.S.SectionCalls;
+        LibrarySplitter.ToolTip = L.S.CallsResizeLibrary;
+        PeopleSplitter.ToolTip = L.S.CallsResizePeople;
+        System.Windows.Automation.AutomationProperties.SetName(LibrarySplitter, L.S.CallsResizeLibrary);
+        System.Windows.Automation.AutomationProperties.SetName(PeopleSplitter, L.S.CallsResizePeople);
         SearchBox.PlaceholderText = L.S.CallsSearchPlaceholder;
         SearchBox.ToolTip = L.S.LibrarySearchHelp;
         LibrarySearch.ApplyLanguage();

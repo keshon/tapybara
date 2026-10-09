@@ -15,6 +15,11 @@ public sealed class TranscriptLineActions : StackPanel
     private readonly TimestampScrubber _stamp = new();
     private readonly Button _locked = new();
     private readonly Button _more = new();
+    public bool ShowMenuButton
+    {
+        get => _more.Visibility == Visibility.Visible;
+        set => _more.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
     public static readonly DependencyProperty StampProperty = DependencyProperty.Register(nameof(Stamp), typeof(string), typeof(TranscriptLineActions),
         new PropertyMetadata(string.Empty, (target, args) => ((TranscriptLineActions)target)._stamp.Stamp = (string)args.NewValue));
     public string Stamp { get => (string)GetValue(StampProperty); set => SetValue(StampProperty, value); }

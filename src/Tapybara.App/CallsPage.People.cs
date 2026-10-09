@@ -133,8 +133,8 @@ public partial class CallsPage
     private void ShowVoicesPane(bool visible)
     {
         visible &= _reviewVisible;
-        VoicesPane.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        VoicesColumn.Width = visible ? new GridLength(320) : new GridLength(0);
+        _peopleRequested = visible;
+        ArrangePanels();
     }
 
     /// <summary>
@@ -317,7 +317,9 @@ public partial class CallsPage
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        title.Children.Add(Ui.Dot(ColorOf(person), Tokens.DotLarge));
+        var dot = Ui.Dot(ColorOf(person), Tokens.DotLarge);
+        dot.Margin = new Thickness(0, 0, Tokens.Space2, 0);
+        title.Children.Add(dot);
 
         TextBlock nameText = person switch
         {
@@ -363,6 +365,7 @@ public partial class CallsPage
             toggle.Padding = new Thickness(Tokens.Space1);
             toggle.Margin = new Thickness(-Tokens.Space1);
             toggle.HorizontalAlignment = HorizontalAlignment.Stretch;
+            toggle.HorizontalContentAlignment = HorizontalAlignment.Stretch;
             toggle.SetResourceReference(ForegroundProperty, "TextFillColorPrimaryBrush");
             AutomationProperties.SetName(toggle, nameText.Text);
             toggle.Click += (_, _) =>

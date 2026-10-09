@@ -329,6 +329,10 @@ public sealed record AppSettings
     /// <summary>См. <see cref="OverlayLeft"/>.</summary>
     public double? OverlayTop { get; init; }
 
+    /// <summary>Ширина списка звонков и панели людей, в DIP.</summary>
+    public double CallsLibraryWidth { get; init; } = 340;
+    public double CallsPeopleWidth { get; init; } = 320;
+
     /// <summary>
     /// Показывать начало распознанного текста в подсказке трея.
     /// </summary>

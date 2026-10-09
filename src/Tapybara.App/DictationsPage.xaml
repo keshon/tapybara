@@ -42,6 +42,7 @@
 
         <Grid Grid.Row="1" Margin="0,0,20,12">
             <ui:TextBox x:Name="SearchBox"
+                        components:ControlSizing.Compact="True"
                         HorizontalAlignment="Stretch"
                         Icon="{ui:SymbolIcon Search24}"
                         ClearButtonEnabled="True"

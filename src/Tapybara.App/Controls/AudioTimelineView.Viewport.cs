@@ -25,7 +25,7 @@ public sealed partial class AudioTimelineView
         foreach (var button in new[] { _fit, _zoomIn, _zoomOut })
         {
             ControlSizing.Apply(button, iconOnly: button != _fit);
-            button.Margin = new Thickness(0, 0, Tokens.Space1, Tokens.Space1);
+            button.Margin = new Thickness(0, 0, button == _fit ? Tokens.Space3 : Tokens.Space1, Tokens.Space1);
             _rangeRow.Children.Insert(2, button);
         }
         _zoomIn.Click += (_, _) => Zoom(2);

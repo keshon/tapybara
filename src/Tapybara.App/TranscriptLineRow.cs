@@ -39,6 +39,7 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
 
     public required string PlayHint { get; init; }
     public string SeekHint => L.S.PlaybackStamp + ": " + Stamp;
+    public string ActionsHint => L.S.EditLineActions + ": " + Stamp;
 
     /// <summary>Голос реплики под сомнением (см. <see cref="CallLine.IsDoubtful"/>).</summary>
     public Visibility DoubtVisibility => Line.IsDoubtful ? Visibility.Visible : Visibility.Collapsed;

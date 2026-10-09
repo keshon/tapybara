@@ -26,7 +26,9 @@ public sealed partial class AudioTimelineView
     private readonly WrapPanel _rangeRow = new() { Margin = new Thickness(0, Tokens.Space1, 0, 0) };
     private readonly Wpf.Ui.Controls.Button _clearRange = new();
     private readonly Wpf.Ui.Controls.Button _adjustTiming = new();
-    private readonly TextBlock _rangeLabel = new() { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _rangeLabel = new() { VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 220,
+        Margin = new Thickness(0, 0, 0, Tokens.Space1) };
     private TimelineInterval? SelectedInterval => _intervalChoices.FirstOrDefault(c => Equals(c.Interval.Key, SelectedKey))?.Interval;
     public FrameworkElement TimingAnchor => _adjustTiming;
     public AudioRangeSelection? Range => _selection.Range;
@@ -68,6 +70,7 @@ public sealed partial class AudioTimelineView
         _adjustTiming.IsEnabled = _canPlay && SelectedInterval is not null;
         _rangeLabel.Text = Range is { } range
             ? SourceLabel(range.Source) + " · " + PreciseStamp(range.Start) + "–" + PreciseStamp(range.End) : string.Empty;
+        _rangeLabel.ToolTip = _rangeLabel.Text;
         _surface.InvalidateVisual();
     }
 

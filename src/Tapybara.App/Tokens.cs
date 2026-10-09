@@ -26,8 +26,11 @@ namespace Tapybara.App;
 /// </remarks>
 public static class Tokens
 {
-    /// <summary>Высота команд/полей desktop; кнопка без подписи — квадрат того же размера.</summary>
+    /// <summary>Высота команд desktop; поля имеют отдельную высоту и внутренние отступы.</summary>
     public const double ControlHeight = 32;
+    public const double FieldHeight = 36;
+    public const double PanelGutter = 12;
+    public static GridLength GutterColumn { get; } = new(PanelGutter);
     public const double InlineControlHeight = 24;
     public const double MenuShadowInset = 30;
     public static Thickness MenuShadowMargin => new(MenuShadowInset);
@@ -39,6 +42,12 @@ public static class Tokens
 
     /// <summary>Основной текст.</summary>
     public const double LibraryWidth = 340;
+    public const double LibraryMinWidth = 280;
+    public const double LibraryMaxWidth = 440;
+    public const double PeopleWidth = 320;
+    public const double PeopleMinWidth = 200;
+    public const double PeopleMaxWidth = 400;
+    public const double EditorMinWidth = 420;
     public static System.Windows.GridLength LibraryColumn { get; } = new(LibraryWidth);
     public const double Body = 14;
 

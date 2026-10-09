@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Tapybara.Core.Settings;
 using Tapybara.Core.Windows;
 using Xunit;
@@ -66,6 +66,8 @@ public class SettingsSerializationTests
             MaxCallMinutes = 90,
             OverlayLeft = 120.5,
             OverlayTop = 40,
+            CallsLibraryWidth = 380,
+            CallsPeopleWidth = 280,
             CallRecordingAcknowledged = true,
             Replacements = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -86,6 +88,8 @@ public class SettingsSerializationTests
         Assert.Equal(original.VadThreshold, restored.VadThreshold);
         Assert.Equal(original.MaxDictationMinutes, restored.MaxDictationMinutes);
         Assert.Equal(original.MaxCallMinutes, restored.MaxCallMinutes);
+        Assert.Equal(original.CallsLibraryWidth, restored.CallsLibraryWidth);
+        Assert.Equal(original.CallsPeopleWidth, restored.CallsPeopleWidth);
         Assert.Equal(original.OverlayLeft, restored.OverlayLeft);
         Assert.True(restored.CallRecordingAcknowledged);
         Assert.Equal("C#", restored.Replacements["си шарп"]);

@@ -257,6 +257,8 @@ public sealed record UiStrings
     public required string CallsTranscribe { get; init; }
     public required string CallsTranscribeAgain { get; init; }
     public required string CallsTotals { get; init; }
+    public required string CallsResizeLibrary { get; init; }
+    public required string CallsResizePeople { get; init; }
     public required string CallsMegabytes { get; init; }
     public required string CallStateRecording { get; init; }
     public required string CallStateTranscribing { get; init; }
@@ -978,7 +980,9 @@ public sealed record UiStrings
         CallsOpenFolder = "Folder",
         CallsTranscribe = "Transcribe",
         CallsTranscribeAgain = "Transcribe again",
-        CallsTotals = "Recordings: {0} · {1}",
+        CallsTotals = "{0} recordings · {1}",
+        CallsResizeLibrary = "Resize recordings panel. Double-click to reset.",
+        CallsResizePeople = "Resize people panel. Double-click to reset.",
         CallsMegabytes = "{0} MB",
         CallStateRecording = "recording",
         CallStateTranscribing = "transcribing",
@@ -1210,10 +1214,10 @@ public sealed record UiStrings
         EditSplit = "Split here",
         EditLineActions = "Line actions: speaker, split, timing and text",
         PlaybackLineOnly = "Play only this line (stop at its end)",
-        PlaybackFromLine = "Play from this line (continue through the call)",
+        PlaybackFromLine = "Play from here",
         TimelineZoomIn = "Zoom in (Ctrl + wheel)",
         TimelineZoomOut = "Zoom out (Ctrl + wheel)",
-        TimelineFit = "Fit call",
+        TimelineFit = "Fit all",
         TimelineZoomHelp = "Ctrl + wheel zooms at the pointer. When zoomed, wheel, middle drag or the scrollbar pans. Drag the waveform to select audio; the main Play button plays the selection. Speaker edge handles edit transcript timing.",
         PlaybackFollowHint = "Scroll the transcript to the current audio position; playback remains unrestricted unless you explicitly play a line or selection.",
         EditMerge = "Merge with next segment",
@@ -1552,6 +1556,8 @@ public sealed record UiStrings
         CallsTranscribe = "Распознать",
         CallsTranscribeAgain = "Распознать заново",
         CallsTotals = "Записей: {0} · {1}",
+        CallsResizeLibrary = "Изменить ширину списка записей. Двойной щелчок — сброс.",
+        CallsResizePeople = "Изменить ширину панели людей. Двойной щелчок — сброс.",
         CallsMegabytes = "{0} МБ",
         CallStateRecording = "пишется",
         CallStateTranscribing = "распознаётся",
@@ -1783,10 +1789,10 @@ public sealed record UiStrings
         EditSplit = "Разделить здесь",
         EditLineActions = "Действия с репликой: голос, разделение, границы и текст",
         PlaybackLineOnly = "Прослушать только эту реплику (до её конца)",
-        PlaybackFromLine = "Слушать с этой реплики (продолжить звонок)",
+        PlaybackFromLine = "Слушать отсюда",
         TimelineZoomIn = "Приблизить (Ctrl + колесо)",
         TimelineZoomOut = "Отдалить (Ctrl + колесо)",
-        TimelineFit = "Весь звонок",
+        TimelineFit = "Показать всё",
         TimelineZoomHelp = "Ctrl + колесо меняет масштаб у курсора. При приближении колесо, средняя кнопка или полоса прокручивают шкалу. Протяните по волне для выбора аудио; основная кнопка воспроизведения слушает выделение. Края реплики меняют время транскрипта.",
         PlaybackFollowHint = "Прокручивать транскрипт к текущей позиции аудио; воспроизведение ограничивается только при явном выборе реплики или диапазона.",
         EditMerge = "Склеить со следующей репликой",
