@@ -25,6 +25,30 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
+    public void ReviewConfirmationAndBatchHaveSeparateUndoStepsIncludingNewPersonName()
+    {
+        CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow });
+        var example = Line("Konstantin example", 0, 6);
+        var another = Line("another phrase", 10, 16);
+        var session = Session(example, another);
+        Assert.True(session.Execute(t => SpeakerCorrection.Confirm(t, example, "B"), s => s with
+        {
+            VoiceNames = new Dictionary<string, string>(s.VoiceNames) { ["B"] = "Константин" },
+        }));
+        var seed = session.Document.Lines[0];
+        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["B"]);
+        Assert.True(session.Execute(t => SpeakerCorrection.Apply(t, seed, [another])));
+        Assert.True(session.Undo());
+        Assert.Equal("B", session.Document.Lines[0].Voice);
+        Assert.Equal("A", session.Document.Lines[1].Voice);
+        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["B"]);
+        Assert.True(session.Undo());
+        Assert.Equal("A", session.Document.Lines[0].Voice);
+        Assert.False(CallMeta.Load(_directory)!.VoiceNames.ContainsKey("B"));
+        Assert.False(session.CanUndo);
+    }
+
+    [Fact]
     public void SpeakerCorrectionBatchPersistsAndUndoesAsOneEdit()
     {
         var seed = Line("confirmed", 0, 6, "B") with { HumanEdits = CallLineEdits.Speaker };

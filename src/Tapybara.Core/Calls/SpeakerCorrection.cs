@@ -7,6 +7,19 @@ public static class SpeakerCorrection
 {
     public sealed record Candidate(CallLine Line, double Similarity, double Lead, bool Clear);
 
+    public static IReadOnlyList<CallLine> Examples(CallTranscript transcript) => transcript.Lines
+        .Where(line => line.Channel == CallChannel.Theirs && line.End - line.Start >= VoiceCheck.MinLine
+            && !transcript.Lines.Any(other => !other.IsSameAs(line) && other.Channel == line.Channel
+                && other.Start < line.End && other.End > line.Start))
+        .OrderByDescending(line => line.IsDoubtful).ThenBy(line => line.Start).ToList();
+
+    public static CallTranscript Confirm(CallTranscript transcript, CallLine example, string voice)
+    {
+        if (!Examples(transcript).Contains(example))
+            throw new InvalidOperationException("The example changed or is unsuitable; choose another phrase.");
+        return CallVoices.Reassign(transcript, example, voice);
+    }
+
     public static IReadOnlyList<Candidate> Find(CallTranscript transcript, CallLine seed,
         Func<CallLine, float[]?> printOf, CancellationToken cancellationToken = default)
     {

@@ -175,6 +175,11 @@ public partial class CallsPage
         IReadOnlyList<CallPerson> people = People();
 
         VoicesHost.Children.Add(PeopleHeader(people.Count, canResplit: !busy && _services.CanSplitVoices()));
+        VoicesHost.Children.Add(new TextBlock
+        {
+            Text = SpeakerText("Shares show assigned speaking time", "Доли показывают назначенное время речи"),
+            FontSize = Tokens.Caption, Margin = new Thickness(0, 0, 0, Tokens.Space2), TextWrapping = TextWrapping.Wrap,
+        });
 
         if (!busy && _resplitOpen && _services.CanSplitVoices())
         {
@@ -203,18 +208,26 @@ public partial class CallsPage
         TextBlock title = Ui.BodyStrong(string.Format(L.S.Formatting, L.S.PeopleHeader, count));
         title.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(title);
+        title.ToolTip = SpeakerText("Percentages show assigned speaking time, not recognition confidence.",
+            "Проценты — доля назначенного времени речи, а не точность распознавания.");
+
+        var actions = new List<(string Text, SymbolRegular Icon, Action Act)>
+        {
+            (SpeakerText("Review assignments", "Проверить подписи"), SymbolRegular.Person24, () => ReviewSpeakerAssignments()),
+        };
 
         if (canResplit)
         {
-            UiButton more = Ui.MoreButton((L.S.VoicesResplitMenu, SymbolRegular.ArrowClockwise24, () =>
+            actions.Add((L.S.VoicesResplitMenu, SymbolRegular.ArrowClockwise24, () =>
             {
                 _resplitOpen = true;
                 ShowVoices();
             }));
-            more.HorizontalAlignment = HorizontalAlignment.Right;
-            more.VerticalAlignment = VerticalAlignment.Center;
-            header.Children.Add(more);
         }
+        UiButton more = Ui.MoreButton(actions.ToArray());
+        more.HorizontalAlignment = HorizontalAlignment.Right;
+        more.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(more);
 
         return header;
     }
@@ -228,7 +241,7 @@ public partial class CallsPage
     /// реплики не похожи ни на один найденный голос, и проверка это видит.
     /// Лечится не правкой по одной реплике, а разделением заново.
     /// </remarks>
-    private static Border MoreVoicesCard(TimeSpan doubtful)
+    private Border MoreVoicesCard(TimeSpan doubtful)
     {
         var body = new StackPanel();
         body.Children.Add(Ui.BodyStrong(L.S.VoicesMoreTitle));
@@ -237,8 +250,10 @@ public partial class CallsPage
         hint.Margin = new Thickness(0, Tokens.Space1, 0, 0);
         body.Children.Add(hint);
 
-        body.Children.Add(Ui.Caption(SpeakerText("Correct an example phrase, then choose ‘Find similar speech’ from its menu.",
-            "Назначьте образец нужному человеку, затем выберите «Найти похожие реплики» в меню реплики.")));
+        var review = new UiButton { Content = SpeakerText("Review assignments", "Проверить подписи"),
+            Margin = new Thickness(0, Tokens.Space2, 0, 0) };
+        review.Click += (_, _) => ReviewSpeakerAssignments();
+        body.Children.Add(review);
 
         Border card = Ui.Card(body);
         card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
@@ -470,8 +485,7 @@ public partial class CallsPage
                     && l.HumanEdits.HasFlag(CallLineEdits.Speaker)
                     && l.End - l.Start >= Tapybara.Core.Calls.VoiceCheck.MinLine);
                 if (seed is not null) FindSimilarSpeech(seed);
-                else ShowSpeakerHint(SpeakerText("First assign a clear phrase of at least four seconds to this person, then find similar speech.",
-                    "Сначала назначьте этому человеку чёткую реплику от четырёх секунд, затем найдите похожие."));
+                else ReviewSpeakerAssignments(person.Name);
             };
             body.Children.Add(find);
         }

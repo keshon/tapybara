@@ -10,6 +10,24 @@ public sealed class SpeakerCorrectionTests
         { Id = Guid.NewGuid(), HumanEdits = confirmed ? CallLineEdits.Speaker : CallLineEdits.None };
 
     [Fact]
+    public void ReviewStartsWithDoubtfulUsablePhrasesAndExcludesShortOrOverlappingExamples()
+    {
+        var clear = Line(0, "A", true);
+        var doubtful = Line(20, "A") with { Fit = .3 };
+        var shortLine = Line(40, "B", seconds: 2);
+        var overlapping = Line(60, "B");
+        var other = Line(61, "C");
+        var document = new CallTranscript { Lines = [clear, doubtful, shortLine, overlapping, other] };
+        Assert.Equal(new[] { doubtful, clear }, SpeakerCorrection.Examples(document));
+        var confirmed = SpeakerCorrection.Confirm(document, doubtful, "B");
+        Assert.Equal("B", confirmed.Lines[1].Voice);
+        Assert.True(confirmed.Lines[1].HumanEdits.HasFlag(CallLineEdits.Speaker));
+        Assert.Null(confirmed.Lines[1].Fit);
+        Assert.Throws<InvalidOperationException>(() => SpeakerCorrection.Confirm(confirmed, doubtful, "C"));
+        Assert.Throws<InvalidOperationException>(() => SpeakerCorrection.Confirm(document, overlapping, "C"));
+    }
+
+    [Fact]
     public void UsesConfirmedExamplesRatherThanMixedClusterAndPreservesManualAssignments()
     {
         var seed = Line(0, "B", true);
