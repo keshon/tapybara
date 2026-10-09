@@ -22,9 +22,14 @@ public sealed class AudioBoundaryEditor : StackPanel
     }
 
     public AudioBoundaryEditor(TimeSpan from, TimeSpan to, TimeSpan maximum, string? text = null,
-        Func<TimeSpan, TimeSpan, bool>? validRange = null, string? applyLabel = null, string? help = null)
+        Func<TimeSpan, TimeSpan, bool>? validRange = null, string? applyLabel = null, string? help = null, string? title = null)
     {
         Width = 360;
+        var heading = Caption(title ?? L.S.EditTiming);
+        heading.FontSize = Tokens.Body;
+        heading.FontWeight = FontWeights.SemiBold;
+        heading.Margin = new Thickness(0, 0, 0, Tokens.Space2);
+        Children.Add(heading);
         var description = Caption(help ?? L.S.EditBoundaryHelp);
         description.Margin = new Thickness(0, 0, 0, Tokens.Space3);
         Children.Add(description);
@@ -44,8 +49,12 @@ public sealed class AudioBoundaryEditor : StackPanel
         Children.Add(_to);
         if (text is not null)
         {
-            _text = new Wpf.Ui.Controls.TextBox { Text = text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
-            AutomationProperties.SetName(_text, L.S.LineEditText);
+            var textLabel = Caption(L.S.MissingSpeechText);
+            textLabel.Margin = new Thickness(0, Tokens.Space3, 0, Tokens.Space1);
+            Children.Add(textLabel);
+            _text = new Wpf.Ui.Controls.TextBox { Text = text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
+                MinHeight = 80, VerticalContentAlignment = VerticalAlignment.Top, ClearButtonEnabled = false };
+            AutomationProperties.SetName(_text, L.S.MissingSpeechText);
             Children.Add(_text);
         }
         var play = new Wpf.Ui.Controls.Button { Content = L.S.CallsListen, Margin = new Thickness(0, Tokens.Space3, Tokens.Space2, 0) };

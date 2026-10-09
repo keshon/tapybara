@@ -13,6 +13,19 @@ public sealed class InlineTextEditor : System.Windows.Controls.TextBox
     private string? _draft;
     public bool HasDraftChanges => _original is not null && _draft != _original;
     public event Func<InlineTextEditor, object?, string, bool>? CommitRequested;
+    public event System.Windows.Controls.ContextMenuEventHandler? DocumentMenuOpening;
+
+    static InlineTextEditor()
+    {
+        // Обработчик производного класса идёт раньше TextBox: иначе тот уже
+        // успевает открыть встроенное меню и скрыть наш обработчик через Handled.
+        EventManager.RegisterClassHandler(typeof(InlineTextEditor), System.Windows.Controls.ContextMenuService.ContextMenuOpeningEvent,
+            new System.Windows.Controls.ContextMenuEventHandler((sender, args) =>
+            {
+                var editor = (InlineTextEditor)sender;
+                editor.DocumentMenuOpening?.Invoke(editor, args);
+            }), true);
+    }
 
     public InlineTextEditor()
     {

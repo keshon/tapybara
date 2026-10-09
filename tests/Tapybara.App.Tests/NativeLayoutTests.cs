@@ -52,15 +52,15 @@ public sealed class NativeLayoutTests
         { dictionary.Add(new XElement(ns + "Color", new XAttribute(x + "Key", key), "#FF0067C0")); }
         return dictionary;
     }
-    private static UserControl Page(string theme)
+    private static UserControl Page(string theme, string pageName = "CallsPage")
     {
         _ = new AudioTransportBar();
-        var source = XDocument.Load(System.IO.Path.Combine(Repository(), "src/Tapybara.App/CallsPage.xaml"));
+        var source = XDocument.Load(System.IO.Path.Combine(Repository(), "src/Tapybara.App/" + pageName + ".xaml"));
         XElement root = source.Root!;
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         root.Attribute(x + "Class")!.Remove();
         foreach (var attribute in root.DescendantsAndSelf().Attributes().Where(a => new[]
-        { "Click", "Checked", "Unchecked", "SelectionChanged", "ContextMenuOpening", "Loaded", "GotKeyboardFocus", "KeyDown", "LostKeyboardFocus" }.Contains(a.Name.LocalName)).ToArray())
+        { "TextChanged", "Click", "Checked", "Unchecked", "SelectionChanged", "ContextMenuOpening", "Loaded", "GotKeyboardFocus", "KeyDown", "LostKeyboardFocus", "DocumentMenuOpening", "TimingShiftRequested", "SeekRequested", "LockedPlayRequested", "FreePlayRequested", "MenuRequested" }.Contains(a.Name.LocalName)).ToArray())
         { attribute.Remove(); }
         foreach (var element in root.DescendantsAndSelf())
         {
@@ -106,6 +106,41 @@ public sealed class NativeLayoutTests
     [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]
+    public void BothSectionsUseTitleRailAndPreservePillAndHotkey(string theme) => OnSta(() =>
+    {
+        UserControl page = Page(theme, "DictationsPage");
+        page.SetResourceReference(Control.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        page.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+        ((TextBlock)page.FindName("PageTitle")).Text = "Dictations";
+        ((Wpf.Ui.Controls.TextBox)page.FindName("SearchBox")).PlaceholderText = "Search dictations";
+        ((ListBox)page.FindName("EntryList")).ItemsSource = new[]
+        {
+            new DictationRow { Entry = new Tapybara.Core.Dictation.DictationEntry(DateTimeOffset.Now, "We should review the new layout in both sections."), Day = "Today" },
+            new DictationRow { Entry = new Tapybara.Core.Dictation.DictationEntry(DateTimeOffset.Now.AddMinutes(-5), "The capture button keeps its shortcut and rounded styling."), Day = "Today" },
+        };
+        var capture = new RecordPill(false) { Style = (Style)page.FindResource("RecordPillButton") };
+        capture.ShowIdle("Dictate", "Ctrl+Alt+D");
+        ((ContentControl)page.FindName("DictateHost")).Content = capture;
+        Render(page, 900, 550, "dictations-header-" + theme.ToLowerInvariant());
+        Assert.Equal(Visibility.Visible, ((Grid)capture.Content).Children.OfType<TextBlock>().Last().Visibility);
+        var rail = new SectionHeader
+        {
+            TitleContent = new TextBlock { Text = "Calls", FontSize = 28 },
+            ActionContent = new ContentControl { Content = new RecordPill(true) { Style = (Style)page.FindResource("RecordPillButton") } },
+        };
+        var pill = (RecordPill)((ContentControl)rail.ActionContent!).Content;
+        pill.ShowIdle("Record", "Ctrl+Alt+C");
+        rail.Measure(new Size(320, 80)); rail.Arrange(new Rect(0, 0, 320, 80)); rail.UpdateLayout();
+        Assert.Equal(Visibility.Visible, ((Grid)pill.Content).Children.OfType<TextBlock>().Last().Visibility);
+        rail.Measure(new Size(210, 80)); rail.Arrange(new Rect(0, 0, 210, 80)); rail.UpdateLayout();
+        Assert.Equal(Visibility.Collapsed, ((Grid)pill.Content).Children.OfType<TextBlock>().Last().Visibility);
+        rail.Measure(new Size(320, 80)); rail.Arrange(new Rect(0, 0, 320, 80)); rail.UpdateLayout();
+        Assert.Equal(Visibility.Visible, ((Grid)pill.Content).Children.OfType<TextBlock>().Last().Visibility);
+    });
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Dark")]
     public void ActualCallsXamlHasOneHeaderRailAndAlignedControls(string theme) => OnSta(() =>
     {
         UserControl page = Page(theme);
@@ -120,15 +155,26 @@ public sealed class NativeLayoutTests
         var search = (SearchFilterBar)page.FindName("LibrarySearch");
         search.Search.PlaceholderText = "Search calls and transcripts";
         ((TextBlock)page.FindName("ListTitle")).Text = "Calls";
+        var capture = new RecordPill(true) { Style = (Style)page.FindResource("RecordPillButton") };
+        capture.ShowIdle("Record", "Ctrl+Alt+C");
+        ((ContentControl)page.FindName("RecordHost")).Content = capture;
         ((AudioTransportBar)page.FindName("Transport")).SetState(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(42), false, true,
             (TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(4)));
         var row = new CallRow
         {
             Entry = new CallEntry { Session = new CallSession { Directory = "probe", StartedAt = DateTimeOffset.Now }, State = CallState.Ready },
             Title = "Product review", Subtitle = "11:02 · 42 min · Pavel, Anna", Day = "Today", StateText = string.Empty,
-            StateBackground = Brushes.Transparent, StateForeground = Brushes.Gray,
+            StateBackgroundKey = "SubtleFillColorSecondaryBrush", StateForegroundKey = "TextFillColorSecondaryBrush",
         };
-        ((ListBox)page.FindName("CallList")).ItemsSource = new[] { row };
+        ((ListBox)page.FindName("CallList")).ItemsSource = new[]
+        {
+            row,
+            new CallRow { Entry = new CallEntry { Session = new CallSession { Directory = "names", StartedAt = DateTimeOffset.Now }, State = CallState.NeedsNames },
+                Title = "Speaker review", Subtitle = "10:15 · 24 min", Day = "Today", StateText = "name the voices",
+                StateBackgroundKey = "SystemFillColorAttentionBackgroundBrush", StateForegroundKey = "TextFillColorPrimaryBrush" },
+            new CallRow { Entry = new CallEntry { Session = new CallSession { Directory = "pending", StartedAt = DateTimeOffset.Now }, State = CallState.NotTranscribed },
+                Title = "Planning session", Subtitle = "09:00 · 48 min", Day = "Today", StateText = "not transcribed" },
+        };
         ((ListBox)page.FindName("LineList")).ItemsSource = new[]
         {
             new TranscriptLineRow
@@ -223,6 +269,12 @@ public sealed class NativeLayoutTests
     [InlineData("Dark")]
     public void BoundaryAndDateFieldsUseConsistentSpacingAndTimeScale(string theme) => OnSta(() =>
     {
+        var speech = new AudioBoundaryEditor(TimeSpan.FromSeconds(862.39), TimeSpan.FromSeconds(866.11), TimeSpan.FromMinutes(30), "",
+            title: Tapybara.App.Localization.L.S.EditAddSpeech + " · Anna", help: Tapybara.App.Localization.L.S.EditAddSpeechHelp,
+            applyLabel: Tapybara.App.Localization.L.S.EditAddSpeech);
+        var speechCard = new PopoverSurface { Child = speech, Padding = new Thickness(Tokens.Space4) };
+        speechCard.Measure(new System.Windows.Size(392, double.PositiveInfinity));
+        Render(speechCard, 392, (int)Math.Ceiling(speechCard.DesiredSize.Height), "add-speech-" + theme.ToLowerInvariant());
         var editor = new AudioBoundaryEditor(TimeSpan.FromSeconds(862.39), TimeSpan.FromSeconds(866.11), TimeSpan.FromMinutes(30));
         var card = new PopoverSurface { Child = editor, Resources = (ResourceDictionary)XamlReader.Parse(Resources(theme).ToString()) };
         card.Measure(new Size(392, double.PositiveInfinity));
@@ -399,5 +451,76 @@ public sealed class NativeLayoutTests
         var last = Assert.IsType<MenuItem>(menu.Items[^1]);
         double y = last.TranslatePoint(new Point(), scroll).Y;
         Assert.InRange(y, 0, scroll.ActualHeight);
+    });
+
+    [Fact]
+    public void TimerDigitsDoNotMoveTheTransportSlider() => OnSta(() =>
+    {
+        var transport = new AudioTransportBar { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
+        transport.SetState(TimeSpan.FromSeconds(11.1), TimeSpan.FromMinutes(41), true, true);
+        Render(transport, 900, 70, "transport-clock");
+        var slider = transport.Children.OfType<Slider>().Single();
+        double x = slider.TranslatePoint(new Point(), transport).X;
+        double width = slider.ActualWidth;
+        transport.SetState(TimeSpan.FromSeconds(88.8), TimeSpan.FromMinutes(41), true, true);
+        transport.UpdateLayout();
+        Assert.Equal(x, slider.TranslatePoint(new Point(), transport).X);
+        Assert.Equal(width, slider.ActualWidth);
+    });
+
+    [Fact]
+    public void AnchoredMenuClosesIfItsRowIsUnloaded() => OnSta(() =>
+    {
+        var anchor = new Wpf.Ui.Controls.Button { Width = 32, Height = 32 };
+        var root = new Grid { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()), Children = { anchor } };
+        using var source = new System.Windows.Interop.HwndSource(new System.Windows.Interop.HwndSourceParameters("removed-menu-anchor")
+        { Width = 440, Height = 500, WindowStyle = 0 });
+        source.RootVisual = root;
+        root.Measure(new Size(440, 500)); root.Arrange(new Rect(0, 0, 440, 500)); root.UpdateLayout();
+        var menu = new ContextMenu { Resources = root.Resources, Items = { new MenuItem { Header = "Rename" } } };
+        try
+        {
+            AnchoredMenu.Open(menu, anchor);
+            Assert.True(menu.IsOpen);
+            anchor.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            Assert.False(menu.IsOpen);
+        }
+        finally { menu.IsOpen = false; }
+    });
+
+    [Fact]
+    public void ZoomedViewportEdgesAreNotTimingHandlesForOffscreenBoundaries() => OnSta(() =>
+    {
+        var timeline = new AudioTimelineView { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
+        timeline.SetData(TimeSpan.FromSeconds(30), [],
+            [new("Anna", Brushes.Teal, [new("line", TimeSpan.Zero, TimeSpan.FromSeconds(30), "Anna")])], true);
+        timeline.ShowSpeakers(true); timeline.Activate("line"); timeline.Zoom(3);
+        Render(timeline, 640, 180, "timeline-zoom");
+        var surface = (Control)timeline.Children.OfType<ScrollViewer>().Single().Content;
+        var hit = surface.GetType().GetMethod("SelectedHit", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Assert.Null(hit.Invoke(surface, [new Point(96, 40)]));
+        Assert.Null(hit.Invoke(surface, [new Point(surface.ActualWidth - 8, 40)]));
+        timeline.FitView();
+        Render(timeline, 640, 180, "timeline-fit");
+        Assert.NotNull(hit.Invoke(surface, [new Point(96, 40)]));
+    });
+
+    [Fact]
+    public void SmoothFollowRevealsAHiddenLineWithoutChangingSelection() => OnSta(() =>
+    {
+        var list = new ListBox { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
+        VirtualizingPanel.SetScrollUnit(list, ScrollUnit.Pixel);
+        list.ItemsSource = Enumerable.Range(0, 70).Select(i => "Line " + i).ToArray();
+        list.SelectedIndex = 0;
+        Render(list, 300, 140, "follow-before");
+        object target = list.Items[45];
+        SmoothScroll.Reveal(list, target);
+        Render(list, 300, 140, "follow-after");
+        Assert.Equal(0, list.SelectedIndex);
+        var viewer = Visuals(list).OfType<ScrollViewer>().First();
+        var container = Assert.IsAssignableFrom<FrameworkElement>(list.ItemContainerGenerator.ContainerFromItem(target));
+        double y = container.TranslatePoint(new Point(), viewer).Y;
+        Assert.InRange(y, 0, viewer.ViewportHeight);
+        SmoothScroll.Cancel(list);
     });
 }

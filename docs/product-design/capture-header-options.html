@@ -1,0 +1,82 @@
+<div id="capture-header-options">
+<style>
+#capture-header-options {font:14px 'Segoe UI Variable','Segoe UI',sans-serif;color:light-dark(#242424,#f0f0f0);color-scheme:light dark;--surface:light-dark(#eef4f8,#20252a);--field:light-dark(#fafcfd,#30363c);--stroke:light-dark(#d8dfe4,#49515a);--muted:light-dark(#687078,#acb5bd);--action:light-dark(#24211e,#e9e6e2);--on-action:light-dark(#fff,#24211e);--accent:light-dark(#006bb6,#80c5ff);--active:light-dark(#e0ebf3,#334552)}
+#capture-header-options *{box-sizing:border-box}
+#capture-header-options [hidden]{display:none!important}
+#capture-header-options .stage{min-height:540px;padding:16px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+#capture-header-options .library{background:var(--surface);border:1px solid var(--stroke);border-radius:10px;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+#capture-header-options .header{padding:22px 18px 14px}
+#capture-header-options .title-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+#capture-header-options h2{font-size:26px;line-height:34px;font-weight:600;margin:0}
+#capture-header-options button{font:inherit;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--stroke);border-radius:6px;min-height:34px;padding:0 10px;color:inherit;background:var(--field);white-space:nowrap}
+#capture-header-options button.record{background:var(--action);color:var(--on-action);border-color:var(--action);font-weight:600}
+#capture-header-options button.record svg{color:light-dark(#fa4b4b,#bb1717)}
+#capture-header-options .record.recording svg{color:currentColor}
+#capture-header-options .search-row{display:flex;align-items:center;gap:8px}
+#capture-header-options .search{display:flex;align-items:center;gap:8px;background:var(--field);border:1px solid var(--stroke);border-radius:6px;height:34px;flex:1;min-width:0;padding:0 10px}
+#capture-header-options input{background:transparent;color:inherit;border:0;font:inherit;width:100%;min-width:0}
+#capture-header-options svg{height:16px;width:16px;flex:none}
+#capture-header-options .filter{width:34px;padding:0}
+#capture-header-options .list{flex:1;padding:0 10px 14px}
+#capture-header-options .day{color:var(--muted);font-size:12px;padding:12px 8px 7px}
+#capture-header-options .entry{padding:11px 8px;border-radius:6px;min-width:0}
+#capture-header-options .entry.selected{background:var(--active)}
+#capture-header-options .entry strong{font-size:14px;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#capture-header-options .entry p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:18px}
+#capture-header-options .filter-panel{padding:12px 0 0;display:grid;gap:8px}
+#capture-header-options select{width:100%;font:inherit;color:inherit;background:var(--field);border:1px solid var(--stroke);border-radius:6px;height:34px;padding:0 8px}
+#capture-header-options .capture-strip{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:10px 0;border-top:1px solid var(--stroke);border-bottom:1px solid var(--stroke)}
+#capture-header-options .capture-strip .device{color:var(--muted);font-size:12px;line-height:18px;min-width:0;flex:1}
+#capture-header-options .capture-strip .device b{display:block;color:inherit;font-weight:400}
+#capture-header-options .dock{padding:12px 18px;border-top:1px solid var(--stroke);display:flex;gap:12px;align-items:center}
+#capture-header-options .dock .device{color:var(--muted);font-size:12px;flex:1;line-height:18px}
+#capture-header-options .recording-status{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#capture-header-options .header > .recording-status:not(:empty){margin-top:10px}
+@media(max-width:600px){#capture-header-options .stage{grid-template-columns:1fr;min-height:1030px;padding:12px 4px}#capture-header-options .library{min-height:490px}}
+</style>
+<div class="viz-carousel viz-dotted-background" aria-label="Calls and Dictations capture header designs">
+<section data-variant="Title rail" aria-label="Title rail design"><div class="stage" data-layout="title"></div></section>
+<section data-variant="Capture strip" aria-label="Capture strip design" hidden><div class="stage" data-layout="strip"></div></section>
+<section data-variant="Capture dock" aria-label="Capture dock design" hidden><div class="stage" data-layout="dock"></div></section>
+</div>
+<script>
+(() => {
+const root=document.getElementById('capture-header-options');
+const settings={largerButtons:false};
+const icon=name=>`<i data-lucide="${name}" aria-hidden="true"></i>`;
+const record=(kind)=>`<button type="button" class="record cursor-interaction" data-kind="${kind}" aria-pressed="false" data-tooltip="${kind==='Calls'?'Record a call · Ctrl+Alt+C':'Start dictation · configured dictation shortcut'}">${icon(kind==='Calls'?'circle-dot':'mic')}<span>${kind==='Calls'?'Record':'Dictate'}</span></button>`;
+const search=kind=>`<div class="search-row"><label class="search">${icon('search')}<input aria-label="Search ${kind.toLowerCase()}" placeholder="Search ${kind.toLowerCase()}" /></label>${kind==='Calls'?`<button type="button" class="filter cursor-interaction" aria-label="Filters for calls" aria-expanded="false">${icon('list-filter')}</button>`:`<span class="recording-status">4 entries</span>`}</div>${kind==='Calls'?`<div class="filter-panel" hidden><select aria-label="Calls filter"><option>All people</option><option>Тимофей</option></select><button type="button" class="clear cursor-interaction">Clear filters</button></div>`:''}`;
+const list=kind=>kind==='Calls'?`<div class="day">Today</div><div class="entry selected"><strong>Про почту</strong><p>16:30 · 24 min · Сергей</p></div><div class="entry"><strong>Про анализ процессов в Битре</strong><p>11:02 · 41 min · Тимофей, Кирилл</p></div><div class="day">Yesterday</div><div class="entry"><strong>Синк в среду</strong><p>16:02 · 40 min · Дима Каплюш, Виталя</p></div><div class="day">7 October</div><div class="entry"><strong>Синк с Тимофеем</strong><p>12:05 · 29 min · Тимофей</p></div>`:`<div class="day">Today</div><div class="entry selected"><strong>Нужно проверить новый сценарий…</strong><p>16:42 · 28 words</p></div><div class="entry"><strong>Давайте перенесём встречу на завтра.</strong><p>14:18 · 8 words</p></div><div class="day">Yesterday</div><div class="entry"><strong>Добавить поиск по заметкам…</strong><p>11:37 · 42 words</p></div><div class="entry"><strong>Отправлю исправленный вариант…</strong><p>09:12 · 17 words</p></div>`;
+root.querySelectorAll('.stage').forEach(stage=>{
+ const layout=stage.dataset.layout;
+ stage.innerHTML=['Calls','Dictations'].map(kind=>{
+  const device=kind==='Calls'?'Microphone + system audio':'Microphone';
+  const strip=layout==='strip'?`<div class="capture-strip">${record(kind)}<div class="device">${device}<b class="ready">Ready to record</b></div></div>`:'';
+  const dock=layout==='dock'?`<div class="dock"><div class="device">${device}<br><span class="ready">Ready to record</span></div>${record(kind)}</div>`:'';
+  return `<div class="library" aria-label="${kind} ${layout} layout"><div class="header"><div class="title-row"><h2>${kind}</h2>${layout==='title'?record(kind):''}</div>${strip}${search(kind)}<div class="recording-status" aria-live="polite"></div></div><div class="list">${list(kind)}</div>${dock}</div>`;
+ }).join('');
+});
+root.querySelectorAll('.library').forEach(library=>{
+ const button=library.querySelector('.record');
+ const kind=button.dataset.kind;
+ button.addEventListener('click',()=>{
+  const recording=button.getAttribute('aria-pressed')!=='true';
+  const ready=library.querySelector('.ready'); if(ready) ready.textContent=recording?'Recording · 00:12':'Ready to record';
+  button.setAttribute('aria-pressed',String(recording));button.classList.toggle('recording',recording);
+  button.querySelector('span').textContent=recording?'Stop':kind==='Calls'?'Record':'Dictate';
+  button.querySelector('svg')?.remove();
+  button.insertAdjacentHTML('afterbegin',icon(recording?'square':kind==='Calls'?'circle-dot':'mic'));
+  library.querySelector('.header > .recording-status').textContent=recording?'Recording · 00:12 · '+(kind==='Calls'?'Microphone + system':'Microphone'):'';
+  if(globalThis.lucide) lucide.createIcons();
+ });
+ const filter=library.querySelector('.filter');
+ filter?.addEventListener('click',()=>{const panel=library.querySelector('.filter-panel');panel.hidden=!panel.hidden;filter.setAttribute('aria-expanded',String(!panel.hidden));});
+ library.querySelector('.clear')?.addEventListener('click',()=>library.querySelector('select').selectedIndex=0);
+ library.querySelector('input').addEventListener('input',e=>library.querySelectorAll('.entry').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
+});
+function render(){root.querySelectorAll('.record').forEach(b=>b.style.minHeight=settings.largerButtons?'38px':'34px');}
+render();
+if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:render});tweak.addToggle(settings,'largerButtons',{label:'Larger capture buttons'});}
+})();
+</script>
+</div>

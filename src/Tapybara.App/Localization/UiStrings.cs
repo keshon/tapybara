@@ -487,7 +487,25 @@ public sealed record UiStrings
     public required string EditUndo { get; init; }
     public required string EditRedo { get; init; }
     public required string EditSplit { get; init; }
+    public required string EditLineActions { get; init; }
+    public required string PlaybackLineOnly { get; init; }
+    public required string PlaybackFromLine { get; init; }
+    public required string TimelineZoomIn { get; init; }
+    public required string TimelineZoomOut { get; init; }
+    public required string TimelineFit { get; init; }
+    public required string TimelineZoomHelp { get; init; }
+    public required string PlaybackFollowHint { get; init; }
     public required string EditMerge { get; init; }
+    public required string EditMergePrevious { get; init; }
+    public required string EditMergeHelp { get; init; }
+    public required string LibraryResetFilters { get; init; }
+    public required string RecordCompactCall { get; init; }
+    public required string EditInsertLine { get; init; }
+    public required string MissingSpeechText { get; init; }
+    public required string EditAddSpeechHelp { get; init; }
+    public required string PlaybackLoop { get; init; }
+    public required string PlaybackLoopHelp { get; init; }
+    public required string TimestampDragHelp { get; init; }
     public required string EditTiming { get; init; }
     public required string EditAddSpeech { get; init; }
     public required string EditEstimated { get; init; }
@@ -1089,7 +1107,7 @@ public sealed record UiStrings
         TimelineFailed = "Source could not be read",
         TimelineUnavailable = "No source audio",
         TimelineSourcesHelp = "Real source peaks on a shared time scale. Click to seek; drag to select audio.",
-        TimelineSpeakersHelp = "Transcript activity, not isolated voices. Click an interval to play its source; drag its handles to adjust timing. ~ estimated timing; ? review speaker.",
+        TimelineSpeakersHelp = "Transcript activity, not isolated voices. Click an interval to seek and locate its transcript line; drag its visible edge handles to edit line timing. ~ estimated timing; ? review speaker.",
         PlaybackPlay = "Play",
         PlaybackPause = "Pause",
         PlaybackStop = "Stop",
@@ -1190,8 +1208,26 @@ public sealed record UiStrings
         EditUndo = "Undo",
         EditRedo = "Redo",
         EditSplit = "Split here",
+        EditLineActions = "Line actions: speaker, split, timing and text",
+        PlaybackLineOnly = "Play only this line (stop at its end)",
+        PlaybackFromLine = "Play from this line (continue through the call)",
+        TimelineZoomIn = "Zoom in (Ctrl + wheel)",
+        TimelineZoomOut = "Zoom out (Ctrl + wheel)",
+        TimelineFit = "Fit call",
+        TimelineZoomHelp = "Ctrl + wheel zooms at the pointer. When zoomed, wheel, middle drag or the scrollbar pans. Drag the waveform to select audio; the main Play button plays the selection. Speaker edge handles edit transcript timing.",
+        PlaybackFollowHint = "Scroll the transcript to the current audio position; playback remains unrestricted unless you explicitly play a line or selection.",
         EditMerge = "Merge with next segment",
-        EditTiming = "Adjust audio boundaries…",
+        EditMergePrevious = "Merge with previous segment",
+        EditMergeHelp = "Only adjacent lines with the same speaker and audio source can be merged. Reassign the speaker first if needed.",
+        LibraryResetFilters = "Clear filters",
+        RecordCompactCall = "Record",
+        EditInsertLine = "Add line",
+        MissingSpeechText = "Missing words",
+        EditAddSpeechHelp = "Adds a new line for this speaker. Set the audio range, listen, and type the missing words below. Existing text stays unchanged.",
+        PlaybackLoop = "Loop range",
+        PlaybackLoopHelp = "Repeat the selected audio range or locked line. Stop ends playback.",
+        TimestampDragHelp = "Click to seek. Alt+drag vertically to propose a timing shift; review before applying. ~ means estimated timing.",
+        EditTiming = "Edit line timing…",
         EditAddSpeech = "Add missing speech…",
         EditEstimated = "Estimated timing — adjust audio boundaries",
         EditConflict = "The transcript changed. Your action was not applied; review the current version.",
@@ -1644,7 +1680,7 @@ public sealed record UiStrings
         TimelineFailed = "Не удалось прочитать источник",
         TimelineUnavailable = "Нет аудиоисточника",
         TimelineSourcesHelp = "Пики реальных источников на общей шкале времени. Щелчок переносит позицию; протягивание выделяет аудио.",
-        TimelineSpeakersHelp = "Интервалы транскрипта, а не изолированные голоса. Щелчок воспроизводит источник; границы выбранного интервала можно двигать. ~ примерное время; ? проверьте говорящего.",
+        TimelineSpeakersHelp = "Интервалы транскрипта, а не изолированные голоса. Щелчок переносит позицию и находит реплику; видимые края меняют её время. ~ примерное время; ? проверьте говорящего.",
         PlaybackPlay = "Воспроизвести",
         PlaybackPause = "Пауза",
         PlaybackStop = "Стоп",
@@ -1745,8 +1781,26 @@ public sealed record UiStrings
         EditUndo = "Отменить",
         EditRedo = "Повторить",
         EditSplit = "Разделить здесь",
+        EditLineActions = "Действия с репликой: голос, разделение, границы и текст",
+        PlaybackLineOnly = "Прослушать только эту реплику (до её конца)",
+        PlaybackFromLine = "Слушать с этой реплики (продолжить звонок)",
+        TimelineZoomIn = "Приблизить (Ctrl + колесо)",
+        TimelineZoomOut = "Отдалить (Ctrl + колесо)",
+        TimelineFit = "Весь звонок",
+        TimelineZoomHelp = "Ctrl + колесо меняет масштаб у курсора. При приближении колесо, средняя кнопка или полоса прокручивают шкалу. Протяните по волне для выбора аудио; основная кнопка воспроизведения слушает выделение. Края реплики меняют время транскрипта.",
+        PlaybackFollowHint = "Прокручивать транскрипт к текущей позиции аудио; воспроизведение ограничивается только при явном выборе реплики или диапазона.",
         EditMerge = "Склеить со следующей репликой",
-        EditTiming = "Уточнить границы аудио…",
+        EditMergePrevious = "Склеить с предыдущей репликой",
+        EditMergeHelp = "Можно склеить соседние реплики одного голоса и источника.",
+        LibraryResetFilters = "Сбросить фильтры",
+        RecordCompactCall = "Записать",
+        EditInsertLine = "Добавить реплику",
+        MissingSpeechText = "Пропущенные слова",
+        EditAddSpeechHelp = "Добавляет новую реплику этого говорящего. Укажите интервал, прослушайте его и введите пропущенные слова ниже.",
+        PlaybackLoop = "Повтор диапазона",
+        PlaybackLoopHelp = "Повторять выбранный диапазон или ограниченную реплику. Стоп завершает воспроизведение.",
+        TimestampDragHelp = "Нажмите для перехода. Alt+перетаскивание по вертикали предлагает сдвиг времени; проверьте перед сохранением. ~ означает приблизительное время.",
+        EditTiming = "Изменить границы реплики…",
         EditAddSpeech = "Добавить пропущенную речь…",
         EditEstimated = "Время приблизительное — уточните границы аудио",
         EditConflict = "Транскрипт изменился. Действие не применено; проверьте актуальную версию.",

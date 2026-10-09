@@ -26,6 +26,7 @@ public partial class CallsPage
 
     private void InitializeTimeline()
     {
+        Timeline.RangeChanged += UpdateTransport;
         Timeline.SeekRequested += SeekPlayback;
         Timeline.RangePlayRequested += range =>
         {
@@ -50,8 +51,8 @@ public partial class CallsPage
             if (key is not Guid id || _activeEditor?.Flush() == false) { return; }
             TranscriptLineRow? row = _lines.FirstOrDefault(r => r.Line.Id == id);
             if (row is null) { return; }
-            LineList.ScrollIntoView(row);
-            PlayQuote(row.Line);
+            Controls.SmoothScroll.Reveal(LineList, row);
+            SeekPlayback(row.Line.Start);
         };
     }
 

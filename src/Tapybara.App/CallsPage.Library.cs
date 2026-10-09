@@ -56,6 +56,11 @@ public partial class CallsPage
         }
         _dates.SetLabels(L.S.LibraryFromDate, L.S.LibraryToDate);
         content.Children.Add(_dates);
+        var reset = new Wpf.Ui.Controls.Button { Content = L.S.LibraryResetFilters,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left, Margin = new Thickness(0, Tokens.Space2, 0, 0) };
+        Controls.ControlSizing.Apply(reset);
+        reset.Click += (_, _) => ClearLibraryFilters();
+        content.Children.Add(reset);
         AutomationProperties.SetName(_peopleFilter, L.S.LibraryAllPeople);
         AutomationProperties.SetName(_stateFilter, L.S.LibraryAllStates);
         AutomationProperties.SetName(_dateFrom, L.S.LibraryFromDate);
@@ -137,10 +142,14 @@ public partial class CallsPage
 
     private void ClearLibraryFilters()
     {
+        _updatingFilters = true;
         _peopleFilter.SelectedIndex = 0;
         _stateFilter.SelectedIndex = 0;
         _dateFrom.SelectedDate = null;
         _dateTo.SelectedDate = null;
+        _updatingFilters = false;
+        RefreshFilterChips();
+        RequestLibraryFilter();
     }
 
     private void RequestLibraryFilter()
@@ -181,8 +190,11 @@ public partial class CallsPage
             {
                 return;
             }
+            // Одинаковый фильтр не должен каждые две секунды пересоздавать
+            // контейнеры групп и лишать открытое меню его PlacementTarget.
+            bool changed = !_matchingDirectories.SetEquals(matches);
             _matchingDirectories = matches;
-            _view.Refresh();
+            if (changed) { _view.Refresh(); }
             UpdateLibraryEmpty();
             if (_requestedDirectory is not null && matches.Contains(_requestedDirectory))
             {

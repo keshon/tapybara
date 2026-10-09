@@ -161,7 +161,7 @@ public partial class DictationsPage : System.Windows.Controls.UserControl, IDisp
                 break;
         }
 
-        _dictate.ToolTip = L.S.DictateHint;
+        _dictate.ToolTip = L.S.DictateHint + " · " + _settings.Current.Hotkey;
         ShowBlock();
     }
 

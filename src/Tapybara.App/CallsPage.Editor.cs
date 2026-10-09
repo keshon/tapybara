@@ -51,6 +51,7 @@ public partial class CallsPage
     {
         if (sender is InlineTextEditor editor && _session is not null)
         {
+            SmoothScroll.Cancel(LineList);
             if (!_editFocus.TryActivate(editor))
             {
                 _activeEditor?.Focus();
@@ -245,24 +246,29 @@ public partial class CallsPage
         };
         split.Click += (_, _) => SplitAt(row, box);
         menu.Items.Add(split);
-        CallLine? next = _transcript?.Lines.SkipWhile(l => l.Id != row.Line.Id).Skip(1).FirstOrDefault();
-        var merge = new MenuItem
+        List<CallLine> ordered = _transcript?.Lines.ToList() ?? [];
+        int index = ordered.FindIndex(l => l.Id == row.Line.Id);
+        foreach (bool upwards in new[] { true, false })
         {
-            Header = L.S.EditMerge,
-            IsEnabled = next is not null && next.Channel == row.Line.Channel && next.Voice == row.Line.Voice,
-        };
-        merge.Click += (_, _) =>
-        {
-            if (_activeEditor?.Flush() == false)
+            int neighborIndex = index + (upwards ? -1 : 1);
+            CallLine? neighbor = index >= 0 && neighborIndex >= 0 && neighborIndex < ordered.Count ? ordered[neighborIndex] : null;
+            var merge = new MenuItem
             {
-                return;
-            }
-            if (_session is not null && next is not null)
+                Header = upwards ? L.S.EditMergePrevious : L.S.EditMerge,
+                IsEnabled = neighbor is not null && neighbor.Channel == row.Line.Channel && neighbor.Voice == row.Line.Voice,
+                ToolTip = L.S.EditMergeHelp,
+            };
+            merge.Click += (_, _) =>
             {
-                ExecuteEdit(_session.Directory, t => CallDocumentCommands.Merge(t, row.Line.Id, next.Id));
-            }
-        };
-        menu.Items.Add(merge);
+                if (_activeEditor?.Flush() == false) { return; }
+                if (_session is not null && neighbor is not null)
+                {
+                    ExecuteEdit(_session.Directory, t => CallDocumentCommands.Merge(t,
+                        upwards ? neighbor.Id : row.Line.Id, upwards ? row.Line.Id : neighbor.Id));
+                }
+            };
+            menu.Items.Add(merge);
+        }
         var timing = new MenuItem { Header = L.S.EditTiming };
         timing.Click += (_, _) => OpenBoundaryEditor(box, row.Line, add: false);
         menu.Items.Add(timing);
@@ -336,7 +342,11 @@ public partial class CallsPage
             add ? string.Empty : null,
             selection is { } s ? (from, to) => from >= line.Start && to <= line.End
                 && (s.Start == 0 || from > line.Start)
-                && (s.Start + s.Length == line.Text.Length || to < line.End) : null);
+                && (s.Start + s.Length == line.Text.Length || to < line.End) : null,
+            applyLabel: add ? L.S.EditInsertLine : L.S.EditApply,
+            help: add ? L.S.EditAddSpeechHelp : L.S.EditBoundaryHelp,
+            title: (add ? L.S.EditAddSpeech : selection is not null ? L.S.EditAssignSelection : L.S.EditTiming)
+                + " · " + (_lines.FirstOrDefault(r => r.Line.Id == line.Id)?.Speaker ?? string.Empty));
         var card = new PopoverSurface { Child = editor, Padding = new Thickness(Tokens.Space4), CornerRadius = Tokens.CardRadius };
         var popup = new Popup { Child = card, PlacementTarget = anchor, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
         editor.PlayRequested += (from, to) =>

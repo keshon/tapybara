@@ -24,6 +24,22 @@ public sealed class DeliveryControlTests
     }
 
     [Fact]
+    public void StatusBadgesFollowThemeResourceChangesWithoutReplacingRows() => OnSta(() =>
+    {
+        var root = new StackPanel();
+        root.Resources["StateForeground"] = System.Windows.Media.Brushes.Black;
+        root.Resources["StateBackground"] = System.Windows.Media.Brushes.White;
+        var badge = new StatusBadge { Text = "not transcribed", ForegroundKey = "StateForeground", BackgroundKey = "StateBackground" };
+        root.Children.Add(badge);
+        var label = (TextBlock)badge.Child;
+        Assert.Equal(System.Windows.Media.Colors.Black, ((System.Windows.Media.SolidColorBrush)label.Foreground).Color);
+        root.Resources["StateForeground"] = System.Windows.Media.Brushes.White;
+        root.Resources["StateBackground"] = System.Windows.Media.Brushes.Black;
+        Assert.Equal(System.Windows.Media.Colors.White, ((System.Windows.Media.SolidColorBrush)label.Foreground).Color);
+        Assert.Equal(System.Windows.Media.Colors.Black, ((System.Windows.Media.SolidColorBrush)badge.Background).Color);
+    });
+
+    [Fact]
     public void ExportHasUsableDefaultsAndLegacyOnlyOffersMarkdown() => OnSta(() =>
     {
         var panel = new TranscriptExportPanel(["Anna"], new Dictionary<string, string>(), selectionAvailable: false);
@@ -51,6 +67,59 @@ public sealed class DeliveryControlTests
         Assert.Equal(1, removed);
         bar.SetActiveFilters([]);
         Assert.Equal(Visibility.Collapsed, chips.Visibility);
+    });
+
+    [Fact]
+    public void NativeTimestampGestureProposesOffsetWithoutSeekingAndCancelsOnRecycling() => OnSta(() =>
+    {
+        var stamp = new TimestampScrubber { Stamp = "1:13", DataContext = new object() };
+        TimeSpan? proposed = null;
+        int seeks = 0;
+        stamp.ShiftRequested += shift => proposed = shift;
+        stamp.SeekRequested += () => seeks++;
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0));
+        typeof(TimestampScrubber).GetField("_timing", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(stamp, true);
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(0, -10));
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(0, -20));
+        Assert.Contains(2d.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture), stamp.DisplayStamp);
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(0, -20, false));
+        Assert.Equal(TimeSpan.FromSeconds(2), proposed);
+        Assert.Equal(0, seeks);
+        Assert.Equal("1:13", stamp.DisplayStamp);
+        proposed = null;
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0));
+        typeof(TimestampScrubber).GetField("_timing", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(stamp, true);
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(0, -20));
+        stamp.DataContext = new object();
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(0, -20, false));
+        Assert.Null(proposed);
+    });
+
+    [Fact]
+    public void ExpandedFiltersDoNotRepeatActiveValuesAsChips() => OnSta(() =>
+    {
+        var bar = new SearchFilterBar();
+        bar.SetActiveFilters([("Anna", () => { })]);
+        var toggle = bar.Children.OfType<Grid>().Single().Children.OfType<Wpf.Ui.Controls.Button>().Single();
+        toggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        Assert.Equal(Visibility.Visible, bar.Filters.Visibility);
+        Assert.Equal(Visibility.Collapsed, bar.Children.OfType<WrapPanel>().Single().Visibility);
+        toggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        Assert.Equal(Visibility.Visible, bar.Children.OfType<WrapPanel>().Single().Visibility);
+    });
+
+    [Fact]
+    public void MissingSpeechFormLabelsItsMultilineTextAndRequiresContent() => OnSta(() =>
+    {
+        var editor = new AudioBoundaryEditor(TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), "",
+            title: "Add speech", help: "Type missing words", applyLabel: "Add");
+        var fields = editor.Children.OfType<Wpf.Ui.Controls.TextBox>().ToArray();
+        Assert.Equal(3, fields.Length);
+        Assert.True(fields[2].MinHeight >= 80);
+        var buttons = editor.Children.OfType<StackPanel>().Single().Children.OfType<Wpf.Ui.Controls.Button>().ToArray();
+        Assert.False(buttons[1].IsEnabled);
+        fields[2].Text = "missing words";
+        Assert.True(buttons[1].IsEnabled);
     });
 
     [Fact]
@@ -349,5 +418,73 @@ public sealed class DeliveryControlTests
         second.Select(0, 6);
         highlights.Clear();
         Assert.Equal("second", second.SelectedText);
+    });
+
+    [Fact]
+    public void DocumentMenuReceivesAlreadyHandledNativeTextMenuRequests() => OnSta(() =>
+    {
+        var editor = new InlineTextEditor { Text = "one two" };
+        int requests = 0;
+        editor.DocumentMenuOpening += (_, args) => { requests++; args.Handled = true; };
+        var args = (ContextMenuEventArgs)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ContextMenuEventArgs));
+        args.RoutedEvent = ContextMenuService.ContextMenuOpeningEvent;
+        args.Handled = true;
+        editor.RaiseEvent(args);
+        Assert.Equal(1, requests);
+        Assert.True(args.Handled);
+    });
+
+    [Fact]
+    public void DocumentMenuHandlesRequestBeforeNativeTextBoxMenu() => OnSta(() =>
+    {
+        var editor = new InlineTextEditor { Text = "one two" };
+        int document = 0, native = 0;
+        editor.DocumentMenuOpening += (_, args) => { document++; args.Handled = true; };
+        editor.ContextMenuOpening += (_, _) => native++;
+        var args = (ContextMenuEventArgs)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ContextMenuEventArgs));
+        args.RoutedEvent = ContextMenuService.ContextMenuOpeningEvent;
+        editor.RaiseEvent(args);
+        Assert.Equal(1, document);
+        Assert.Equal(0, native);
+    });
+
+    [Fact]
+    public void CompactLineActionsKeepOnlyPlayTimestampAndMenu() => OnSta(() =>
+    {
+        var actions = new TranscriptLineActions { Stamp = "14:22" };
+        int locked = 0, seek = 0, menu = 0;
+        actions.LockedPlayRequested += (_, _) => locked++;
+        actions.SeekRequested += (_, _) => seek++;
+        actions.MenuRequested += (_, _) => menu++;
+        Assert.Equal(3, actions.Children.Count);
+        foreach (var button in actions.Children.OfType<System.Windows.Controls.Button>())
+        { button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); }
+        var stamp = actions.Children.OfType<TimestampScrubber>().Single();
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0));
+        stamp.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(0, 0, false));
+        Assert.Equal((1, 1, 1), (locked, seek, menu));
+        Assert.Equal("14:22", stamp.DisplayStamp);
+    });
+
+    [Fact]
+    public void ZoomAndPanDoNotChangeSelectionOrRequestAudioAndResetForAnotherCall() => OnSta(() =>
+    {
+        var timeline = new AudioTimelineView();
+        int plays = 0, seeks = 0;
+        timeline.RangePlayRequested += _ => plays++;
+        timeline.SeekRequested += _ => seeks++;
+        timeline.SetData(TimeSpan.FromSeconds(100), [], [], true, "first");
+        timeline.SelectRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20));
+        timeline.Zoom(4); timeline.PanTo(TimeSpan.FromSeconds(60));
+        Assert.Equal(TimeSpan.FromSeconds(60), timeline.ViewStart);
+        Assert.Equal(TimeSpan.FromSeconds(85), timeline.ViewEnd);
+        Assert.Equal(TimeSpan.FromSeconds(10), timeline.Range!.Start);
+        timeline.SetData(TimeSpan.FromSeconds(100), [], [], true, "first");
+        Assert.Equal(TimeSpan.FromSeconds(60), timeline.ViewStart);
+        timeline.SetData(TimeSpan.FromSeconds(100), [], [], true, "second");
+        Assert.Equal(TimeSpan.Zero, timeline.ViewStart);
+        Assert.Equal(TimeSpan.FromSeconds(100), timeline.ViewEnd);
+        Assert.Null(timeline.Range);
+        Assert.Equal((0, 0), (plays, seeks));
     });
 }

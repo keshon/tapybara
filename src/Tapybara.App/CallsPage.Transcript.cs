@@ -78,7 +78,7 @@ public partial class CallsPage
                 SpeakerBrush = BrushOf(line, colors),
                 SpeakerForeground = named ? primary : secondary,
                 SpeakerFontStyle = named ? FontStyles.Normal : FontStyles.Italic,
-                SpeakerVisibility = speaker == previous ? Visibility.Collapsed : Visibility.Visible,
+                SpeakerVisibility = speaker == previous && !line.HumanEdits.HasFlag(CallLineEdits.Structure) ? Visibility.Collapsed : Visibility.Visible,
                 PlayHint = (line.TimingEstimated ? L.S.EditEstimated + "\n" : string.Empty)
                     + L.S.PlaybackFragment,
                 IsCurrent = current == line.Start,
@@ -153,6 +153,17 @@ public partial class CallsPage
         }
     }
 
+    private void OnLineActionsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TranscriptLineRow row } anchor)
+        {
+            TextBox? editor = anchor.Tag as TextBox;
+            ContextMenu menu = LineMenu(row, editor);
+            if (editor is not null) { editor.ContextMenu = menu; }
+            Controls.AnchoredMenu.Open(menu, anchor);
+        }
+    }
+
     /// <summary>
     /// Меню реплики: кто её сказал, послушать, скопировать, исправить, удалить.
     /// </summary>
@@ -174,6 +185,9 @@ public partial class CallsPage
         var play = new MenuItem { Header = row.PlayHint, Icon = new SymbolIcon { Symbol = SymbolRegular.Play24 } };
         play.Click += (_, _) => PlayQuote(row.Line);
         menu.Items.Add(play);
+        var freePlay = new MenuItem { Header = L.S.PlaybackFromLine, Icon = new SymbolIcon { Symbol = SymbolRegular.Play24 } };
+        freePlay.Click += (_, _) => { SeekPlayback(row.Line.Start); if (!_player.IsPlaying) { TogglePlayback(); } };
+        menu.Items.Add(freePlay);
 
         var copy = new MenuItem { Header = L.S.LineCopy, Icon = new SymbolIcon { Symbol = SymbolRegular.Copy24 } };
         copy.Click += (_, _) =>

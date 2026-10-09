@@ -33,6 +33,7 @@ public sealed class CallPlayer : IDisposable
     public TimeSpan RangeEnd => _end;
     public bool HasRange { get; private set; }
     public bool LastPlaybackFailed { get; private set; }
+    public bool CompletedNaturally { get; private set; }
 
     /// <summary>Не позиция декодера: учитываем байты, которые устройство уже воспроизвело.</summary>
     public TimeSpan Position
@@ -60,6 +61,7 @@ public sealed class CallPlayer : IDisposable
     private bool Open(string directory, TimeSpan from, TimeSpan? to, CallChannel? channel, bool play)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        CompletedNaturally = false;
         ReleaseResources();
         ClearContext();
         try
@@ -150,6 +152,7 @@ public sealed class CallPlayer : IDisposable
     public bool Resume()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        CompletedNaturally = false;
         if (!IsLoaded) { return false; }
         if (_position >= _end)
         {
@@ -172,6 +175,7 @@ public sealed class CallPlayer : IDisposable
                 _output.Init(_source);
             }
             _output.Play();
+            CompletedNaturally = false;
             LastPlaybackFailed = false;
             return true;
         }
@@ -201,6 +205,7 @@ public sealed class CallPlayer : IDisposable
 
     public void Stop()
     {
+        CompletedNaturally = false;
         LastPlaybackFailed = false;
         _position = RangeStart;
         ReleaseResources();
@@ -217,6 +222,7 @@ public sealed class CallPlayer : IDisposable
     private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
     {
         if (!ReferenceEquals(sender, _output)) { return; }
+        CompletedNaturally = e.Exception is null;
         LastPlaybackFailed = e.Exception is not null;
         if (e.Exception is null) { _position = _end; }
         else { _position = Position; AppLog.Warn("Проигрывание звонка оборвалось.", e.Exception); }
@@ -245,6 +251,7 @@ public sealed class CallPlayer : IDisposable
         Channel = null;
         Duration = _from = _position = _end = RangeStart = TimeSpan.Zero;
         HasRange = false;
+        CompletedNaturally = false;
         LastPlaybackFailed = false;
     }
 

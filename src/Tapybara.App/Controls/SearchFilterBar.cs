@@ -28,7 +28,11 @@ public sealed class SearchFilterBar : StackPanel
         Children.Add(row);
         Children.Add(Filters);
         Children.Add(_chips);
-        _toggle.Click += (_, _) => Filters.Visibility = Filters.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        _toggle.Click += (_, _) =>
+        {
+            Filters.Visibility = Filters.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            RefreshChips();
+        };
         ApplyLanguage();
     }
 
@@ -43,9 +47,12 @@ public sealed class SearchFilterBar : StackPanel
             chip.Click += (_, _) => filter.Remove();
             _chips.Children.Add(chip);
         }
-        _chips.Visibility = _count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        RefreshChips();
         ApplyLanguage();
     }
+
+    private void RefreshChips() => _chips.Visibility = _count > 0 && Filters.Visibility != Visibility.Visible
+        ? Visibility.Visible : Visibility.Collapsed;
 
     public void ApplyLanguage()
     {

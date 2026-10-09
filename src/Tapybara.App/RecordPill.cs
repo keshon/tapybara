@@ -39,11 +39,22 @@ public sealed class RecordPill : Button
     private readonly TextBlock _label;
     private readonly TextBlock _hint;
     private bool _pulsing;
+    private bool _idle;
+    private bool _shortcutVisible = true;
+    internal bool ShortcutShown => _hint.Visibility == Visibility.Visible;
+    internal double ShortcutWidth => new FormattedText(_hint.Text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection,
+        new Typeface(_hint.FontFamily, _hint.FontStyle, _hint.FontWeight, _hint.FontStretch), _hint.FontSize,
+        System.Windows.Media.Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip).WidthIncludingTrailingWhitespace + _hint.Margin.Left;
+    public void SetShortcutVisible(bool visible)
+    {
+        _shortcutVisible = visible;
+        if (_idle) { _hint.Visibility = visible && !string.IsNullOrWhiteSpace(_hint.Text) ? Visibility.Visible : Visibility.Collapsed; }
+    }
 
     /// <param name="call">Звонок: точка в кольце, как на пилюле звонка.</param>
     public RecordPill(bool call)
     {
-        Style = Ui.StyleOf("RecordPillButton");
+        SetResourceReference(StyleProperty, "RecordPillButton");
 
         var mark = new Grid { Width = 13, Height = 13, VerticalAlignment = VerticalAlignment.Center };
         if (call)
@@ -94,10 +105,12 @@ public sealed class RecordPill : Button
     /// <summary>Ничего не пишется: название действия и его горячая клавиша.</summary>
     public void ShowIdle(string label, string hotkey)
     {
+        _idle = true;
         IsEnabled = true;
         _label.Text = label;
+        _hint.ClearValue(FontFamilyProperty);
         _hint.Text = hotkey;
-        _hint.Visibility = string.IsNullOrWhiteSpace(hotkey) ? Visibility.Collapsed : Visibility.Visible;
+        _hint.Visibility = _shortcutVisible && !string.IsNullOrWhiteSpace(hotkey) ? Visibility.Visible : Visibility.Collapsed;
         Pulse(false);
     }
 
@@ -106,6 +119,8 @@ public sealed class RecordPill : Button
     {
         IsEnabled = true;
         _label.Text = label;
+        _idle = false;
+        _hint.FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas");
         _hint.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
         _hint.Visibility = Visibility.Visible;
         Pulse(true);
@@ -114,6 +129,7 @@ public sealed class RecordPill : Button
     /// <summary>Записано, идёт распознавание: нажимать нечего.</summary>
     public void ShowBusy(string label)
     {
+        _idle = false;
         IsEnabled = false;
         _label.Text = label;
         _hint.Visibility = Visibility.Collapsed;

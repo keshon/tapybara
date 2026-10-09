@@ -38,6 +38,8 @@ public static class Tokens
     public const double Caption = 12;
 
     /// <summary>Основной текст.</summary>
+    public const double LibraryWidth = 340;
+    public static System.Windows.GridLength LibraryColumn { get; } = new(LibraryWidth);
     public const double Body = 14;
 
     /// <summary>Заголовок карточки или звонка.</summary>

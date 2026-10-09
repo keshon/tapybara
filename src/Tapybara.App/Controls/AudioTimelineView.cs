@@ -34,21 +34,19 @@ public sealed partial class AudioTimelineView : Grid
     private readonly ComboBox _mode = new() { MinWidth = 120 };
     private readonly Wpf.Ui.Controls.Button _info = new() { Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Info24, FontSize = 16 } };
     private readonly TextBlock _help = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, Tokens.Space1, 0, Tokens.Space1) };
-    private readonly ComboBox _choices = new() { DisplayMemberPath = nameof(Choice.Hint), MinWidth = 0 };
-    private readonly Wpf.Ui.Controls.Button _play = new() { Margin = new Thickness(Tokens.Space2, 0, 0, 0) };
-    private readonly Grid _choiceRow = new();
+    private IReadOnlyList<Choice> _intervalChoices = [];
+    private object? _selectedKey;
     private readonly Surface _surface;
     private readonly AudioTimelineSelection _selection = new();
     private IReadOnlyList<TimelineLane> _sourceLanes = [];
     private IReadOnlyList<TimelineLane> _speakerLanes = [];
-    private bool _updating;
     private bool _canPlay;
     private Popup? _helpPopup;
 
     public event Action<TimeSpan>? SeekRequested;
     public event Action<object>? IntervalRequested;
     public bool SpeakersMode => _mode.SelectedIndex == 1;
-    public object? SelectedKey => (_choices.SelectedItem as Choice)?.Interval.Key;
+    public object? SelectedKey => _selectedKey;
 
     public AudioTimelineView()
     {
@@ -60,31 +58,11 @@ public sealed partial class AudioTimelineView : Grid
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         ControlSizing.Apply(_mode);
         ControlSizing.Apply(_info, iconOnly: true);
-        ControlSizing.Apply(_choices);
-        ControlSizing.Apply(_play);
         var scroll = new ScrollViewer { Content = _surface, MaxHeight = 150, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, CanContentScroll = false };
         SetRow(scroll, 2);
         Children.Add(scroll);
-        _choiceRow.ColumnDefinitions.Add(new ColumnDefinition());
-        _choiceRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        _choiceRow.Margin = new Thickness(0, Tokens.Space1, 0, Tokens.Space2);
-        _choiceRow.Children.Add(_choices);
-        SetColumn(_play, 1);
-        _choiceRow.Children.Add(_play);
-        SetRow(_choiceRow, 3);
-        Children.Add(_choiceRow);
         _mode.SelectionChanged += (_, _) => ApplyMode();
-        _choices.SelectionChanged += (_, _) =>
-        {
-            if (!_updating) { _selection.ClearTiming(); _surface.InvalidateVisual(); }
-            RefreshRangeControls();
-            _play.IsEnabled = _canPlay && SelectedKey is not null;
-        };
-        _play.Click += (_, _) =>
-        {
-            if (SelectedKey is { } key) { Activate(key); }
-        };
         _info.Click += (_, _) =>
         {
             if (_helpPopup is { IsOpen: true }) { _helpPopup.IsOpen = false; return; }
@@ -94,6 +72,7 @@ public sealed partial class AudioTimelineView : Grid
             AnchoredPopup.Open(popup, _info, above: true);
         };
         InitializeRangeControls();
+        InitializeViewport();
         _help.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         ApplyLanguage();
         ApplyMode();
@@ -101,9 +80,10 @@ public sealed partial class AudioTimelineView : Grid
 
     public void SetData(TimeSpan duration, IReadOnlyList<TimelineLane> sources, IReadOnlyList<TimelineLane> speakers, bool canPlay, object? context = null)
     {
-        if (_rangePopup is not null) { _rangePopup.IsOpen = false; }
         if (_helpPopup is not null) { _helpPopup.IsOpen = false; }
-        object? key = SelectedKey;
+        bool contextChanged = !Equals(context, _viewportContext);
+        object? key = contextChanged ? null : SelectedKey;
+        AudioRangeSelection? beforeRange = Range;
         _sourceLanes = sources;
         _speakerLanes = speakers;
         _canPlay = canPlay;
@@ -113,19 +93,18 @@ public sealed partial class AudioTimelineView : Grid
         _selection.SetContext(context, duration, canPlay);
         if (_selection.Range is { } range && !ValidSource(range.Source)) { _selection.ClearRange(); }
         _surface.Duration = duration;
-        _updating = true;
-        try
-        {
-            Choice[] choices = [.. speakers.SelectMany(lane => lane.Intervals
+        _viewport.SetDuration(duration, contextChanged);
+        _viewportContext = context;
+        UpdateViewport();
+        Choice[] choices = [.. speakers.SelectMany(lane => lane.Intervals
                 .Where(span => span.Start >= TimeSpan.Zero && span.End > span.Start && span.Start < duration)
                 .Select(span => new Choice(lane.Label + " · " + span.Hint, span))).OrderBy(c => c.Interval.Start)];
-            _choices.ItemsSource = choices;
-            _choices.SelectedItem = choices.FirstOrDefault(c => Equals(c.Interval.Key, key));
-        }
-        finally { _updating = false; }
+        _intervalChoices = choices;
+        _selectedKey = choices.FirstOrDefault(c => Equals(c.Interval.Key, key))?.Interval.Key;
         TimelineInterval? selected = SelectedInterval;
         _selection.ReconcileTiming(selected?.Key, selected?.Start ?? default, selected?.End ?? default);
         ApplyMode();
+        if (beforeRange != Range) { RangeChanged?.Invoke(); }
     }
 
     public void SetPosition(TimeSpan position) { _surface.Position = position; _surface.InvalidateVisual(); }
@@ -135,9 +114,8 @@ public sealed partial class AudioTimelineView : Grid
     {
         _surface.CancelPointer();
         _surface.SetLanes(SpeakersMode ? _speakerLanes : _sourceLanes);
-        _choiceRow.Visibility = SpeakersMode ? Visibility.Visible : Visibility.Collapsed;
-        _play.IsEnabled = _canPlay && SelectedKey is not null;
         _help.Text = SpeakersMode ? L.S.TimelineSpeakersHelp : L.S.TimelineSourcesHelp;
+        _help.Text += "\n" + L.S.TimelineZoomHelp;
         _help.MaxWidth = 360;
         _info.ToolTip = _help;
         AutomationProperties.SetHelpText(_mode, _help.Text);
@@ -149,11 +127,14 @@ public sealed partial class AudioTimelineView : Grid
         bool speakers = SpeakersMode;
         _mode.ItemsSource = new[] { L.S.TimelineSources, L.S.TimelineSpeakers };
         _mode.SelectedIndex = speakers ? 1 : 0;
-        _play.Content = L.S.PlaybackFragment;
+        _zoomIn.ToolTip = L.S.TimelineZoomIn;
+        _zoomOut.ToolTip = L.S.TimelineZoomOut;
+        _fit.Content = L.S.TimelineFit;
+        AutomationProperties.SetName(_zoomIn, L.S.TimelineZoomIn);
+        AutomationProperties.SetName(_zoomOut, L.S.TimelineZoomOut);
         ApplyRangeLanguage();
         AutomationProperties.SetName(_mode, L.S.TimelineTitle);
         AutomationProperties.SetName(_info, L.S.TimelineTitle);
-        AutomationProperties.SetName(_choices, L.S.TimelineIntervals);
         AutomationProperties.SetName(_surface, L.S.PlaybackSeek);
         ApplyMode();
     }
@@ -162,10 +143,19 @@ public sealed partial class AudioTimelineView : Grid
     public void Activate(object key)
     {
         if (!_canPlay) { return; }
-        Choice? choice = _choices.Items.Cast<Choice>().FirstOrDefault(c => Equals(c.Interval.Key, key));
+        Choice? choice = _intervalChoices.FirstOrDefault(c => Equals(c.Interval.Key, key));
         if (choice is null) { return; }
-        _choices.SelectedItem = choice;
+        SelectInterval(key);
         IntervalRequested?.Invoke(key);
+    }
+
+    public void SelectInterval(object? key)
+    {
+        object? valid = _intervalChoices.FirstOrDefault(c => Equals(c.Interval.Key, key))?.Interval.Key;
+        if (Equals(valid, _selectedKey)) { return; }
+        _selectedKey = valid;
+        _selection.ClearTiming();
+        RefreshRangeControls();
     }
 
     private sealed partial class Surface(AudioTimelineView owner) : System.Windows.Controls.Control
@@ -207,8 +197,8 @@ public sealed partial class AudioTimelineView : Grid
             }
         }
 
-        private double X(TimeSpan time) => LabelWidth + PlotWidth * Math.Clamp(time.TotalSeconds / Math.Max(Duration.TotalSeconds, 0.001), 0, 1);
-        private TimeSpan Time(double x) => TimeSpan.FromSeconds(Math.Clamp((x - LabelWidth) / Math.Max(PlotWidth, 1), 0, 1) * Duration.TotalSeconds);
+        private double X(TimeSpan time) => LabelWidth + PlotWidth * Math.Clamp(owner._viewport.FractionAt(time), 0, 1);
+        private TimeSpan Time(double x) => owner._viewport.TimeAt((x - LabelWidth) / Math.Max(PlotWidth, 1));
         private void Label(DrawingContext drawing, string text, double x, double y, double width)
         {
             if (width <= 0) { return; }
@@ -228,7 +218,7 @@ public sealed partial class AudioTimelineView : Grid
             var grid = new Pen(Foreground, 0.5);
             for (int tick = 0; tick <= 4; tick++)
             {
-                TimeSpan time = Duration * (tick / 4.0);
+                TimeSpan time = owner._viewport.TimeAt(tick / 4.0);
                 double x = X(time);
                 drawing.DrawLine(grid, new Point(x, RulerHeight), new Point(x, Height));
                 Label(drawing, Stamp(time), tick == 4 ? Math.Max(LabelWidth, x - 48) : x, 1, Math.Min(52, PlotWidth / 4));
@@ -240,13 +230,15 @@ public sealed partial class AudioTimelineView : Grid
                 Label(drawing, lane.Label, 0, y + 8, LabelWidth - 6);
                 if (lane.Waveform is { Peaks.Count: > 0 } waveform && PlotWidth > 0)
                 {
-                    int columns = Math.Max(1, (int)Math.Ceiling(PlotWidth * Math.Min(1, waveform.Duration.TotalSeconds / Math.Max(Duration.TotalSeconds, 0.001))));
+                    int columns = Math.Max(1, (int)Math.Ceiling(PlotWidth));
                     var pen = new Pen(lane.Brush, 1);
                     for (int column = 0; column < columns; column++)
                     {
-                        double secondsPerPixel = Duration.TotalSeconds / PlotWidth;
-                        int from = Math.Min(waveform.Peaks.Count - 1, (int)(column * secondsPerPixel / waveform.BinDuration.TotalSeconds));
-                        int to = Math.Min(waveform.Peaks.Count, Math.Max(from + 1, (int)Math.Ceiling((column + 1) * secondsPerPixel / waveform.BinDuration.TotalSeconds)));
+                        double secondsPerPixel = owner._viewport.Length.TotalSeconds / PlotWidth;
+                        double seconds = owner.ViewStart.TotalSeconds + column * secondsPerPixel;
+                        if (seconds >= waveform.Duration.TotalSeconds) { continue; }
+                        int from = Math.Min(waveform.Peaks.Count - 1, (int)(seconds / waveform.BinDuration.TotalSeconds));
+                        int to = Math.Min(waveform.Peaks.Count, Math.Max(from + 1, (int)Math.Ceiling((seconds + secondsPerPixel) / waveform.BinDuration.TotalSeconds)));
                         float peak = 0;
                         for (int bin = from; bin < to; bin++) { peak = Math.Max(peak, waveform.Peaks[bin]); }
                         double x = LabelWidth + column;
@@ -254,7 +246,7 @@ public sealed partial class AudioTimelineView : Grid
                     }
                 }
                 else if (lane.Status is { } status) { Label(drawing, status, LabelWidth, y + 8, PlotWidth); }
-                foreach (TimelineInterval span in lane.Intervals.Where(s => s.Start >= TimeSpan.Zero && s.End > s.Start && s.Start < Duration))
+                foreach (TimelineInterval span in lane.Intervals.Where(s => s.Start >= TimeSpan.Zero && s.End > s.Start && s.Start < owner.ViewEnd && s.End > owner.ViewStart))
                 {
                     var rect = new Rect(X(span.Start), y + 6, Math.Max(1, X(span.End) - X(span.Start)), LaneHeight - 12);
                     var border = new Pen(lane.Brush, 1) { DashStyle = span.Estimated || span.Uncertain ? DashStyles.Dot : DashStyles.Solid };
@@ -284,7 +276,7 @@ public sealed partial class AudioTimelineView : Grid
                 drawingContext.DrawRoundedRectangle(null, new Pen(Foreground, 2), hit.Rect, 3, 3);
                 DrawHandles(drawingContext, hit);
             }
-            if (Duration > TimeSpan.Zero)
+            if (Duration > TimeSpan.Zero && (_pendingSeek ?? Position) >= owner.ViewStart && (_pendingSeek ?? Position) <= owner.ViewEnd)
             {
                 double x = X(_pendingSeek ?? Position);
                 drawingContext.DrawLine(new Pen(Foreground, 1.5), new Point(x, RulerHeight), new Point(x, Height));
@@ -303,6 +295,11 @@ public sealed partial class AudioTimelineView : Grid
         {
             base.OnMouseMove(e);
             Point point = e.GetPosition(this);
+            if (_panOrigin is { } origin)
+            {
+                owner.PanTo(_panTime - owner._viewport.Length * ((point.X - origin) / Math.Max(1, PlotWidth)));
+                e.Handled = true; return;
+            }
             _hover = point.X >= LabelWidth && Duration > TimeSpan.Zero ? point : null;
             if (MovePointer(point)) { ToolTip = null; e.Handled = true; return; }
             UpdatePointerCursor(point);

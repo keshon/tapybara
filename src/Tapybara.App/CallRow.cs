@@ -28,9 +28,9 @@ public sealed class CallRow
 
     public required string StateText { get; init; }
 
-    public required Brush StateBackground { get; init; }
+    public string StateBackgroundKey { get; init; } = "SubtleFillColorSecondaryBrush";
 
-    public required Brush StateForeground { get; init; }
+    public string StateForegroundKey { get; init; } = "TextFillColorSecondaryBrush";
 
     /// <summary>
     /// Значок виден только у состояний, которые что-то значат.

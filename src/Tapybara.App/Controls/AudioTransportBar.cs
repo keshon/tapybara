@@ -27,6 +27,8 @@ public sealed class AudioTransportBar : Grid
     private readonly TextBlock _clock = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ToggleButton _follow = new() { IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ToggleButton _loop = new();
+    public bool Loop { get => _loop.IsChecked == true; set => _loop.IsChecked = value; }
     private bool _updating;
     private bool _scrubbing;
     private bool _playing;
@@ -38,6 +40,7 @@ public sealed class AudioTransportBar : Grid
     public event Action? ForwardRequested;
     public event Action? WholeCallRequested;
     public event Action<TimeSpan>? SeekRequested;
+    public event Action? FollowRequested;
     public bool Follow { get => _follow.IsChecked == true; set => _follow.IsChecked = value; }
     public bool IsScrubbing => _scrubbing;
 
@@ -55,8 +58,12 @@ public sealed class AudioTransportBar : Grid
             button.Margin = new Thickness(0, 0, Tokens.Space1, 0);
             buttons.Children.Add(button);
         }
+        ControlSizing.Apply(_loop);
+        _loop.Margin = new Thickness(0, 0, Tokens.Space1, 0);
+        buttons.Children.Add(_loop);
         Children.Add(buttons);
         _clock.FontSize = Tokens.Caption;
+        _clock.FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas");
         _clock.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         _status.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         _clock.Margin = new Thickness(Tokens.Space1, 0, Tokens.Space2, 0);
@@ -88,6 +95,7 @@ public sealed class AudioTransportBar : Grid
         _rewind.Click += (_, _) => RewindRequested?.Invoke();
         _forward.Click += (_, _) => ForwardRequested?.Invoke();
         _range.Click += (_, _) => WholeCallRequested?.Invoke();
+        _follow.Checked += (_, _) => FollowRequested?.Invoke();
         _seek.PreviewMouseLeftButtonDown += (_, _) => _scrubbing = true;
         _seek.PreviewMouseLeftButtonUp += (_, _) => CommitScrub();
         _seek.LostMouseCapture += (_, _) => CommitScrub();
@@ -139,6 +147,7 @@ public sealed class AudioTransportBar : Grid
             if (!_scrubbing) { _seek.Value = Math.Clamp(position.TotalSeconds, 0, _seek.Maximum); }
             _seek.IsEnabled = _play.IsEnabled = _stop.IsEnabled = _rewind.IsEnabled = _forward.IsEnabled = available;
             _excerpt = range;
+            _loop.IsEnabled = available && range is not null;
             UpdateClock(TimeSpan.FromSeconds(_seek.Value));
             _range.Visibility = range is null ? Visibility.Collapsed : Visibility.Visible;
             if (range is { } span) { _rangeText.Text = L.S.PlaybackRange + " " + Stamp(span.Start) + "–" + Stamp(span.End); }
@@ -146,6 +155,8 @@ public sealed class AudioTransportBar : Grid
             _status.Text = status ?? string.Empty;
             _status.Visibility = string.IsNullOrEmpty(status) ? Visibility.Collapsed : Visibility.Visible;
             if (changed) { ApplyLanguage(); }
+            _play.ToolTip = _playing ? L.S.PlaybackPause : range is not null ? L.S.TimelinePlayRange : L.S.PlaybackPlay;
+            AutomationProperties.SetName(_play, (string)_play.ToolTip);
         }
         finally { _updating = false; }
     }
@@ -157,8 +168,11 @@ public sealed class AudioTransportBar : Grid
         _stop.ToolTip = L.S.PlaybackStop;
         _rewind.ToolTip = L.S.PlaybackRewind;
         _forward.ToolTip = L.S.PlaybackForward;
-        _follow.ToolTip = L.S.PlaybackFollow;
+        _follow.ToolTip = L.S.PlaybackFollowHint;
         _follow.Content = L.S.PlaybackFollow;
+        _loop.Content = L.S.PlaybackLoop;
+        _loop.ToolTip = L.S.PlaybackLoopHelp;
+        AutomationProperties.SetName(_loop, L.S.PlaybackLoop);
         _range.ToolTip = L.S.PlaybackWholeCall;
         AutomationProperties.SetName(_follow, L.S.PlaybackFollow);
         AutomationProperties.SetName(_forward, L.S.PlaybackForward);
@@ -172,7 +186,7 @@ public sealed class AudioTransportBar : Grid
 
     private void ArrangeRail()
     {
-        bool compact = ActualWidth < 620;
+        bool compact = ActualWidth < 820;
         SetRow(_clock, compact ? 1 : 0);
         SetColumn(_clock, compact ? 0 : 1);
         SetColumnSpan(_clock, compact ? 6 : 1);
@@ -183,6 +197,12 @@ public sealed class AudioTransportBar : Grid
 
     private void UpdateClock(TimeSpan position)
     {
+        // Резервируем всю шкалу длительности: цифры и переход минут не двигают ползунок.
+        string sample = Stamp(_duration) + " / " + Stamp(_duration) + (_excerpt is null ? string.Empty : " · " + L.S.PlaybackRange);
+        var measure = new System.Windows.Media.FormattedText(sample, L.S.Formatting, System.Windows.FlowDirection.LeftToRight,
+            new System.Windows.Media.Typeface(_clock.FontFamily, _clock.FontStyle, _clock.FontWeight, _clock.FontStretch),
+            _clock.FontSize, System.Windows.Media.Brushes.Black, 1);
+        _clock.Width = Math.Ceiling(measure.WidthIncludingTrailingWhitespace) + Tokens.Space1;
         _clock.Text = Stamp(position) + " / " + Stamp(_duration) + (_excerpt is null ? string.Empty : " · " + L.S.PlaybackRange);
         _clock.ToolTip = _excerpt is { } range ? Stamp(range.Start) + "–" + Stamp(range.End) : null;
     }

@@ -36,6 +36,10 @@ public static class AnchoredMenu
             : -menu.DesiredSize.Height + Tokens.MenuShadowInset - Tokens.Space2;
         menu.HorizontalOffset = Math.Clamp(x, available.Left, Math.Max(available.Left, available.Right - menu.DesiredSize.Width));
         menu.VerticalOffset = Math.Clamp(y, available.Top, Math.Max(available.Top, available.Bottom - menu.DesiredSize.Height));
+        // Удалённый/виртуализированный якорь не должен перемещать Popup к (0,0).
+        void CloseOnUnload(object sender, RoutedEventArgs args) => menu.IsOpen = false;
+        anchor.Unloaded += CloseOnUnload;
+        menu.Closed += (_, _) => anchor.Unloaded -= CloseOnUnload;
         menu.IsOpen = true;
     }
 }

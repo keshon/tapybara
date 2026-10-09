@@ -57,7 +57,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private readonly CallsServices _services;
     private readonly RecordPill _record = new(call: true)
     {
-        HorizontalAlignment = HorizontalAlignment.Stretch,
+        HorizontalAlignment = HorizontalAlignment.Right,
         HorizontalContentAlignment = HorizontalAlignment.Stretch,
     };
     private readonly ObservableCollection<CallRow> _rows = [];
@@ -437,8 +437,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             Subtitle = string.Join(" · ", parts),
             Day = Day(session.StartedAt),
             StateText = text,
-            StateBackground = Resource(background, Colors.Transparent),
-            StateForeground = Resource(foreground, Colors.Gray),
+            StateBackgroundKey = background,
+            StateForegroundKey = foreground,
         };
     }
 
@@ -500,7 +500,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         CallState.Recording => (L.S.CallStateRecording, "SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
         CallState.Transcribing => (L.S.CallStateTranscribing, "SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
         CallState.Ready => (L.S.CallStateReady, "SystemFillColorSuccessBackgroundBrush", "SystemFillColorSuccessBrush"),
-        CallState.NeedsNames => (L.S.CallStateNeedsNames, "SystemFillColorAttentionBackgroundBrush", "AccentTextFillColorPrimaryBrush"),
+        CallState.NeedsNames => (L.S.CallStateNeedsNames, "SystemFillColorAttentionBackgroundBrush", "TextFillColorPrimaryBrush"),
         CallState.Damaged => (L.S.CallStateDamaged, "SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
         _ => (L.S.CallStateNotTranscribed, "SubtleFillColorSecondaryBrush", "TextFillColorSecondaryBrush"),
     };
@@ -518,8 +518,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
         else
         {
-            _record.ShowIdle(L.S.RecordCall, Settings.CallHotkey.ToString());
-            _record.ToolTip = null;
+            _record.ShowIdle(L.S.RecordCompactCall, Settings.CallHotkey.ToString());
+            _record.ToolTip = L.S.RecordCall + " · " + Settings.CallHotkey;
         }
     }
 
@@ -710,7 +710,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         BannerProgress.Visibility = Visibility.Collapsed;
         BannerButton.Visibility = Visibility.Collapsed;
         _bannerAction = null;
-        Banner.Background = Resource("SubtleFillColorSecondaryBrush", Colors.Transparent);
+        Banner.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
         BannerIcon.Symbol = SymbolRegular.Info24;
 
         string? text = null;
@@ -739,7 +739,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
             case CallState.Damaged:
                 text = L.S.BannerDamaged;
-                Banner.Background = Resource("SystemFillColorCriticalBackgroundBrush", Colors.Transparent);
+                Banner.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "SystemFillColorCriticalBackgroundBrush");
                 break;
 
             case CallState.NeedsNames when _session is not null && _suggestions.Count > 0:

@@ -194,3 +194,50 @@ Validation: all 41 STA App tests pass. Core is unchanged by this UI follow-up; i
 ## End-of-day checkpoint — 8 October 2026
 
 The updated Release test copy was launched after the user exited the installed app. The user reports remaining issues and specifically that right-clicking transcript text exposes only native Copy/Cut commands, obscuring split and speaker assignment. The intended Ctrl+Enter whitespace split exists, but the complete interaction is not accepted. Hidden repeated speaker labels also limit assignment access after a split. These are recorded as next-session priorities in `plan.md`; no speculative last-minute interaction changes were made for this checkpoint.
+
+## Playback and document-action refinement — 9 October 2026
+
+The user reported persistent session-menu movement, transcript row alignment issues, confusion between Follow and bounded playback, a broken split entry point, clock width jitter, redundant playback/range tools, missing waveform zoom/pan and the session scrollbar's placement. The running process was the separately installed AppData copy; the repository Release executable is a distinct test artifact.
+
+Implemented:
+
+- Library filtering skips collection-view refresh when the matching directory set is unchanged. This removes periodic container recreation under a menu anchor. Anchored menus close when their row is unloaded instead of following an invalid target toward the screen origin.
+- `InlineTextEditor` exposes document-menu requests through a most-derived class handler registered before TextBox's own handler. This prevents the native Cut/Copy menu from opening first. The relevant native sequence is documented in [WPF's TextEditorContextMenu source](https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Documents/TextEditorContextMenu.cs).
+- Reusable `TranscriptLineActions` separates line-only playback, playback continuing through the call, timestamp seeking and line actions. Timestamps have horizontal padding; all command buttons share a 32-DIP height with the text row. Explicit row actions include speaker assignment and selection/split commands. Manually split lines retain visible speaker labels even when consecutive parts initially share one speaker.
+- Follow now responds to paused seeks and explicit re-enabling, with reusable `SmoothScroll` for pixel-based virtualized lists. It changes neither selection nor keyboard focus; editor focus, drafts and open editor menus suspend following. Transcript mouse scrolling cancels the current animation without silently changing Follow's toggle state.
+- The main transport plays a selected waveform range, including its physical-source scope, and its accessible label distinguishes selection playback. Removed the waveform interval dropdown, separate excerpt/selection Play commands and Select range form. Temporary drag selection remains separate from the explicit undoable line-timing editor/handles, whose label now identifies the line being edited.
+- Core `AudioViewport` owns bounded time windows. Timeline zoom anchors to the pointer; buttons/Ctrl+wheel zoom, wheel/middle drag/scrollbar pan and Fit call resets. View state survives same-call waveform refreshes, resets on context changes and does not change audio or document state. Offscreen interval boundaries neither render nor hit-test as false viewport-edge timing handles.
+- Transport clock uses a monospaced font and a reserved width measured from the duration/scope. Session-list right inset aligns the scrollbar with the library content edge.
+
+Validation: 399 Core tests and 49 native App tests pass (448 total). The Release solution builds with zero warnings/errors. Native fixtures verify class routing before the default menu, already-handled requests, separated row commands, stable timer geometry, anchor removal, smooth reveal without selection changes, viewport context isolation and invisible-edge hit testing. Bugbot's viewport-boundary finding was fixed; focused follow-up found no additional actionable regressions. Updated layout images are saved under `validation/`. These fixtures do not constitute installed-app mouse/audio/DPI acceptance; the user still needs to test the updated copy. Overlap/alignment investigation remains paused.
+
+
+## Editing discoverability refinement — 9 October 2026
+
+Missing-speech insertion now names its action and speaker, explains that it creates a separate line, labels the multiline missing-words field, and offers an Add line action. Timing edits retain a separate heading and omit the text field. Both continue to use the reusable validated audio-boundary component.
+
+Row menus expose merge with previous and next; both require adjacent lines of the same voice and physical source, with a tooltip explaining disabled actions. Timestamp click seeks; Alt+vertical drag proposes a timing shift (10 pixels per second, upward earlier pointer movement moves timing later) in the existing review form. Duration is retained, negative starts clamp to zero, and saving remains an explicit undoable operation. Estimated timestamps keep the ~ marker. Recycling or unloading cancels the gesture.
+
+Loop range is independent of Follow and only enabled for a bounded range. Natural completion resumes from range start, preserving the audio source. Explicit Stop and output errors do not restart. Selecting another call resets Loop. Expanded library filters hide their duplicate removable chips and offer Clear filters; collapsed filters retain removable summaries.
+
+Validation: 400 Core tests and 52 App tests, including range completion versus Stop, insertion requirements, duplicate filter suppression, and gesture cancellation. Bugbot caught the recycled-row gesture issue; fixed and re-reviewed. Native previews are saved under validation. Actual mouse, audio-loop and installed-app acceptance remain for the next user test.
+
+
+## Shared capture header and compact row controls — 9 October 2026
+
+Calls and Dictations now use SectionHeader, a reusable title/action rail. Calls library width is 340 DIPs. RecordPill retains its native rounded template and inline hotkey; the shared header hides only the idle hotkey when the title and full action cannot fit, restoring it on widening. Both screens retain the full shortcut in the tooltip. Recording elapsed time stays visible and monospaced.
+
+Transcript rows have one bounded Play action, timestamp, and More. Free playback from the row is available in More; the tiny lock icon and duplicate Play have been removed. The transcript gutter is reduced from 140 to 110 DIPs while leaving room for long/estimated timestamps.
+
+TimestampScrubber uses native WPF Thumb capture instead of custom ButtonBase routing. Alt+vertical drag shows a signed offset and proposes a timing edit on release; click and Space/Enter seek. Escape, recycled context, unloading and lost capture cancel without applying. Follow does not scroll while the transcript owns mouse capture. Thumb deltas for a stationary control are displacement from the initial point, so multiple moves do not accumulate that displacement repeatedly (checked against the [official WPF Thumb source](https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/Thumb.cs)).
+
+Validation: 54 App tests pass, including actual Calls/Dictations XAML, light/dark previews, shortcut collapse/restore, native drag events and recycling cancellation. The isolated Release build is clean. Bugbot found no further actionable regressions in the shared header and compact controls. Real Alt+mouse acceptance remains open; tests do not claim installed-app or physical mouse validation.
+
+
+## Theme colors and shared section geometry — 9 October 2026
+
+Status badges previously resolved theme brushes while building immutable CallRow snapshots; a later theme change could leave old light-theme foreground colors in dark mode. CallRow now carries resource keys, and the reusable StatusBadge binds dynamic background/text resources. The name-review label uses the primary text brush for readable contrast. Calls banners and the Dictations root foreground also reference active theme resources.
+
+Both sections use the same 340-DIP library/header lane, title/action insets and search width. Dictations keeps its wide history body for long text; its count moves to the footer, matching the Calls summary role. No changes to playback or transcript editing.
+
+Validation: 55 App tests pass, including changing badge resources without recreating rows and actual light/dark XAML previews containing pending/name-review badges. Isolated Release build is clean; focused Bugbot review found no concrete regressions. Real application theme switching remains for user acceptance.

@@ -49,6 +49,22 @@ public sealed class CallPlayerTests : IDisposable
     }
 
     [Fact]
+    public void NaturalRangeCompletionCanRestartButExplicitStopIsDistinct()
+    {
+        Wave(CallSession.MicFileName, 10);
+        using CallPlayer player = Player();
+        Assert.True(player.Play(_directory, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)));
+        _outputs.Last().Complete();
+        Assert.True(player.CompletedNaturally);
+        Assert.True(player.Resume());
+        Assert.False(player.CompletedNaturally);
+        Assert.Equal(TimeSpan.FromSeconds(2), player.Position);
+        Assert.Equal(TimeSpan.FromSeconds(4), player.RangeEnd);
+        player.Stop();
+        Assert.False(player.CompletedNaturally);
+    }
+
+    [Fact]
     public void PositionUsesDeviceClockInsteadOfDecoderReadAhead()
     {
         Wave(CallSession.MicFileName, 10);

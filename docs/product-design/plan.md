@@ -1,12 +1,23 @@
 # Tapybara product fix plan
 
-Updated: 8 October 2026.
+Updated: 9 October 2026.
 
 Current steering: pause the overlap/alignment investigation until the user finds a representative recording. Finish native UI feedback and make current-call Find/Replace discoverable.
 
-Latest UI follow-up: field clipping and menu chrome/placement regressions are addressed in the repository build; 41 native App tests pass. Retest the updated executable after exiting the separately installed copy. See the implementation log for evidence and remaining live validation.
+Latest UI follow-up: transcript menu routing, library refresh/anchor lifetime, playback semantics, timeline zoom/pan and clock stability have been revised. 399 Core and 49 native App tests pass; the Release build is clean. Real-app acceptance remains open. Exit the installed copy before launching the repository test executable.
 
-## Next session — 9 October 2026
+## Playback interaction revision — 9 October 2026
+
+- Follow means scrolling the transcript to the current audio position, including paused seeks and waveform navigation. It is independent of bounded playback. Scrolling animates without changing selection/focus and yields to text editing.
+- Each line has distinct bounded Play, free Play, a padded timestamp that seeks, and an explicit actions menu. Split/reassignment no longer depends solely on an invisible text context menu; repeated speaker labels remain visible on manually split lines.
+- The main transport plays waveform selections. Remove the interval dropdown, Play this excerpt, Play selection and Select range form from the permanent waveform layout. Drag to select temporary audio; timing handles/line timing commands modify transcript boundaries explicitly and remain undoable.
+- Zoom uses buttons or Ctrl+wheel at the pointer. Pan uses the wheel when zoomed, middle drag or a horizontal scrollbar; Fit call resets the view. Zoom/pan must not change playback, timing, speaker identity or selection, and context changes reset the view.
+- Keep the clock's width stable with monospaced numerals; align line controls at a shared height; inset the session scrollbar to the library's content edge.
+- Avoid refreshing the grouped library for unchanged matching directories. If a row anchor is genuinely removed, close its menu rather than repositioning it at an invalid origin.
+
+Remaining acceptance: verify menus, split/assign selection, Follow, line/selection playback, zoom/pan and visual spacing in the actual updated executable. The process observed during this session was the separately installed AppData copy, not yesterday's repository test build.
+
+## Checkpoint handoff from 8 October 2026
 
 The user requested a commit/push checkpoint and reported that issues remain. This checkpoint is not a product acceptance or completion of the refactor.
 
@@ -166,3 +177,30 @@ Use a stable, nonanimated context-menu shell: WPF PopupAnimation alone does not 
 Keep paired Back/Forward five-second controls and a direct Follow toggle. Consolidate timeline mode/commands, with explanations behind the help icon. Checked icon foregrounds inherit checked-state contrast. Date filters share one equal-column row.
 
 Find/Replace has a visible header command and Ctrl+F/Ctrl+H. Keep literal search, navigation/count, replacement scope and one-transaction bulk Undo clear. Preserve native keyboard activation and user selections; dictionary and similar-form changes stay explicit in the separate correction workflow.
+
+
+### Next acceptance checks: editing and loop
+
+- Add missing speech from a row: confirm the speaker, enter the interval and missing words, Listen, then Add line; verify Undo.
+- Edit line timing: no text field; change boundaries, Listen, Apply. Alt+drag on the timestamp only proposes a shift; ~ means estimated timing.
+- Merge upward/downward within the same voice and source; different speakers must be reassigned explicitly first.
+- Drag a waveform range, enable Loop range, Play; verify repeated playback and that Stop ends it. Follow controls scrolling independently.
+- Expanded filters show fields and Clear filters without duplicate chips; collapsed filters show removable summaries.
+
+
+### Capture header choice — 9 October 2026
+
+Compare capture-header-options.html: Title rail (recommended), Capture strip, Capture dock. Each uses the same relative capture-action slot for Calls and Dictations. Shortcut hints belong in tooltips; search remains a separate library tool. Dictations retains its existing entry count rather than introducing unimplemented filters. Button states include idle and Stop while recording. No production header changes until a design is selected.
+
+Timestamp Alt-drag input now routes through generic preview mouse events on the action group and captures the group instead of ButtonBase. Release outside the timestamp reaches the same gesture owner. Synthetic routing tests do not replace the user's actual Alt-drag acceptance check.
+
+
+### Approved title rail implemented
+
+Calls and Dictations share SectionHeader; the pill, hotkey, and action location use the same rules. Calls library expands to 340 DIPs. Row controls are reduced to Play / timestamp / More, with free playback in More. Retest native timestamp dragging in the new isolated build, not an older executable. Physical mouse acceptance remains open.
+
+
+### Theme and layout acceptance
+
+- Switch light to dark and back with the same Calls list open: pending/name-review badges must immediately stay readable.
+- Calls and Dictations capture pills/search share the left header lane; shortcuts remain inline when they fit. Dictations history stays wide, and its count is in the footer.

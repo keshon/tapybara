@@ -23,18 +23,15 @@ namespace Tapybara.App.Controls;
 /// <summary>Диапазон прослушивания и предпросмотр границ; запись остаётся явной командой экрана.</summary>
 public sealed partial class AudioTimelineView
 {
-    private sealed record SourceChoice(string Label, object? Key);
     private readonly WrapPanel _rangeRow = new() { Margin = new Thickness(0, Tokens.Space1, 0, 0) };
-    private readonly Wpf.Ui.Controls.Button _selectRange = new();
-    private readonly Wpf.Ui.Controls.Button _playRange = new();
     private readonly Wpf.Ui.Controls.Button _clearRange = new();
     private readonly Wpf.Ui.Controls.Button _adjustTiming = new();
     private readonly TextBlock _rangeLabel = new() { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-    private Popup? _rangePopup;
-    private TimelineInterval? SelectedInterval => (_choices.SelectedItem as Choice)?.Interval;
+    private TimelineInterval? SelectedInterval => _intervalChoices.FirstOrDefault(c => Equals(c.Interval.Key, SelectedKey))?.Interval;
     public FrameworkElement TimingAnchor => _adjustTiming;
     public AudioRangeSelection? Range => _selection.Range;
     public event Action<AudioRangeSelection>? RangePlayRequested;
+    public event Action? RangeChanged;
     public event Action<AudioTimingAdjustment>? TimingAdjustmentRequested;
 
     private void InitializeRangeControls()
@@ -43,17 +40,15 @@ public sealed partial class AudioTimelineView
         _info.Margin = new Thickness(0, 0, Tokens.Space2, Tokens.Space1);
         _rangeRow.Children.Add(_mode);
         _rangeRow.Children.Add(_info);
-        foreach (var button in new[] { _selectRange, _playRange, _clearRange, _adjustTiming })
+        foreach (var button in new[] { _clearRange, _adjustTiming })
         {
             ControlSizing.Apply(button);
             button.Margin = new Thickness(0, 0, Tokens.Space2, Tokens.Space1);
             _rangeRow.Children.Add(button);
         }
         _rangeRow.Children.Add(_rangeLabel);
-        SetRow(_rangeRow, 4);
+        SetRow(_rangeRow, 0);
         Children.Add(_rangeRow);
-        _selectRange.Click += (_, _) => OpenRangeEditor();
-        _playRange.Click += (_, _) => PlayRange();
         _clearRange.Click += (_, _) => ClearRange();
         _adjustTiming.Click += (_, _) => RequestTiming();
         Unloaded += (_, _) => ResetInteraction();
@@ -61,8 +56,6 @@ public sealed partial class AudioTimelineView
 
     private void ApplyRangeLanguage()
     {
-        _selectRange.Content = L.S.TimelineSelectRange;
-        _playRange.Content = L.S.TimelinePlayRange;
         _clearRange.Content = L.S.TimelineClearRange;
         _adjustTiming.Content = L.S.EditTiming;
         AutomationProperties.SetName(_rangeLabel, L.S.PlaybackRange);
@@ -70,10 +63,8 @@ public sealed partial class AudioTimelineView
 
     private void RefreshRangeControls()
     {
-        _selectRange.IsEnabled = _canPlay;
-        _playRange.Visibility = _clearRange.Visibility = Range is null ? Visibility.Collapsed : Visibility.Visible;
-        _playRange.IsEnabled = _canPlay && Range is not null;
-        _adjustTiming.Visibility = SpeakersMode ? Visibility.Visible : Visibility.Collapsed;
+        _clearRange.Visibility = Range is null ? Visibility.Collapsed : Visibility.Visible;
+        _adjustTiming.Visibility = SelectedInterval is not null ? Visibility.Visible : Visibility.Collapsed;
         _adjustTiming.IsEnabled = _canPlay && SelectedInterval is not null;
         _rangeLabel.Text = Range is { } range
             ? SourceLabel(range.Source) + " · " + PreciseStamp(range.Start) + "–" + PreciseStamp(range.End) : string.Empty;
@@ -86,6 +77,7 @@ public sealed partial class AudioTimelineView
 
     public bool SelectRange(TimeSpan from, TimeSpan to, object? source = null)
     {
+        AudioRangeSelection? before = Range;
         if (!ValidSource(source)) { return false; }
         TimeSpan maximum = _sourceLanes.FirstOrDefault(l => source is not null && Equals(l.Key, source))?.Waveform?.Duration
             ?? _surface.Duration;
@@ -96,10 +88,16 @@ public sealed partial class AudioTimelineView
         }
         bool selected = _selection.SelectRange(from, to, source);
         RefreshRangeControls();
+        if (Range != before) { RangeChanged?.Invoke(); }
         return selected;
     }
 
-    public void ClearRange() { _selection.ClearRange(); RefreshRangeControls(); }
+    public void ClearRange()
+    {
+        bool changed = Range is not null;
+        _selection.ClearRange(); RefreshRangeControls();
+        if (changed) { RangeChanged?.Invoke(); }
+    }
     public void PlayRange()
     {
         if (_canPlay && Range is { } range && ValidSource(range.Source)) { RangePlayRequested?.Invoke(range); }
@@ -116,39 +114,8 @@ public sealed partial class AudioTimelineView
         _surface.CancelSeek();
         _surface.CancelPointer();
         _selection.Clear();
-        if (_rangePopup is not null) { _rangePopup.IsOpen = false; _rangePopup = null; }
         if (_helpPopup is not null) { _helpPopup.IsOpen = false; _helpPopup = null; }
         RefreshRangeControls();
-    }
-
-    private void OpenRangeEditor()
-    {
-        if (!_canPlay) { return; }
-        if (_rangePopup is not null) { _rangePopup.IsOpen = false; }
-        TimeSpan from = Range?.Start ?? (_surface.Position < _surface.Duration ? _surface.Position : TimeSpan.Zero);
-        TimeSpan to = Range?.End ?? (from + TimeSpan.FromSeconds(5) < _surface.Duration ? from + TimeSpan.FromSeconds(5) : _surface.Duration);
-        var editor = new AudioBoundaryEditor(from, to, _surface.Duration,
-            applyLabel: L.S.TimelineSelectRange, help: L.S.TimelineRangeHelp) { Width = double.NaN, MinWidth = 220, MaxWidth = 360 };
-        var sources = new ComboBox { DisplayMemberPath = nameof(SourceChoice.Label), Margin = new Thickness(0, 0, 0, Tokens.Space2) };
-        SourceChoice[] choices = [new(L.S.PlaybackWholeCall, null), .. _sourceLanes.Where(l => l.Key is not null).Select(l => new SourceChoice(l.Label, l.Key))];
-        ControlSizing.Apply(sources);
-        sources.ItemsSource = choices;
-        sources.SelectedItem = choices.First(c => Equals(c.Key, Range?.Source));
-        AutomationProperties.SetName(sources, L.S.TimelineSources);
-        editor.Children.Insert(0, sources);
-        var card = new PopoverSurface { Child = editor, Padding = new Thickness(Tokens.Space3), CornerRadius = Tokens.CardRadius };
-        var popup = new Popup { Child = card, PlacementTarget = _selectRange, Placement = PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
-        object? Source() => (sources.SelectedItem as SourceChoice)?.Key;
-        editor.PlayRequested += (begin, end) => { if (SelectRange(begin, end, Source())) { PlayRange(); } };
-        editor.ApplyRequested += (begin, end, _) => { if (SelectRange(begin, end, Source())) { popup.IsOpen = false; } };
-        popup.Opened += (_, _) =>
-        {
-            if (PresentationSource.FromVisual(card) is System.Windows.Interop.HwndSource source) { NativeFocus.Set(source.Handle); }
-            editor.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
-        };
-        popup.Closed += (_, _) => { if (ReferenceEquals(_rangePopup, popup)) { _rangePopup = null; } };
-        _rangePopup = popup;
-        AnchoredPopup.Open(popup, _selectRange, above: true);
     }
 
     private static string PreciseStamp(TimeSpan value) => string.Create(CultureInfo.InvariantCulture,
@@ -164,6 +131,7 @@ public sealed partial class AudioTimelineView
 
         public void CancelPointer()
         {
+            _panOrigin = null;
             if (_pointerStart is not null && _rangeDrag)
             {
                 owner._selection.ClearRange();
@@ -184,7 +152,8 @@ public sealed partial class AudioTimelineView
             _rangeBeforeDrag = owner.Range;
             if (owner.SpeakersMode && SelectedHit(point) is { } hit)
             {
-                bool start = Math.Abs(point.X - hit.Rect.Left) <= Math.Abs(point.X - hit.Rect.Right);
+                bool start = BoundaryVisible(hit.Interval.Start)
+                    && (!BoundaryVisible(hit.Interval.End) || Math.Abs(point.X - hit.Rect.Left) <= Math.Abs(point.X - hit.Rect.Right));
                 _boundaryDrag = owner._selection.BeginTiming(hit.Interval.Key, hit.Interval.Start, hit.Interval.End, start);
             }
             int row = (int)((point.Y - RulerHeight) / LaneHeight);
@@ -197,7 +166,8 @@ public sealed partial class AudioTimelineView
             foreach (var hit in _rects.Where(r => Equals(r.Interval.Key, owner.SelectedKey)))
             {
                 if (point.Y >= hit.Rect.Top - 3 && point.Y <= hit.Rect.Bottom + 3
-                    && (Math.Abs(point.X - hit.Rect.Left) <= 5 || Math.Abs(point.X - hit.Rect.Right) <= 5)) { return hit; }
+                    && ((BoundaryVisible(hit.Interval.Start) && Math.Abs(point.X - hit.Rect.Left) <= 5)
+                        || (BoundaryVisible(hit.Interval.End) && Math.Abs(point.X - hit.Rect.Right) <= 5))) { return hit; }
             }
             return null;
         }
@@ -238,6 +208,7 @@ public sealed partial class AudioTimelineView
         protected override void OnLostMouseCapture(MouseEventArgs e)
         {
             base.OnLostMouseCapture(e);
+            _panOrigin = null;
             if (_pointerStart is not null)
             {
                 owner._selection.ClearRange();
@@ -269,7 +240,7 @@ public sealed partial class AudioTimelineView
 
         private void DrawSelection(DrawingContext drawing)
         {
-            if (owner.Range is not { } range) { return; }
+            if (owner.Range is not { } range || range.End <= owner.ViewStart || range.Start >= owner.ViewEnd) { return; }
             double y = RulerHeight;
             double height = Math.Max(0, ActualHeight - y);
             if (!owner.SpeakersMode && range.Source is not null)
@@ -289,8 +260,9 @@ public sealed partial class AudioTimelineView
             if (!owner.SpeakersMode) { return; }
             TimeSpan from = owner._selection.Timing?.Start ?? hit.Interval.Start;
             TimeSpan to = owner._selection.Timing?.End ?? hit.Interval.End;
-            foreach (double x in new[] { X(from), X(to) })
+            foreach (TimeSpan time in new[] { from, to }.Where(BoundaryVisible))
             {
+                double x = X(time);
                 drawing.DrawRectangle(Foreground, null, new Rect(x - 2, hit.Rect.Top - 3, 4, hit.Rect.Height + 6));
             }
             if (owner._selection.Timing is not null)
@@ -299,5 +271,7 @@ public sealed partial class AudioTimelineView
                 Label(drawing, PreciseStamp(from) + "–" + PreciseStamp(to), LabelWidth, 1, PlotWidth);
             }
         }
+
+        private bool BoundaryVisible(TimeSpan time) => time >= owner.ViewStart && time <= owner.ViewEnd;
     }
 }

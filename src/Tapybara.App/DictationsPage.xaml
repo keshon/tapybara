@@ -3,6 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:app="clr-namespace:Tapybara.App"
+             xmlns:components="clr-namespace:Tapybara.App.Controls"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
              FontFamily="{StaticResource AppFontFamily}"
              FontSize="{StaticResource AppFontSize}">
     <!--
@@ -17,32 +19,36 @@
         выглядеть как два разных приложения.
     -->
     <Grid Margin="{x:Static app:Tokens.PagePadding}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{x:Static app:Tokens.LibraryColumn}" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="4,0,0,12">
-            <TextBlock x:Name="PageTitle" Style="{StaticResource TextTitle}" VerticalAlignment="Center" />
-            <ContentControl x:Name="DictateHost" HorizontalAlignment="Right" VerticalAlignment="Center" />
-        </Grid>
+        <components:SectionHeader Grid.Row="0" Margin="4,0,20,12">
+            <components:SectionHeader.TitleContent>
+                <TextBlock x:Name="PageTitle" Style="{StaticResource TextTitle}" />
+            </components:SectionHeader.TitleContent>
+            <components:SectionHeader.ActionContent>
+                <ContentControl x:Name="DictateHost" />
+            </components:SectionHeader.ActionContent>
+        </components:SectionHeader>
 
-        <Grid Grid.Row="1" Margin="0,0,0,12">
+        <Grid Grid.Row="1" Margin="0,0,20,12">
             <ui:TextBox x:Name="SearchBox"
-                        Width="420"
-                        HorizontalAlignment="Left"
+                        HorizontalAlignment="Stretch"
                         Icon="{ui:SymbolIcon Search24}"
                         ClearButtonEnabled="True"
                         TextChanged="OnSearchChanged" />
-            <TextBlock x:Name="CountText"
-                       Style="{StaticResource TextCaption}"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Center" />
         </Grid>
 
-        <StackPanel Grid.Row="2">
+        <StackPanel Grid.Row="2" Grid.ColumnSpan="2">
         <!-- Диктовку попросили, а модели нет или она не загрузилась. -->
         <Border x:Name="BlockedBanner"
                 Visibility="Collapsed"
@@ -86,7 +92,7 @@
         </Border>
         </StackPanel>
 
-        <Border Grid.Row="3" Style="{StaticResource Panel}">
+        <Border Grid.Row="3" Grid.ColumnSpan="2" Style="{StaticResource Panel}">
             <Grid>
                 <TextBlock x:Name="EmptyHint"
                            Visibility="Collapsed"
@@ -172,5 +178,7 @@
                 </ListBox>
             </Grid>
         </Border>
+        <TextBlock x:Name="CountText" Grid.Row="4" Grid.ColumnSpan="2" Margin="4,8,0,0"
+                   Style="{StaticResource TextCaption}" />
     </Grid>
 </UserControl>
