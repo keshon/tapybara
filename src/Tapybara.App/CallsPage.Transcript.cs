@@ -189,6 +189,15 @@ public partial class CallsPage
         freePlay.Click += (_, _) => { SeekPlayback(row.Line.Start); if (!_player.IsPlaying) { TogglePlayback(); } };
         menu.Items.Add(freePlay);
 
+        if (row.Line.Channel == CallChannel.Theirs && row.Line.Voice is not null)
+        {
+            var find = new MenuItem { Header = SpeakerText("Find similar speech…", "Найти похожие реплики…"),
+                IsEnabled = row.Line.End - row.Line.Start >= Tapybara.Core.Calls.VoiceCheck.MinLine
+                    && _services.FindSpeakerSpeech is not null };
+            find.Click += (_, _) => FindSimilarSpeech(row.Line);
+            menu.Items.Add(find);
+        }
+
         var copy = new MenuItem { Header = L.S.LineCopy, Icon = new SymbolIcon { Symbol = SymbolRegular.Copy24 } };
         copy.Click += (_, _) =>
             Copy(box is { SelectionLength: > 0 } ? box.SelectedText : $"{row.Speaker}: {row.Text}");

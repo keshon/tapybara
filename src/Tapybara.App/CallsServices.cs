@@ -37,4 +37,7 @@ public sealed record CallsServices(
     Func<bool> CanSplitVoices,
     Action<Tapybara.Core.Models.ModelKind> FetchModel,
     VoiceBook Voices,
-    LiveActivity Live);
+    LiveActivity Live)
+{
+    public Func<string, CallTranscript, CallLine, CancellationToken, Task<IReadOnlyList<SpeakerCorrection.Candidate>>>? FindSpeakerSpeech { get; init; }
+}

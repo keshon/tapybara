@@ -25,6 +25,23 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
+    public void SpeakerCorrectionBatchPersistsAndUndoesAsOneEdit()
+    {
+        var seed = Line("confirmed", 0, 6, "B") with { HumanEdits = CallLineEdits.Speaker };
+        var first = Line("first", 10, 16);
+        var second = Line("second", 20, 26);
+        var session = Session(seed, first, second);
+        Assert.True(session.Execute(t => SpeakerCorrection.Apply(t, seed, [first, second])));
+        Assert.All(session.Document.Lines, l => Assert.Equal("B", l.Voice));
+        Assert.Equal(session.Document.Lines, CallTranscriptStore.Load(_directory)!.Lines);
+        Assert.True(session.Undo());
+        Assert.Equal(new[] { "B", "A", "A" }, session.Document.Lines.Select(l => l.Voice));
+        Assert.False(session.CanUndo);
+        Assert.True(session.Redo());
+        Assert.All(session.Document.Lines, l => Assert.Equal("B", l.Voice));
+    }
+
+    [Fact]
     public void LegacyMigrationKeepsBytesAndPersistsUniqueStableIds()
     {
         string path = Path.Combine(_directory, CallSession.TranscriptDataFileName);

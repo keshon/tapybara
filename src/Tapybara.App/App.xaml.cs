@@ -1848,7 +1848,7 @@ public partial class App : Application, IDisposable
             CanSplitVoices,
             FetchModel,
             _voiceBook,
-            _live),
+            _live) { FindSpeakerSpeech = FindSpeakerSpeechAsync },
             _journal,
             () => OpenSettings(SettingsSection.General),
             () => _ = ToggleAsync(),
@@ -1912,6 +1912,21 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>Снять слепки голосов заново после того, как человек переселил реплики.</summary>
+    private Task<IReadOnlyList<SpeakerCorrection.Candidate>> FindSpeakerSpeechAsync(
+        string directory, CallTranscript transcript, CallLine seed, CancellationToken token) => Task.Run(() =>
+    {
+        var settings = _settings.Current;
+        string model = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory)
+            ?? throw new InvalidOperationException(L.S.VoicesNeedModels);
+        var session = CallMeta.Load(directory) ?? throw new IOException("Call no longer exists.");
+        // A dedicated short-lived extractor avoids sharing the non-thread-safe background model.
+        using var extractor = new VoiceprintExtractor(model);
+        float[] audio = Tapybara.Core.Audio.AudioFile.ReadMono16k(session.SystemPath, token);
+        if (settings.NormalizeAudio) audio = Tapybara.Core.Audio.AudioNormalizer.Normalize(audio);
+        token.ThrowIfCancellationRequested();
+        return SpeakerCorrection.Find(transcript, seed, line => extractor.Embed(VoiceCheck.Slice(audio, line)), token);
+    }, token);
+
     private Task RefreshCallPrintsAsync(string directory) =>
         RunCallJobAsync(
             directory,

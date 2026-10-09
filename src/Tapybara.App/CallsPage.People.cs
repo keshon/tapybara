@@ -183,7 +183,7 @@ public partial class CallsPage
 
         if (!busy && VoiceCheck.MoreVoicesLikely(_transcript, out TimeSpan doubtful))
         {
-            VoicesHost.Children.Add(MoreVoicesCard(doubtful, Math.Max(_transcript.Voices.Count, 1)));
+            VoicesHost.Children.Add(MoreVoicesCard(doubtful));
         }
 
         foreach (CallPerson person in people)
@@ -228,7 +228,7 @@ public partial class CallsPage
     /// реплики не похожи ни на один найденный голос, и проверка это видит.
     /// Лечится не правкой по одной реплике, а разделением заново.
     /// </remarks>
-    private Border MoreVoicesCard(TimeSpan doubtful, int found)
+    private static Border MoreVoicesCard(TimeSpan doubtful)
     {
         var body = new StackPanel();
         body.Children.Add(Ui.BodyStrong(L.S.VoicesMoreTitle));
@@ -237,7 +237,8 @@ public partial class CallsPage
         hint.Margin = new Thickness(0, Tokens.Space1, 0, 0);
         body.Children.Add(hint);
 
-        body.Children.Add(SplitOffer(found + 1));
+        body.Children.Add(Ui.Caption(SpeakerText("Correct an example phrase, then choose ‘Find similar speech’ from its menu.",
+            "Назначьте образец нужному человеку, затем выберите «Найти похожие реплики» в меню реплики.")));
 
         Border card = Ui.Card(body);
         card.Margin = new Thickness(0, 0, 0, Tokens.Space2);
@@ -459,6 +460,22 @@ public partial class CallsPage
             return;
         }
 
+        if (!unnamed)
+        {
+            Button find = Ui.Link(SpeakerText("Find more speech…", "Найти ещё реплики…"));
+            find.Click += (_, _) =>
+            {
+                var seed = _transcript?.Lines.FirstOrDefault(l => l.Channel == CallChannel.Theirs
+                    && l.Voice is not null && person.Voices.Contains(l.Voice)
+                    && l.HumanEdits.HasFlag(CallLineEdits.Speaker)
+                    && l.End - l.Start >= Tapybara.Core.Calls.VoiceCheck.MinLine);
+                if (seed is not null) FindSimilarSpeech(seed);
+                else ShowSpeakerHint(SpeakerText("First assign a clear phrase of at least four seconds to this person, then find similar speech.",
+                    "Сначала назначьте этому человеку чёткую реплику от четырёх секунд, затем найдите похожие."));
+            };
+            body.Children.Add(find);
+        }
+
         if (unnamed || renaming)
         {
             WrapPanel chips = NameChips(person, people, picked =>
@@ -535,11 +552,12 @@ public partial class CallsPage
     }
 
     /// <summary>«Две цитаты отсюда оказались чужими» — и разделить на голос больше.</summary>
-    private StackPanel RejectedHint()
+    private static StackPanel RejectedHint()
     {
         var panel = new StackPanel { Margin = new Thickness(0, Tokens.Space3, 0, 0) };
         panel.Children.Add(Ui.Caption(L.S.VoiceRejectedHint));
-        panel.Children.Add(SplitOffer(_transcript!.Voices.Count + 1));
+        panel.Children.Add(Ui.Caption(SpeakerText("Confirm a clear example, then find similar speech from the phrase menu.",
+            "Подтвердите чёткий образец, затем найдите похожие реплики через меню реплики.")));
         return panel;
     }
 
