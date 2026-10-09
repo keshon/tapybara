@@ -40,4 +40,5 @@ public sealed record CallsServices(
     LiveActivity Live)
 {
     public Func<string, CallTranscript, CallLine, CancellationToken, Task<IReadOnlyList<SpeakerCorrection.Candidate>>>? FindSpeakerSpeech { get; init; }
+    public Func<string, CallTranscript, IProgress<int>, CancellationToken, Task<SpeakerReanalysis.Report>>? AnalyseSpeakers { get; init; }
 }

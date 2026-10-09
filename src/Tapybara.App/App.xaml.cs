@@ -1848,7 +1848,7 @@ public partial class App : Application, IDisposable
             CanSplitVoices,
             FetchModel,
             _voiceBook,
-            _live) { FindSpeakerSpeech = FindSpeakerSpeechAsync },
+            _live) { FindSpeakerSpeech = FindSpeakerSpeechAsync, AnalyseSpeakers = AnalyseSpeakersAsync },
             _journal,
             () => OpenSettings(SettingsSection.General),
             () => _ = ToggleAsync(),
@@ -1932,6 +1932,20 @@ public partial class App : Application, IDisposable
             directory,
             (transcriber, progress, token) => transcriber.RefreshPrintsAsync(directory, progress, token),
             announce: false);
+
+    private Task<SpeakerReanalysis.Report> AnalyseSpeakersAsync(string directory, CallTranscript transcript,
+        IProgress<int> progress, CancellationToken token) => Task.Run(() =>
+    {
+        var settings = _settings.Current;
+        string model = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory)
+            ?? throw new InvalidOperationException("Voice embedding model is unavailable.");
+        var session = CallMeta.Load(directory) ?? throw new IOException("Call no longer exists.");
+        using var extractor = new VoiceprintExtractor(model);
+        float[] audio = Tapybara.Core.Audio.AudioFile.ReadMono16k(session.SystemPath, token);
+        if (settings.NormalizeAudio) audio = Tapybara.Core.Audio.AudioNormalizer.Normalize(audio);
+        return SpeakerReanalysis.Analyse(transcript, line => extractor.Embed(VoiceCheck.Slice(audio, line)),
+            voice => CallSpeakers.NameOf(session, voice), print => _voiceBook.Match(print)?.Name, progress, token);
+    }, token);
 
     /// <summary>Разделить голоса звонка заново, по уже распознанному.</summary>
     private Task ResplitCallAsync(string directory, int voices) =>

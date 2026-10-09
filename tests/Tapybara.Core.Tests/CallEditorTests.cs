@@ -25,6 +25,24 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
+    public void AutomaticGroupAssignmentsSaveAndUndoTogether()
+    {
+        CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow });
+        var first = Line("first", 0, 6); var second = Line("second", 10, 16);
+        var session = Session(first, second);
+        Assert.True(session.Execute(t => SpeakerReanalysis.Apply(t, [new([first], "B"), new([second], "C")]),
+            s => s with { VoiceNames = new Dictionary<string, string> { ["B"] = "Константин", ["C"] = "Виктор" } }));
+        Assert.Equal(new[] { "B", "C" }, session.Document.Lines.Select(l => l.Voice));
+        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["B"]);
+        Assert.True(session.Undo());
+        Assert.All(session.Document.Lines, l => Assert.Equal("A", l.Voice));
+        Assert.Empty(CallMeta.Load(_directory)!.VoiceNames);
+        Assert.False(session.CanUndo);
+        Assert.True(session.Redo());
+        Assert.Equal(new[] { "B", "C" }, CallTranscriptStore.Load(_directory)!.Lines.Select(l => l.Voice));
+    }
+
+    [Fact]
     public void ReviewConfirmationAndBatchHaveSeparateUndoStepsIncludingNewPersonName()
     {
         CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow });

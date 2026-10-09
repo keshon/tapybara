@@ -213,7 +213,7 @@ public partial class CallsPage
 
         var actions = new List<(string Text, SymbolRegular Icon, Action Act)>
         {
-            (SpeakerText("Review assignments", "Проверить подписи"), SymbolRegular.Person24, () => ReviewSpeakerAssignments()),
+            (SpeakerText("Re-analyse voices", "Проверить голоса заново"), SymbolRegular.Person24, () => AnalyseSpeakerGroups()),
         };
 
         if (canResplit)
@@ -250,9 +250,9 @@ public partial class CallsPage
         hint.Margin = new Thickness(0, Tokens.Space1, 0, 0);
         body.Children.Add(hint);
 
-        var review = new UiButton { Content = SpeakerText("Review assignments", "Проверить подписи"),
+        var review = new UiButton { Content = SpeakerText("Re-analyse voices", "Проверить голоса заново"),
             Margin = new Thickness(0, Tokens.Space2, 0, 0) };
-        review.Click += (_, _) => ReviewSpeakerAssignments();
+        review.Click += (_, _) => AnalyseSpeakerGroups();
         body.Children.Add(review);
 
         Border card = Ui.Card(body);
@@ -480,12 +480,7 @@ public partial class CallsPage
             Button find = Ui.Link(SpeakerText("Find more speech…", "Найти ещё реплики…"));
             find.Click += (_, _) =>
             {
-                var seed = _transcript?.Lines.FirstOrDefault(l => l.Channel == CallChannel.Theirs
-                    && l.Voice is not null && person.Voices.Contains(l.Voice)
-                    && l.HumanEdits.HasFlag(CallLineEdits.Speaker)
-                    && l.End - l.Start >= Tapybara.Core.Calls.VoiceCheck.MinLine);
-                if (seed is not null) FindSimilarSpeech(seed);
-                else ReviewSpeakerAssignments(person.Name);
+                AnalyseSpeakerGroups();
             };
             body.Children.Add(find);
         }
