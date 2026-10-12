@@ -110,6 +110,7 @@ public sealed record CallTranscript
 
     /// <summary>Разделялись ли голоса собеседников.</summary>
     public bool VoicesSplit { get; init; }
+    public IReadOnlyList<SpeakerSpan> SpeakerIntervals { get; init; } = [];
 
     /// <summary>
     /// Реплики собеседников проверены по слепкам голоса (<see cref="VoiceCheck"/>).

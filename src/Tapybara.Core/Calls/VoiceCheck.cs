@@ -51,6 +51,8 @@ public static class VoiceCheck
     /// видит человек, а не решением, которое за него принято.
     /// </remarks>
     public const double MoveLead = 0.15;
+    private const double UnknownReferenceLimit = .5;
+    private static readonly TimeSpan UnknownMinSpeech = MinLine * 2;
 
     /// <summary>
     /// Со скольки сомнительных реплик считать, что голосов больше, чем нашли.
@@ -102,25 +104,62 @@ public static class VoiceCheck
         ArgumentNullException.ThrowIfNull(printOf);
 
         var measured = new List<(CallLine Line, string Voice, float[] Print)>();
-        foreach (CallLine line in lines)
+        var runs = new List<List<CallLine>>();
+        foreach (var line in lines.Where(l => l.Channel == CallChannel.Theirs).OrderBy(l => l.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (line.Channel != CallChannel.Theirs || line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None || line.End - line.Start < MinLine)
+            if (line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None) continue;
+            var run = runs.LastOrDefault();
+            bool canJoin = run is not null && run[^1].Voice == line.Voice
+                && !line.HumanEdits.HasFlag(CallLineEdits.Speaker)
+                && !run[^1].HumanEdits.HasFlag(CallLineEdits.Speaker)
+                && line.Start >= run[^1].End && line.Start - run[^1].End <= TimeSpan.FromMilliseconds(800)
+                && line.End - run[0].Start <= TimeSpan.FromSeconds(12);
+            if (canJoin) run!.Add(line);
+            else runs.Add([line]);
+        }
+        var references = new List<(string Voice, float[] Print)>();
+        foreach (var run in runs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (run.Sum(l => (l.End - l.Start).TotalSeconds) < MinLine.TotalSeconds) continue;
+            var sample = run.Count == 1 ? run[0] : run[0] with
+                { End = run[^1].End, Text = string.Join(" ", run.Select(l => l.Text)) };
+            if (printOf(sample) is { Length: > 0 } print)
             {
-                continue;
-            }
-
-            if (printOf(line) is { Length: > 0 } print)
-            {
-                measured.Add((line, line.Voice ?? CallVoices.WholeOtherSide, VoiceBook.Normalize(print)));
+                string voice = sample.Voice ?? CallVoices.WholeOtherSide;
+                var normalized = VoiceBook.Normalize(print);
+                references.Add((voice, normalized));
+                foreach (var line in run) measured.Add((line, voice, normalized));
             }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        Dictionary<string, float[]> centres = measured
+        Dictionary<string, float[]> centres = references
             .GroupBy(m => m.Voice)
             .ToDictionary(g => g.Key, g => Centre([.. g.Select(m => m.Print)]));
+
+        // Sustained speech unlike every usable reference must not be forced into an existing identity.
+        // These are unnamed acoustic candidates, not a claim about the number or names of people.
+        var missing = new List<(string Voice, List<float[]> Prints)>();
+        var reserved = lines.Where(l => l.Voice is not null).Select(l => l.Voice!).Distinct().ToList();
+        foreach (var run in runs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (run.Any(l => l.HumanEdits.HasFlag(CallLineEdits.Speaker))
+                || run.Sum(l => (l.End - l.Start).TotalSeconds) < UnknownMinSpeech.TotalSeconds) continue;
+            var measuredRun = measured.FirstOrDefault(m => m.Line == run[0]);
+            if (measuredRun.Print is null || centres.Values.Any(c => VoiceBook.Similarity(c, measuredRun.Print) >= UnknownReferenceLimit)) continue;
+            var candidate = missing.FirstOrDefault(c => c.Prints.All(p => VoiceBook.Similarity(p, measuredRun.Print) >= SpeakerReanalysis.GroupSimilarity));
+            if (candidate.Prints is null)
+            {
+                string voice = CallVoices.NextFree(reserved); reserved.Add(voice);
+                candidate = (voice, []); missing.Add(candidate);
+            }
+            candidate.Prints.Add(measuredRun.Print);
+        }
+        foreach (var candidate in missing) centres[candidate.Voice] = Centre(candidate.Prints);
 
         List<LineScore> scores =
         [
@@ -152,6 +191,7 @@ public static class VoiceCheck
         ArgumentNullException.ThrowIfNull(transcript);
 
         Report report = Measure(transcript.Lines, printOf, cancellationToken);
+        var existingVoices = transcript.Lines.Select(l => l.Voice ?? CallVoices.WholeOtherSide).ToHashSet();
         // Реплики — записи и сравниваются по значению: две одинаковые
         // (тот же текст в ту же секунду) сошлись бы в один ключ.
         Dictionary<CallLine, LineScore> scores = report.Lines
@@ -177,9 +217,10 @@ public static class VoiceCheck
                     if (line.Voice is not null && score.Others.Count > 0)
                     {
                         KeyValuePair<string, double> best = score.Others.MaxBy(o => o.Value);
-                        if (best.Value >= Sure && best.Value - score.Own >= MoveLead)
+                        double threshold = existingVoices.Contains(best.Key) ? Sure : SpeakerReanalysis.GroupSimilarity;
+                        if (best.Value >= threshold && best.Value - score.Own >= MoveLead)
                         {
-                            return line with { Voice = best.Key, Fit = Round(best.Value) };
+                            return line with { Voice = best.Key, Fit = existingVoices.Contains(best.Key) ? Round(best.Value) : null };
                         }
                     }
 

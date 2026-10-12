@@ -131,6 +131,15 @@ public partial class CallsPage
 
         VoicesHost.Children.Add(Ui.BodyStrong(SpeakerText("Voices", "Голоса")));
         VoicesHost.Children.Add(Ui.Caption(SpeakerText("Listen to a sample, then choose a name.", "Послушайте образец и выберите имя.")));
+        if (_services.RecheckSpeakers is not null)
+        {
+            var check = new UiButton { Content = busy ? SpeakerText("Working…", "Обработка…")
+                : SpeakerText("Check voices", "Проверить голоса"), IsEnabled = !busy, Margin = new Thickness(0, 8, 0, 0) };
+            check.ToolTip = SpeakerText("Checks existing audio and speaker labels. Does not transcribe the words again.",
+                "Проверяет звук и подписи говорящих. Не распознаёт слова заново.");
+            check.Click += async (_, _) => { if (_session is not null) { check.IsEnabled = false; await _services.RecheckSpeakers(_session.Directory); } };
+            VoicesHost.Children.Add(check);
+        }
         foreach (CallPerson person in people)
         {
             VoicesHost.Children.Add(BuildVoiceCard(person, people, busy));

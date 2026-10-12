@@ -271,13 +271,18 @@ public sealed class CallTranscriber(
     /// записи. Имена голосов сохраняются: реплики переезжают только между
     /// уже найденными голосами, и «B» остаётся «B».
     /// </remarks>
-    public async Task<string?> VerifyAsync(
+    public Task<string?> VerifyAsync(
         string callDirectory,
         IProgress<CallTranscriptionProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => VerifyCoreAsync(callDirectory, false, cancellationToken);
+
+    public Task<string?> RecheckAsync(string callDirectory, CancellationToken cancellationToken = default) =>
+        VerifyCoreAsync(callDirectory, true, cancellationToken);
+
+    private async Task<string?> VerifyCoreAsync(string callDirectory, bool force, CancellationToken cancellationToken)
     {
         if (CallMeta.Load(callDirectory) is not { } session
-            || CallTranscriptStore.Load(callDirectory) is not { VoicesChecked: false } transcript
+            || CallTranscriptStore.Load(callDirectory) is not { } transcript || (!force && transcript.VoicesChecked)
             || voiceprints?.Invoke() is null)
         {
             return null;
@@ -427,6 +432,7 @@ public sealed class CallTranscriber(
         {
             Lines = CallVoices.Assign(transcript.Lines, spans),
             VoicesSplit = true,
+            SpeakerIntervals = spans,
             ExpectedVoices = Math.Max(expected, 0),
         };
     }

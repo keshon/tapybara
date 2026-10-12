@@ -26,6 +26,41 @@ public sealed class VoiceCheckTests
     private static float[]? ByText(CallLine line) => Print(line.Text[0] - '0', line.Text.Length > 1 && line.Text[1] != ' ' ? line.Text[1] - '0' : -1, 0.3f);
 
     [Fact]
+    public void SustainedUnrepresentedVoiceBecomesUnnamedRatherThanForcedIntoAnExistingVoice()
+    {
+        var lines = new[] { Line(0, "0 a", "A"), Line(15, "1 b", "B"),
+            Line(39.32, "2 first", "B", 4.12), Line(43.44, "2 second", "B", 2.06),
+            Line(45.74, "2 third", "B", 1.26), Line(47, "2 fourth", "B", 2.74),
+            Line(70, "1 b", "B"), Line(90, "1 b", "B") };
+        var checkedOne = VoiceCheck.Check(new CallTranscript { Lines = lines }, ByText);
+        Assert.All(checkedOne.Lines.Skip(2).Take(4), l => { Assert.Equal("C", l.Voice); Assert.Null(l.Fit); });
+        Assert.Equal("B", checkedOne.Lines[1].Voice);
+    }
+
+    [Fact]
+    public void ContinuousShortFragmentsAreCheckedAsOneRunAndKeepTheirTextAndTimes()
+    {
+        var lines = new[] { Line(0, "0 reference", "A"), Line(15, "1 reference", "B"),
+            Line(39.32, "0 first", "B", 4.12), Line(43.44, "0 second", "B", 2.06),
+            Line(45.74, "0 third", "B", 1.26), Line(47, "0 fourth", "B", 2.74),
+            Line(70, "1 reference", "B"), Line(90, "1 reference", "B") };
+        var document = new CallTranscript { Lines = lines };
+        var checkedOne = VoiceCheck.Check(document, ByText);
+        Assert.All(checkedOne.Lines.Skip(2).Take(4), l => Assert.Equal("A", l.Voice));
+        Assert.Equal(lines.Select(l => (l.Text, l.Start, l.End)), checkedOne.Lines.Select(l => (l.Text, l.Start, l.End)));
+    }
+
+    [Fact]
+    public void RunsDoNotCrossLongPausesConfirmedLabelsOrKnownMixedSpeech()
+    {
+        var protectedLine = Line(3, "1 protected", "B", 2) with { HumanEdits = CallLineEdits.Speaker };
+        var mixed = Line(5, "0 mixed", "B", 2) with { SpeechMix = Tapybara.Core.Speech.SpeechMix.Overlap };
+        var lines = new[] { Line(0, "0 short", "B", 2), protectedLine, mixed, Line(8, "0 short", "B", 2) };
+        Assert.Empty(VoiceCheck.Measure(lines, ByText).Lines);
+        Assert.Equal(protectedLine, VoiceCheck.Check(new CallTranscript { Lines = lines }, ByText).Lines[1]);
+    }
+
+    [Fact]
     public void Check_LeavesAConsistentVoiceAlone()
     {
         var transcript = new CallTranscript
