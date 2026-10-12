@@ -132,7 +132,7 @@ public partial class CallsPage
         // Слепок голоса снят и с этой реплики — снять заново без неё, иначе
         // чужой голос остался бы в подсказках и лёг бы в книгу голосов.
         _ = _services.RefreshPrints(directory);
-        if (line.Channel == CallChannel.Theirs && line.End - line.Start >= VoiceCheck.MinLine
+        if (line.Channel == CallChannel.Theirs && !HasMixedSpeech(line) && line.End - line.Start >= VoiceCheck.MinLine
             && _transcript?.Lines.FirstOrDefault(l => l.Id == line.Id) is { } corrected)
         {
             string speaker = CallSpeakers.Label(corrected, _session!, _transcript.Voices.Count,
@@ -183,6 +183,8 @@ public partial class CallsPage
     private ContextMenu LineMenu(TranscriptLineRow row, TextBox? box = null)
     {
         var menu = new ContextMenu();
+        if (HasMixedSpeech(row.Line))
+            menu.Items.Add(new MenuItem { Header = SpeakerText("Mixed speech · split first", "Смешанная речь · сначала разделите"), IsEnabled = false });
 
         if (_transcript is not null && _session is not null)
         {
@@ -202,6 +204,7 @@ public partial class CallsPage
         {
             var find = new MenuItem { Header = SpeakerText("Find similar speech…", "Найти похожие реплики…"),
                 IsEnabled = row.Line.End - row.Line.Start >= Tapybara.Core.Calls.VoiceCheck.MinLine
+                    && !HasMixedSpeech(row.Line)
                     && _services.FindSpeakerSpeech is not null };
             find.Click += (_, _) => FindSimilarSpeech(row.Line);
             menu.Items.Add(find);

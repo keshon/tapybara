@@ -16,13 +16,20 @@ public partial class CallsPage
         string display = person.IsMe ? Settings.EffectiveMyName : person.Name
             ?? SpeakerText("Voice ", "Голос ") + string.Join(", ", person.Voices);
         var body = new StackPanel();
-        body.Children.Add(Ui.BodyStrong(display));
+        var heading = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        var dot = MenuDot(ColorOf(person));
+        dot.Margin = new Thickness(0, 0, 8, 0);
+        heading.Children.Add(dot);
+        heading.Children.Add(Ui.BodyStrong(display));
+        body.Children.Add(heading);
         if (person.IsMe)
         {
             body.Children.Add(Ui.Caption(L.S.VoiceMe));
-            return Ui.Card(body);
+            var mine = Ui.Card(body);
+            mine.Margin = new Thickness(0, 12, 0, 0);
+            return mine;
         }
-        var quotes = person.Quotes.Take(2).ToList();
+        var quotes = person.Quotes.Where(l => !HasMixedSpeech(l)).Take(2).ToList();
         foreach (var line in quotes)
         {
             var play = new Wpf.Ui.Controls.Button { Content = SpeakerText("Listen · ", "Послушать · ") + CallTranscriptRenderer.Stamp(line.Start),
@@ -32,9 +39,10 @@ public partial class CallsPage
             play.Click += (_, _) => PlayQuote(line);
             _quoteButtons[line] = play;
             body.Children.Add(play);
-            body.Children.Add(new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap });
+            body.Children.Add(new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap,
+                MaxHeight = 60, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(0, 2, 0, 6), ToolTip = line.Text });
         }
-        if (quotes.Count == 0) body.Children.Add(Ui.Caption(SpeakerText("No speech is assigned yet.", "Реплики ещё не назначены.")));
+        if (quotes.Count == 0) body.Children.Add(Ui.Caption(SpeakerText("No clean voice sample available.", "Нет чистого образца голоса.")));
         if (person.Name is null && person.Voices.Count > 0
             && _suggestions.TryGetValue(person.Voices[0], out var suggestion))
         {
@@ -46,12 +54,12 @@ public partial class CallsPage
         var actions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         var rename = Ui.Link(person.Name is null ? SpeakerText("Choose name", "Выбрать имя") : SpeakerText("Rename person", "Переименовать"));
         rename.IsEnabled = !busy;
-        rename.Click += (_, _) => { if (!_renaming.Remove(key)) _renaming.Add(key); ShowVoices(); };
+        rename.Click += (_, _) => { _expanded.Remove(key); if (!_renaming.Remove(key)) _renaming.Add(key); ShowVoices(); };
         actions.Children.Add(rename);
         var fix = Ui.Link(SpeakerText("Fix assignments", "Исправить подписи"));
         fix.IsEnabled = !busy;
         fix.Margin = new Thickness(12, 0, 0, 0);
-        fix.Click += (_, _) => { if (!_expanded.Remove(key)) _expanded.Add(key); ShowVoices(); };
+        fix.Click += (_, _) => { _renaming.Remove(key); if (!_expanded.Remove(key)) _expanded.Add(key); ShowVoices(); };
         actions.Children.Add(fix);
         body.Children.Add(actions);
         if (_renaming.Contains(key))
@@ -68,12 +76,10 @@ public partial class CallsPage
             input.AddHandler(System.Windows.Controls.TextBox.TextChangedEvent,
                 new TextChangedEventHandler((_, _) => save.IsEnabled = !string.IsNullOrWhiteSpace(input.Text)));
             save.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(input.Text)) SaveVoiceName(person, input.Text.Trim()); };
-            body.Children.Add(save);
             var cancel = Ui.Link(SpeakerText("Cancel", "Отмена"));
             cancel.Click += (_, _) => { _renaming.Remove(key); ShowVoices(); };
-            body.Children.Add(cancel);
-            body.Children.Add(Ui.Caption(SpeakerText("Changes the name across this call. Corrected phrases stay assigned to their people.",
-                "Меняет имя в этом звонке. Исправленные реплики остаются у своих говорящих.")));
+            cancel.Margin = new Thickness(12, 8, 0, 0);
+            body.Children.Add(new WrapPanel { Children = { save, cancel } });
         }
         if (_expanded.Contains(key))
         {
@@ -81,8 +87,7 @@ public partial class CallsPage
                 Margin = new Thickness(0, 10, 0, 0), IsEnabled = _services.AnalyseSpeakers is not null };
             split.Click += (_, _) => AnalyseSpeakerGroups(person.Voices);
             body.Children.Add(split);
-            body.Children.Add(Ui.Caption(SpeakerText("The app proposes a separation for this voice only. Listen and name the resulting voices before applying.",
-                "Приложение предложит разделение только этого голоса. Послушайте и подпишите новые голоса перед применением.")));
+            split.ToolTip = SpeakerText("Review a proposed separation before applying.", "Проверьте предложенное разделение перед применением.");
             if (quotes.FirstOrDefault() is { } example)
             {
                 var correct = new Button { Content = SpeakerText("Correct this sample", "Исправить этот образец"), Margin = new Thickness(0, 8, 0, 0) };
@@ -95,7 +100,7 @@ public partial class CallsPage
             }
         }
         var card = Ui.Card(body);
-        card.Margin = new Thickness(0, 0, 0, 12);
+        card.Margin = new Thickness(0, 12, 0, 0);
         return card;
     }
 

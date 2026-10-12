@@ -8,7 +8,7 @@ public static class SpeakerCorrection
     public sealed record Candidate(CallLine Line, double Similarity, double Lead, bool Clear);
 
     public static IReadOnlyList<CallLine> Examples(CallTranscript transcript) => transcript.Lines
-        .Where(line => line.Channel == CallChannel.Theirs && line.End - line.Start >= VoiceCheck.MinLine
+        .Where(line => line.Channel == CallChannel.Theirs && line.SpeechMix == SpeechMix.None && line.End - line.Start >= VoiceCheck.MinLine
             && !transcript.Lines.Any(other => !other.IsSameAs(line) && other.Channel == line.Channel
                 && other.Start < line.End && other.End > line.Start))
         .OrderByDescending(line => line.IsDoubtful).ThenBy(line => line.Start).ToList();
@@ -24,6 +24,7 @@ public static class SpeakerCorrection
         Func<CallLine, float[]?> printOf, CancellationToken cancellationToken = default)
     {
         if (seed.Channel != CallChannel.Theirs || seed.Voice is null
+            || seed.SpeechMix != SpeechMix.None
             || seed.End - seed.Start < VoiceCheck.MinLine || !transcript.Lines.Contains(seed)
             || transcript.Lines.Any(other => !other.IsSameAs(seed) && other.Channel == seed.Channel
                 && other.Start < seed.End && other.End > seed.Start))
@@ -31,7 +32,7 @@ public static class SpeakerCorrection
             throw new ArgumentException("Choose at least four seconds of one speaker's speech.", nameof(seed));
         }
         var confirmed = transcript.Lines.Where(l => l.Channel == CallChannel.Theirs
-            && l.Voice is not null && l.End - l.Start >= VoiceCheck.MinLine
+            && l.Voice is not null && l.SpeechMix == SpeechMix.None && l.End - l.Start >= VoiceCheck.MinLine
             && (l.IsSameAs(seed) || l.HumanEdits.HasFlag(CallLineEdits.Speaker))
             && !transcript.Lines.Any(other => !other.IsSameAs(l) && other.Channel == l.Channel
                 && other.Start < l.End && other.End > l.Start)).ToList();
@@ -51,7 +52,7 @@ public static class SpeakerCorrection
         foreach (CallLine line in transcript.Lines)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (line.Channel != CallChannel.Theirs || line.Voice == seed.Voice || line.IsSameAs(seed)
+            if (line.Channel != CallChannel.Theirs || line.SpeechMix != SpeechMix.None || line.Voice == seed.Voice || line.IsSameAs(seed)
                 || line.HumanEdits.HasFlag(CallLineEdits.Speaker) || line.End - line.Start < VoiceCheck.MinLine)
                 continue;
             // Overlap cannot provide a reliable single-speaker example.

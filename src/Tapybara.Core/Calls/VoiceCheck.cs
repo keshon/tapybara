@@ -105,7 +105,7 @@ public static class VoiceCheck
         foreach (CallLine line in lines)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (line.Channel != CallChannel.Theirs || line.End - line.Start < MinLine)
+            if (line.Channel != CallChannel.Theirs || line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None || line.End - line.Start < MinLine)
             {
                 continue;
             }

@@ -40,6 +40,7 @@ public sealed record CallLine(
 {
     /// <summary>Постоянный ключ, не зависящий от текста, канала и границ.</summary>
     public Guid Id { get; init; }
+    public SpeechMix SpeechMix { get; init; }
 
     /// <summary>Ключ исходной реплики для вручную выделенных фрагментов.</summary>
     public Guid? OriginId { get; init; }
@@ -521,6 +522,7 @@ public static class CallVoices
                 return line with
                 {
                     Voice = speaker is { } s && letters.TryGetValue(s, out string? letter) ? letter : null,
+                    SpeechMix = SpeakerAssignment.Mix(line.Start, line.End, spans),
                 };
             }),
         ];
@@ -581,6 +583,7 @@ public static class CallVoices
     /// </remarks>
     internal static IReadOnlyList<CallLine> PickQuotes(IReadOnlyList<CallLine> own)
     {
+        own = own.Where(l => l.SpeechMix == SpeechMix.None).ToList();
         List<CallLine> pool = [.. own.Where(l => !l.IsDoubtful)];
         if (pool.Count == 0)
         {

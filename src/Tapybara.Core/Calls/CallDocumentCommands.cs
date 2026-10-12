@@ -21,6 +21,7 @@ public static class CallDocumentCommands
         CallLine first = line with
         {
             Text = line.Text[..caret].TrimEnd(), End = at, TimingEstimated = true,
+            SpeechMix = Tapybara.Core.Speech.SpeechMix.None,
             HumanEdits = line.HumanEdits | CallLineEdits.Structure | CallLineEdits.Text | CallLineEdits.Timing,
             Fit = null,
         };
@@ -54,6 +55,7 @@ public static class CallDocumentCommands
         {
             Id = Guid.NewGuid(), OriginId = line.OriginId ?? line.Id,
             Text = text, Start = begin, End = end, Fit = null,
+            SpeechMix = Tapybara.Core.Speech.SpeechMix.None,
             TimingEstimated = line.TimingEstimated,
             HumanEdits = line.HumanEdits | CallLineEdits.Structure | CallLineEdits.Text | CallLineEdits.Timing,
         };

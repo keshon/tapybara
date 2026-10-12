@@ -23,10 +23,10 @@ public partial class CallsPage
         Banner.Visibility = Visibility.Visible;
     }
 
-    private Window OpenSpeakerReview(StackPanel body)
+    private Wpf.Ui.Controls.FluentWindow OpenSpeakerReview(StackPanel body)
     {
         _speakerCorrectionWindow?.Close();
-        var window = new Window { Title = SpeakerText("Review speaker assignments", "Проверка подписей говорящих"),
+        var window = new Wpf.Ui.Controls.FluentWindow { Title = SpeakerText("Review speaker assignments", "Проверка подписей говорящих"),
             Owner = Window.GetWindow(this), Width = 520, Height = 650, MinWidth = 360, MinHeight = 350,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
@@ -242,8 +242,8 @@ public partial class CallsPage
         catch (ArgumentException)
         {
             if (!cancel.IsCancellationRequested) status.Text = SpeakerText(
-                "Choose a clear example of at least four seconds with no overlapping speech.",
-                "Выберите чёткий образец от четырёх секунд без наложения голосов.");
+                "This example may contain multiple voices or too little speech. Choose a clear single-speaker example of at least four seconds.",
+                "В образце могут быть разные голоса или слишком мало речи. Выберите чёткую речь одного человека от четырёх секунд.");
         }
         catch (Exception ex)
         {

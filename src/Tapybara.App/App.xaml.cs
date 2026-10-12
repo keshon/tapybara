@@ -1924,6 +1924,8 @@ public partial class App : Application, IDisposable
         float[] audio = Tapybara.Core.Audio.AudioFile.ReadMono16k(session.SystemPath, token);
         if (settings.NormalizeAudio) audio = Tapybara.Core.Audio.AudioNormalizer.Normalize(audio);
         token.ThrowIfCancellationRequested();
+        transcript = DetectMixedSpeech(transcript, audio, settings, token: token);
+        seed = transcript.Lines.Single(l => l.Id == seed.Id);
         return SpeakerCorrection.Find(transcript, seed, line => extractor.Embed(VoiceCheck.Slice(audio, line)), token);
     }, token);
 
@@ -1943,9 +1945,30 @@ public partial class App : Application, IDisposable
         using var extractor = new VoiceprintExtractor(model);
         float[] audio = Tapybara.Core.Audio.AudioFile.ReadMono16k(session.SystemPath, token);
         if (settings.NormalizeAudio) audio = Tapybara.Core.Audio.AudioNormalizer.Normalize(audio);
+        transcript = DetectMixedSpeech(transcript, audio, settings,
+            new Progress<int>(p => progress.Report(p * 30 / 100)), token);
         return SpeakerReanalysis.Analyse(transcript, line => extractor.Embed(VoiceCheck.Slice(audio, line)),
-            voice => CallSpeakers.NameOf(session, voice), print => _voiceBook.Match(print)?.Name, progress, token);
+            voice => CallSpeakers.NameOf(session, voice), print => _voiceBook.Match(print)?.Name,
+            new Progress<int>(p => progress.Report(30 + p * 70 / 100)), token);
     }, token);
+
+    private static CallTranscript DetectMixedSpeech(CallTranscript transcript, float[] audio, AppSettings settings,
+        IProgress<int>? progress = null, CancellationToken token = default)
+    {
+        string segmentation = ModelLocator.Resolve(settings.VoiceSegmentationModelFileName, settings.ModelsDirectory)
+            ?? throw new InvalidOperationException("Speaker segmentation model is unavailable.");
+        string embedding = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory)
+            ?? throw new InvalidOperationException("Voice embedding model is unavailable.");
+        using var detector = new SpeakerDiarizer(new SpeakerDiarizerOptions
+            { SegmentationModelPath = segmentation, EmbeddingModelPath = embedding, Threads = 4 });
+        var spans = detector.Split(audio, progress: progress, cancellationToken: token);
+        return transcript with { Lines = transcript.Lines.Select(l =>
+        {
+            if (l.Channel != CallChannel.Theirs) return l;
+            var mix = SpeakerAssignment.Mix(l.Start, l.End, spans);
+            return mix == SpeechMix.None ? l : l with { SpeechMix = mix };
+        }).ToList() };
+    }
 
     /// <summary>Разделить голоса звонка заново, по уже распознанному.</summary>
     private Task ResplitCallAsync(string directory, int voices) =>

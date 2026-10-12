@@ -11,6 +11,9 @@ namespace Tapybara.App;
 
 public partial class CallsPage
 {
+    private readonly Dictionary<Guid, CallLine> _observedMixedLines = [];
+    private bool HasMixedSpeech(CallLine line) => line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None
+        || (_observedMixedLines.TryGetValue(line.Id, out var observed) && line.Start == observed.Start && line.End == observed.End);
     private async void AnalyseSpeakerGroups(IReadOnlyList<string>? focusedVoices = null)
     {
         if (_activeEditor?.Flush() == false || _session is null || _transcript is null) return;
@@ -34,9 +37,21 @@ public partial class CallsPage
         var showAll = new CheckBox { Content = SpeakerText("Show all groups", "Показать все группы"),
             IsChecked = false, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 12) };
         body.Children.Add(showAll);
+        var pager = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        pager.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        pager.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pager.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var previous = new Button { Content = SpeakerText("Previous", "Назад"), IsEnabled = false };
+        var selector = new ComboBox { MinWidth = 100, Margin = new Thickness(8, 0, 8, 0) };
+        Controls.ControlSizing.Apply(selector, toolbarField: true);
+        var next = new Button { Content = SpeakerText("Next", "Далее"), IsEnabled = false };
+        Grid.SetColumn(selector, 1); Grid.SetColumn(next, 2);
+        pager.Children.Add(previous); pager.Children.Add(selector); pager.Children.Add(next);
+        body.Children.Add(pager);
         var groupsHost = new StackPanel();
         body.Children.Add(groupsHost);
-        var apply = new Button { Content = SpeakerText("Apply named groups", "Применить подписанные группы"),
+        var apply = new Wpf.Ui.Controls.Button { Appearance = Wpf.Ui.Controls.ControlAppearance.Primary,
+            Content = SpeakerText("Apply named groups", "Применить подписанные группы"),
             IsEnabled = false, Margin = new Thickness(0, 12, 0, 0) };
         body.Children.Add(apply);
         var cancelButton = new Button { Content = SpeakerText("Cancel", "Отмена"), Margin = new Thickness(0, 8, 0, 0) };
@@ -51,10 +66,11 @@ public partial class CallsPage
             .Concat(call.Participants).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         bool applied = false;
         bool analysing = true;
+        int lastProgress = 0;
         void UpdateApply()
         {
             if (applied) return;
-            int count = choices.Where(c => c.Card.Visibility == Visibility.Visible && c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text))
+            int count = choices.Where(c => (showAll.IsChecked == true || c.NeedsAttention) && c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text))
                 .Sum(c => c.Lines.Count(l => l.Box.IsChecked == true));
             apply.IsEnabled = count > 0;
             apply.Content = SpeakerText($"Apply assignments for {count} phrases", $"Назначить реплики: {count}");
@@ -64,11 +80,36 @@ public partial class CallsPage
             if (_services.AnalyseSpeakers is null) throw new InvalidOperationException("Speaker analysis is unavailable.");
             var progress = new Progress<int>(percent =>
             {
-                if (analysing && !cancel.IsCancellationRequested) status.Text = SpeakerText($"Analysing voices… {percent}%", $"Анализируем голоса… {percent}%");
+                lastProgress = Math.Max(lastProgress, percent);
+                if (analysing && !cancel.IsCancellationRequested) status.Text = SpeakerText($"Analysing voices… {lastProgress}%", $"Анализируем голоса… {lastProgress}%");
             });
             var report = await _services.AnalyseSpeakers(directory, snapshot, progress, cancel.Token);
             if (cancel.IsCancellationRequested) return;
             analysing = false;
+            if (report.MixedLines.Count > 0)
+            {
+                if (_session?.Directory == directory)
+                    foreach (var line in report.MixedLines) _observedMixedLines[line.Id] = line;
+                var mixed = new Expander { Header = SpeakerText($"Mixed speech · {report.MixedLines.Count} phrases excluded", $"Смешанная речь · исключено реплик: {report.MixedLines.Count}"), Margin = new Thickness(0, 8, 0, 12) };
+                var links = new StackPanel();
+                foreach (var line in report.MixedLines)
+                {
+                    var open = new Button { Content = CallTranscriptRenderer.Stamp(line.Start) + " · " + SpeakerText("Review in transcript", "Проверить в транскрипте"), Margin = new Thickness(0, 4, 0, 4) };
+                    open.Click += (_, _) =>
+                    {
+                        if (_session?.Directory != directory) return;
+                        window.Close();
+                        var row = _lines.FirstOrDefault(r => r.Line.Id == line.Id);
+                        if (row is not null) { LineList.SelectedItem = row; LineList.ScrollIntoView(row); }
+                        PlayQuote(line);
+                        ShowSpeakerHint(SpeakerText("Multiple speakers detected inside this phrase. Split at the speaker change; overlapping speech needs listening before assigning words.",
+                            "Внутри реплики обнаружены разные голоса. Разделите её на смене говорящего; при наложении сначала проверьте слова на слух."));
+                    };
+                    links.Children.Add(open);
+                }
+                mixed.Content = new ScrollViewer { Content = links, MaxHeight = 120, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+                body.Children.Insert(3, mixed);
+            }
             status.Text = report.Groups.Count == 0
                 ? SpeakerText("No suitable unconfirmed speech. Short or overlapping phrases need individual review.",
                     "Нет подходящих неподтверждённых реплик. Короткие реплики и наложения требуют отдельной проверки.")
@@ -98,7 +139,8 @@ public partial class CallsPage
                         else status.Text = SpeakerText("Return to the original call to listen.", "Вернитесь к исходному звонку для прослушивания.");
                     };
                     card.Children.Add(listen);
-                    card.Children.Add(new TextBlock { Text = example.Text, TextWrapping = TextWrapping.Wrap });
+                    card.Children.Add(new TextBlock { Text = example.Text, TextWrapping = TextWrapping.Wrap, MaxHeight = 60,
+                        TextTrimming = TextTrimming.WordEllipsis, ToolTip = example.Text, Margin = new Thickness(0, 4, 0, 8) });
                 }
                 card.Children.Add(new TextBlock { Text = SpeakerText("Assign this group to", "Кому назначить группу"), Margin = new Thickness(0, 12, 0, 4) });
                 var name = new ComboBox { IsEditable = true, ItemsSource = names, IsTextSearchEnabled = true };
@@ -133,14 +175,23 @@ public partial class CallsPage
                 name.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdateApply()));
                 name.SelectionChanged += (_, _) => UpdateApply();
             }
+            bool paging = false;
             void FilterGroups()
             {
                 if (applied) return;
                 int visible = 0;
+                var eligible = choices.Where(c => showAll.IsChecked == true || c.NeedsAttention).ToList();
+                int page = Math.Clamp(selector.SelectedIndex, 0, Math.Max(eligible.Count - 1, 0));
+                paging = true;
+                selector.ItemsSource = eligible.Select((c, i) => SpeakerText($"Voice {i + 1} · {c.Group.Lines.Count} phrases", $"Голос {i + 1} · реплик: {c.Group.Lines.Count}")).ToList();
+                selector.SelectedIndex = eligible.Count > 0 ? page : -1;
+                paging = false;
+                previous.IsEnabled = page > 0;
+                next.IsEnabled = page + 1 < eligible.Count;
                 foreach (var choice in choices)
                 {
                     bool show = showAll.IsChecked == true || choice.NeedsAttention;
-                    choice.Card.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                    choice.Card.Visibility = show && eligible.IndexOf(choice) == page ? Visibility.Visible : Visibility.Collapsed;
                     if (show)
                     {
                         visible++;
@@ -162,13 +213,36 @@ public partial class CallsPage
             showAll.Visibility = choices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             showAll.Checked += (_, _) => FilterGroups();
             showAll.Unchecked += (_, _) => FilterGroups();
+            selector.SelectionChanged += (_, _) => { if (!paging) FilterGroups(); };
+            previous.Click += (_, _) => selector.SelectedIndex--;
+            next.Click += (_, _) => selector.SelectedIndex++;
             FilterGroups();
+            // Keep navigation and commit actions visible while scrolling only the current proposal.
+            var header = new StackPanel { Margin = new Thickness(20, 20, 20, 8) };
+            foreach (var child in body.Children.Cast<UIElement>().TakeWhile(c => c != groupsHost).ToList())
+            {
+                body.Children.Remove(child);
+                header.Children.Add(child);
+            }
+            body.Children.Remove(groupsHost);
+            body.Children.Remove(apply); body.Children.Remove(cancelButton);
+            apply.Margin = new Thickness(0, 0, 8, 0); cancelButton.Margin = new Thickness(0);
+            body.Children.Add(new WrapPanel { Children = { apply, cancelButton } });
+            body.Margin = new Thickness(20, 8, 20, 20);
+            var layout = new Grid();
+            layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layout.Children.Add(header);
+            var content = new ScrollViewer { Content = groupsHost, Margin = new Thickness(20, 0, 20, 0), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            Grid.SetRow(content, 1); layout.Children.Add(content);
+            Grid.SetRow(body, 2); layout.Children.Add(body);
+            window.Content = layout;
             var retry = new Button { Content = SpeakerText("Analyse again", "Проанализировать снова"), Margin = new Thickness(0, 12, 0, 0) };
             retry.Click += (_, _) => { window.Close(); AnalyseSpeakerGroups(focusedVoices); };
-            body.Children.Add(retry);
             var manual = new Button { Content = SpeakerText("Use a specific example instead", "Использовать конкретный образец"), Margin = new Thickness(0, 8, 0, 0) };
             manual.Click += (_, _) => { window.Close(); ReviewSpeakerAssignments(); };
-            body.Children.Add(manual);
+            body.Children.Add(new WrapPanel { Children = { retry, manual } });
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -197,7 +271,7 @@ public partial class CallsPage
             var voiceNames = new Dictionary<string, string>(_session.VoiceNames);
             var voices = _transcript.Voices.ToList();
             var assignments = new List<SpeakerReanalysis.Assignment>();
-            foreach (var choice in choices.Where(c => c.Card.Visibility == Visibility.Visible && c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text)))
+            foreach (var choice in choices.Where(c => (showAll.IsChecked == true || c.NeedsAttention) && c.Include.IsChecked == true && !string.IsNullOrWhiteSpace(c.Name.Text)))
             {
                 var lines = choice.Lines.Where(l => l.Box.IsChecked == true).Select(l => l.Line).ToList();
                 if (lines.Count == 0) continue;
@@ -218,6 +292,7 @@ public partial class CallsPage
                 { status.Text = SpeakerText("The transcript changed. Analyse again before applying.", "Транскрипт изменился. Повторите анализ."); return; }
                 applied = true; apply.IsEnabled = false; groupsHost.IsEnabled = false;
                 showAll.IsEnabled = false;
+                pager.IsEnabled = false;
                 status.Text = SpeakerText($"Updated {assignments.Sum(a => a.Lines.Count)} phrases. Confirmed assignments were preserved.",
                     $"Обновлено реплик: {assignments.Sum(a => a.Lines.Count)}. Подтверждённые подписи сохранены.");
                 cancelButton.Content = SpeakerText("Done", "Готово");

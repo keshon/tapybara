@@ -165,6 +165,7 @@ public partial class CallsPage
     }
     private void ResetPanelState()
     {
+        _observedMixedLines.Clear();
         _renaming.Clear();
         _expanded.Clear();
         _rejected.Clear();

@@ -1,4 +1,4 @@
-﻿namespace Tapybara.Core.Speech;
+namespace Tapybara.Core.Speech;
 
 /// <summary>
 /// Кто произнёс распознанную реплику.
@@ -11,6 +11,14 @@
 /// </remarks>
 public static class SpeakerAssignment
 {
+    public static SpeechMix Mix(TimeSpan start, TimeSpan end, IReadOnlyList<SpeakerSpan> spans)
+    {
+        var coverage = SpeakerCoverage.Measure(start, end, spans);
+        int substantial = coverage.Totals.Count(t => t.Duration.TotalSeconds >= .7
+            && t.Duration.TotalSeconds >= (end - start).TotalSeconds * .1);
+        if (substantial < 2) return SpeechMix.None;
+        return coverage.Simultaneous.TotalSeconds >= .3 ? SpeechMix.Overlap : SpeechMix.SpeakerChange;
+    }
     /// <summary>
     /// Номер голоса, звучавшего на отрезке дольше остальных,
     /// или <c>null</c>, если ни один не перекрывается.

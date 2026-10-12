@@ -7,7 +7,10 @@ public static class SpeakerReanalysis
     public const double GroupSimilarity = .72;
     public sealed record Group(IReadOnlyList<CallLine> Lines, IReadOnlyList<CallLine> Examples, string? SuggestedName);
     public sealed record Assignment(IReadOnlyList<CallLine> Lines, string Voice);
-    public sealed record Report(IReadOnlyList<Group> Groups, int Skipped);
+    public sealed record Report(IReadOnlyList<Group> Groups, int Skipped)
+    {
+        public IReadOnlyList<CallLine> MixedLines { get; init; } = [];
+    }
 
     public static CallTranscript Scope(CallTranscript transcript, IReadOnlyList<string> voices) => transcript with
     {
@@ -69,7 +72,8 @@ public static class SpeakerReanalysis
         progress?.Report(100);
         return new(groups.OrderByDescending(g => g.Lines.Any(l => l.IsDoubtful))
             .ThenByDescending(g => g.Lines.Count).ToList(), transcript.Lines.Count(l => l.Channel == CallChannel.Theirs
-                && !l.HumanEdits.HasFlag(CallLineEdits.Speaker)) - groups.Sum(g => g.Lines.Count));
+                && !l.HumanEdits.HasFlag(CallLineEdits.Speaker)) - groups.Sum(g => g.Lines.Count))
+        { MixedLines = transcript.Lines.Where(l => l.SpeechMix != Tapybara.Core.Speech.SpeechMix.None).ToList() };
     }
 
     public static CallTranscript Apply(CallTranscript transcript, IReadOnlyList<Assignment> assignments)
