@@ -25,6 +25,26 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
+    public void RenamingPersonAcrossMultipleVoicesPreservesCorrectionsAndUndoesTheName()
+    {
+        CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow,
+            VoiceNames = new Dictionary<string, string> { ["A"] = "Кирилл", ["B"] = "Кирилл", ["C"] = "Константин" } });
+        var first = Line("first", 0, 6); var second = Line("second", 10, 16, "B");
+        var corrected = Line("corrected", 20, 26, "C") with { HumanEdits = CallLineEdits.Speaker };
+        var session = Session(first, second, corrected);
+        Assert.True(session.Execute(t => t, s => s with
+        {
+            VoiceNames = s.VoiceNames.ToDictionary(p => p.Key, p => p.Value == "Кирилл" ? "Кирилл Иванов" : p.Value),
+        }));
+        Assert.Equal(new[] { first, second, corrected }, session.Document.Lines);
+        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["C"]);
+        Assert.Equal("Кирилл Иванов", CallMeta.Load(_directory)!.VoiceNames["B"]);
+        Assert.True(session.Undo());
+        Assert.Equal("Кирилл", CallMeta.Load(_directory)!.VoiceNames["A"]);
+        Assert.Equal(corrected, session.Document.Lines[2]);
+    }
+
+    [Fact]
     public void AutomaticGroupAssignmentsSaveAndUndoTogether()
     {
         CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow });

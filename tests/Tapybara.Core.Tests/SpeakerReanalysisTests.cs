@@ -10,6 +10,20 @@ public sealed class SpeakerReanalysisTests
         { Id = Guid.NewGuid(), HumanEdits = confirmed ? CallLineEdits.Speaker : CallLineEdits.None };
 
     [Fact]
+    public void MixedVoiceCorrectionScopesProposalsButKeepsOtherConfirmedReferences()
+    {
+        var a = Line(0); var b = Line(10, "B"); var confirmed = Line(20, "C", true);
+        var scoped = SpeakerReanalysis.Scope(new CallTranscript { Lines = [a, b, confirmed] }, ["A"]);
+        Assert.Equal(new[] { a, confirmed }, scoped.Lines);
+        var report = SpeakerReanalysis.Analyse(scoped, _ => [1, 0], v => v == "C" ? "Константин" : null, _ => null);
+        Assert.Equal(a, Assert.Single(Assert.Single(report.Groups).Lines));
+        Assert.Equal("Константин", report.Groups[0].SuggestedName);
+        var overlap = Line(1, "B");
+        var mixed = SpeakerReanalysis.Scope(new CallTranscript { Lines = [a, overlap] }, ["A"]);
+        Assert.Empty(SpeakerReanalysis.Analyse(mixed, _ => [1, 0], _ => null, _ => null).Groups);
+    }
+
+    [Fact]
     public void AttentionFilterHidesAgreementButPreservesUnknownConflictingAndDoubtfulGroups()
     {
         var line = Line(0);

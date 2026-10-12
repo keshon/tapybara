@@ -132,6 +132,15 @@ public partial class CallsPage
         // Слепок голоса снят и с этой реплики — снять заново без неё, иначе
         // чужой голос остался бы в подсказках и лёг бы в книгу голосов.
         _ = _services.RefreshPrints(directory);
+        if (line.Channel == CallChannel.Theirs && line.End - line.Start >= VoiceCheck.MinLine
+            && _transcript?.Lines.FirstOrDefault(l => l.Id == line.Id) is { } corrected)
+        {
+            string speaker = CallSpeakers.Label(corrected, _session!, _transcript.Voices.Count,
+                Settings.EffectiveMyName, OtherSideLabel(Settings), L.S.TranscriptVoice);
+            ShowSpeakerHint(SpeakerText("This phrase is assigned to ", "Реплика назначена: ") + speaker);
+            ShowBannerButton(SpeakerText("Find more speech by ", "Найти ещё реплики: ") + speaker,
+                () => FindSimilarSpeech(corrected));
+        }
     }
 
     private void OnSpeakerClick(object sender, RoutedEventArgs e)

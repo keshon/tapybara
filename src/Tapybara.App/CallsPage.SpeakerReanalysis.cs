@@ -11,15 +11,21 @@ namespace Tapybara.App;
 
 public partial class CallsPage
 {
-    private async void AnalyseSpeakerGroups()
+    private async void AnalyseSpeakerGroups(IReadOnlyList<string>? focusedVoices = null)
     {
         if (_activeEditor?.Flush() == false || _session is null || _transcript is null) return;
         var call = _session;
         var snapshot = _transcript;
+        if (focusedVoices is not null)
+        {
+            snapshot = SpeakerReanalysis.Scope(snapshot, focusedVoices);
+        }
         string directory = call.Directory;
         var body = new StackPanel { Margin = new Thickness(20) };
         var window = OpenSpeakerReview(body);
-        body.Children.Add(Ui.BodyStrong(SpeakerText("Re-analyse speaker assignments", "Проверить голоса заново")));
+        body.Children.Add(Ui.BodyStrong(focusedVoices is null
+            ? SpeakerText("Re-analyse speaker assignments", "Проверить голоса заново")
+            : SpeakerText("Separate this mixed voice", "Разделить этот смешанный голос")));
         body.Children.Add(Ui.Caption(SpeakerText("The app groups similar speech. Listen to examples, then name the groups you recognise.",
             "Приложение группирует похожие голоса. Послушайте образцы и подпишите группы, которые узнаёте.")));
         var status = new TextBlock { Text = SpeakerText("Analysing audio…", "Анализируем звук…"),
@@ -158,7 +164,7 @@ public partial class CallsPage
             showAll.Unchecked += (_, _) => FilterGroups();
             FilterGroups();
             var retry = new Button { Content = SpeakerText("Analyse again", "Проанализировать снова"), Margin = new Thickness(0, 12, 0, 0) };
-            retry.Click += (_, _) => { window.Close(); AnalyseSpeakerGroups(); };
+            retry.Click += (_, _) => { window.Close(); AnalyseSpeakerGroups(focusedVoices); };
             body.Children.Add(retry);
             var manual = new Button { Content = SpeakerText("Use a specific example instead", "Использовать конкретный образец"), Margin = new Thickness(0, 8, 0, 0) };
             manual.Click += (_, _) => { window.Close(); ReviewSpeakerAssignments(); };
@@ -177,7 +183,7 @@ public partial class CallsPage
                 models.Click += (_, _) => _services.FetchModel(Tapybara.Core.Models.ModelKind.VoiceEmbedding);
                 body.Children.Add(models);
                 var retry = new Button { Content = SpeakerText("Retry", "Повторить") };
-                retry.Click += (_, _) => { window.Close(); AnalyseSpeakerGroups(); };
+                retry.Click += (_, _) => { window.Close(); AnalyseSpeakerGroups(focusedVoices); };
                 body.Children.Add(retry);
             }
         }
