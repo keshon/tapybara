@@ -140,7 +140,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Margin="24,20,24,12">
+                    <StackPanel Grid.Row="0" Margin="24,20,24,4">
                         <TextBox x:Name="TitleBox"
                                  Style="{StaticResource InlineTitleStyle}"
                                  KeyDown="OnTitleKeyDown"
@@ -149,7 +149,7 @@
                                    Style="{StaticResource TextCaption}"
                                    Margin="0,4,0,12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
 
-                        <Grid Margin="0,0,0,4">
+                        <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
@@ -195,7 +195,7 @@
                         <Border x:Name="Banner"
                                 Grid.Row="0"
                                 Visibility="Collapsed"
-                                Margin="24,16,24,0"
+                                Margin="24,8,24,8"
                                 Padding="12,10"
                                 CornerRadius="{x:Static app:Tokens.ControlRadius}"
                                 Background="{DynamicResource SubtleFillColorSecondaryBrush}">
@@ -248,6 +248,9 @@
                             звучащей реплики, не сдвигающих колонку времени.
                         -->
                         <components:FindReplaceBar x:Name="DocumentSearch" Grid.Row="1" Visibility="Collapsed" Margin="24,8,24,8" />
+                        <Border Grid.Row="2" BorderThickness="0,1,0,0"
+                                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                IsHitTestVisible="False" Panel.ZIndex="1" />
                         <ListBox x:Name="LineList"
                                  FocusVisualStyle="{StaticResource QuietKeyboardFocus}"
                                  Grid.Row="2"
