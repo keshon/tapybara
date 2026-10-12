@@ -1848,7 +1848,7 @@ public partial class App : Application, IDisposable
             CanSplitVoices,
             FetchModel,
             _voiceBook,
-            _live) { FindSpeakerSpeech = FindSpeakerSpeechAsync, AnalyseSpeakers = AnalyseSpeakersAsync,
+            _live) {
                 RecheckSpeakers = directory => RunCallJobAsync(directory,
                     (transcriber, _, token) => transcriber.RecheckAsync(directory, token), announce: false) },
             _journal,
@@ -1914,63 +1914,11 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>Снять слепки голосов заново после того, как человек переселил реплики.</summary>
-    private Task<IReadOnlyList<SpeakerCorrection.Candidate>> FindSpeakerSpeechAsync(
-        string directory, CallTranscript transcript, CallLine seed, CancellationToken token) => Task.Run(() =>
-    {
-        var settings = _settings.Current;
-        string model = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory)
-            ?? throw new InvalidOperationException(L.S.VoicesNeedModels);
-        var session = CallMeta.Load(directory) ?? throw new IOException("Call no longer exists.");
-        // A dedicated short-lived extractor avoids sharing the non-thread-safe background model.
-        using var extractor = new VoiceprintExtractor(model);
-        float[] audio = Tapybara.Core.Audio.AudioFile.ReadMono16k(session.SystemPath, token);
-        if (settings.NormalizeAudio) audio = Tapybara.Core.Audio.AudioNormalizer.Normalize(audio);
-        token.ThrowIfCancellationRequested();
-        transcript = DetectMixedSpeech(transcript, audio, settings, token: token);
-        seed = transcript.Lines.Single(l => l.Id == seed.Id);
-        return SpeakerCorrection.Find(transcript, seed, line => extractor.Embed(VoiceCheck.Slice(audio, line)), token);
-    }, token);
-
     private Task RefreshCallPrintsAsync(string directory) =>
         RunCallJobAsync(
             directory,
             (transcriber, progress, token) => transcriber.RefreshPrintsAsync(directory, progress, token),
             announce: false);
-
-    private Task<SpeakerReanalysis.Report> AnalyseSpeakersAsync(string directory, CallTranscript transcript,
-        IProgress<int> progress, CancellationToken token) => Task.Run(() =>
-    {
-        var settings = _settings.Current;
-        string model = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory)
-            ?? throw new InvalidOperationException("Voice embedding model is unavailable.");
-        var session = CallMeta.Load(directory) ?? throw new IOException("Call no longer exists.");
-        using var extractor = new VoiceprintExtractor(model);
-        float[] audio = Tapybara.Core.Audio.AudioFile.ReadMono16k(session.SystemPath, token);
-        if (settings.NormalizeAudio) audio = Tapybara.Core.Audio.AudioNormalizer.Normalize(audio);
-        transcript = DetectMixedSpeech(transcript, audio, settings,
-            new Progress<int>(p => progress.Report(p * 30 / 100)), token);
-        return SpeakerReanalysis.Analyse(transcript, line => extractor.Embed(VoiceCheck.Slice(audio, line)),
-            voice => CallSpeakers.NameOf(session, voice), print => _voiceBook.Match(print)?.Name,
-            new Progress<int>(p => progress.Report(30 + p * 70 / 100)), token);
-    }, token);
-
-    private static CallTranscript DetectMixedSpeech(CallTranscript transcript, float[] audio, AppSettings settings,
-        IProgress<int>? progress = null, CancellationToken token = default)
-    {
-        string segmentation = ModelLocator.Resolve(settings.VoiceSegmentationModelFileName, settings.ModelsDirectory)
-            ?? throw new InvalidOperationException("Speaker segmentation model is unavailable.");
-        string embedding = ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory)
-            ?? throw new InvalidOperationException("Voice embedding model is unavailable.");
-        using var detector = new SpeakerDiarizer(new SpeakerDiarizerOptions
-            { SegmentationModelPath = segmentation, EmbeddingModelPath = embedding, Threads = 4 });
-        var spans = detector.Split(audio, progress: progress, cancellationToken: token);
-        return transcript with { Lines = transcript.Lines.Select(l =>
-        {
-            if (l.Channel != CallChannel.Theirs) return l;
-            var mix = SpeakerAssignment.Mix(l.Start, l.End, spans);
-            return mix == SpeechMix.None ? l : l with { SpeechMix = mix };
-        }).ToList() };
-    }
 
     /// <summary>Разделить голоса звонка заново, по уже распознанному.</summary>
     private Task ResplitCallAsync(string directory, int voices) =>
@@ -2098,7 +2046,6 @@ public partial class App : Application, IDisposable
         {
             StartModelsWatcher();
         }
-
 
         if (change.AffectsEngine)
         {

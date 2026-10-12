@@ -164,7 +164,6 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     /// <summary>Дописать правки и отпустить устройство вывода. Зовётся при закрытии окна.</summary>
     public void Dispose()
     {
-        _speakerCorrectionWindow?.Close();
         if (_disposed)
         {
             return;

@@ -132,15 +132,6 @@ public partial class CallsPage
         // Слепок голоса снят и с этой реплики — снять заново без неё, иначе
         // чужой голос остался бы в подсказках и лёг бы в книгу голосов.
         _ = _services.RefreshPrints(directory);
-        if (line.Channel == CallChannel.Theirs && !HasMixedSpeech(line) && line.End - line.Start >= VoiceCheck.MinLine
-            && _transcript?.Lines.FirstOrDefault(l => l.Id == line.Id) is { } corrected)
-        {
-            string speaker = CallSpeakers.Label(corrected, _session!, _transcript.Voices.Count,
-                Settings.EffectiveMyName, OtherSideLabel(Settings), L.S.TranscriptVoice);
-            ShowSpeakerHint(SpeakerText("This phrase is assigned to ", "Реплика назначена: ") + speaker);
-            ShowBannerButton(SpeakerText("Find more speech by ", "Найти ещё реплики: ") + speaker,
-                () => FindSimilarSpeech(corrected));
-        }
     }
 
     private void OnSpeakerClick(object sender, RoutedEventArgs e)
@@ -199,16 +190,6 @@ public partial class CallsPage
         var freePlay = new MenuItem { Header = L.S.PlaybackFromLine, Icon = new SymbolIcon { Symbol = SymbolRegular.Play24 } };
         freePlay.Click += (_, _) => { SeekPlayback(row.Line.Start); if (!_player.IsPlaying) { TogglePlayback(); } };
         menu.Items.Add(freePlay);
-
-        if (row.Line.Channel == CallChannel.Theirs && row.Line.Voice is not null)
-        {
-            var find = new MenuItem { Header = SpeakerText("Find similar speech…", "Найти похожие реплики…"),
-                IsEnabled = row.Line.End - row.Line.Start >= Tapybara.Core.Calls.VoiceCheck.MinLine
-                    && !HasMixedSpeech(row.Line)
-                    && _services.FindSpeakerSpeech is not null };
-            find.Click += (_, _) => FindSimilarSpeech(row.Line);
-            menu.Items.Add(find);
-        }
 
         var copy = new MenuItem { Header = L.S.LineCopy, Icon = new SymbolIcon { Symbol = SymbolRegular.Copy24 } };
         copy.Click += (_, _) =>

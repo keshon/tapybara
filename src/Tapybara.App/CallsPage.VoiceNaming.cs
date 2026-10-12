@@ -10,6 +10,12 @@ namespace Tapybara.App;
 
 public partial class CallsPage
 {
+    private static string SpeakerText(string en, string ru) =>
+        L.S.Formatting.TwoLetterISOLanguageName == "ru" ? ru : en;
+
+    private static bool HasMixedSpeech(CallLine line) =>
+        line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None;
+
     private Border BuildVoiceCard(CallPerson person, IReadOnlyList<CallPerson> people, bool busy)
     {
         string key = KeyOf(person);
@@ -54,13 +60,8 @@ public partial class CallsPage
         var actions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         var rename = Ui.Link(person.Name is null ? SpeakerText("Choose name", "Выбрать имя") : SpeakerText("Rename person", "Переименовать"));
         rename.IsEnabled = !busy;
-        rename.Click += (_, _) => { _expanded.Remove(key); if (!_renaming.Remove(key)) _renaming.Add(key); ShowVoices(); };
+        rename.Click += (_, _) => { if (!_renaming.Remove(key)) _renaming.Add(key); ShowVoices(); };
         actions.Children.Add(rename);
-        var fix = Ui.Link(SpeakerText("Fix assignments", "Исправить подписи"));
-        fix.IsEnabled = !busy;
-        fix.Margin = new Thickness(12, 0, 0, 0);
-        fix.Click += (_, _) => { _renaming.Remove(key); if (!_expanded.Remove(key)) _expanded.Add(key); ShowVoices(); };
-        actions.Children.Add(fix);
         body.Children.Add(actions);
         if (_renaming.Contains(key))
         {
@@ -81,24 +82,7 @@ public partial class CallsPage
             cancel.Margin = new Thickness(12, 8, 0, 0);
             body.Children.Add(new WrapPanel { Children = { save, cancel } });
         }
-        if (_expanded.Contains(key))
-        {
-            var split = new Button { Content = SpeakerText("Different people are speaking here", "Здесь говорят разные люди"),
-                Margin = new Thickness(0, 10, 0, 0), IsEnabled = _services.AnalyseSpeakers is not null };
-            split.Click += (_, _) => AnalyseSpeakerGroups(person.Voices);
-            body.Children.Add(split);
-            split.ToolTip = SpeakerText("Review a proposed separation before applying.", "Проверьте предложенное разделение перед применением.");
-            if (quotes.FirstOrDefault() is { } example)
-            {
-                var correct = new Button { Content = SpeakerText("Correct this sample", "Исправить этот образец"), Margin = new Thickness(0, 8, 0, 0) };
-                correct.Click += (_, _) =>
-                {
-                    var row = _lines.FirstOrDefault(r => r.Line.IsSameAs(example));
-                    if (row is not null) Controls.AnchoredMenu.Open(LineMenu(row), correct);
-                };
-                body.Children.Add(correct);
-            }
-        }
+
         var card = Ui.Card(body);
         card.Margin = new Thickness(0, 12, 0, 0);
         return card;

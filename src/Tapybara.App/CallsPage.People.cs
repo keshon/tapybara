@@ -146,7 +146,6 @@ public partial class CallsPage
         }
     }
     private readonly HashSet<string> _renaming = [];
-    private readonly HashSet<string> _expanded = [];
     private readonly Dictionary<string, int> _rejected = [];
     private readonly Dictionary<CallLine, UiButton> _quoteButtons = [];
     private void UpdateQuoteButtons()
@@ -174,9 +173,7 @@ public partial class CallsPage
     }
     private void ResetPanelState()
     {
-        _observedMixedLines.Clear();
         _renaming.Clear();
-        _expanded.Clear();
         _rejected.Clear();
         _quoteButtons.Clear();
     }

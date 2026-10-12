@@ -45,65 +45,6 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
-    public void AutomaticGroupAssignmentsSaveAndUndoTogether()
-    {
-        CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow });
-        var first = Line("first", 0, 6); var second = Line("second", 10, 16);
-        var session = Session(first, second);
-        Assert.True(session.Execute(t => SpeakerReanalysis.Apply(t, [new([first], "B"), new([second], "C")]),
-            s => s with { VoiceNames = new Dictionary<string, string> { ["B"] = "Константин", ["C"] = "Виктор" } }));
-        Assert.Equal(new[] { "B", "C" }, session.Document.Lines.Select(l => l.Voice));
-        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["B"]);
-        Assert.True(session.Undo());
-        Assert.All(session.Document.Lines, l => Assert.Equal("A", l.Voice));
-        Assert.Empty(CallMeta.Load(_directory)!.VoiceNames);
-        Assert.False(session.CanUndo);
-        Assert.True(session.Redo());
-        Assert.Equal(new[] { "B", "C" }, CallTranscriptStore.Load(_directory)!.Lines.Select(l => l.Voice));
-    }
-
-    [Fact]
-    public void ReviewConfirmationAndBatchHaveSeparateUndoStepsIncludingNewPersonName()
-    {
-        CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow });
-        var example = Line("Konstantin example", 0, 6);
-        var another = Line("another phrase", 10, 16);
-        var session = Session(example, another);
-        Assert.True(session.Execute(t => SpeakerCorrection.Confirm(t, example, "B"), s => s with
-        {
-            VoiceNames = new Dictionary<string, string>(s.VoiceNames) { ["B"] = "Константин" },
-        }));
-        var seed = session.Document.Lines[0];
-        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["B"]);
-        Assert.True(session.Execute(t => SpeakerCorrection.Apply(t, seed, [another])));
-        Assert.True(session.Undo());
-        Assert.Equal("B", session.Document.Lines[0].Voice);
-        Assert.Equal("A", session.Document.Lines[1].Voice);
-        Assert.Equal("Константин", CallMeta.Load(_directory)!.VoiceNames["B"]);
-        Assert.True(session.Undo());
-        Assert.Equal("A", session.Document.Lines[0].Voice);
-        Assert.False(CallMeta.Load(_directory)!.VoiceNames.ContainsKey("B"));
-        Assert.False(session.CanUndo);
-    }
-
-    [Fact]
-    public void SpeakerCorrectionBatchPersistsAndUndoesAsOneEdit()
-    {
-        var seed = Line("confirmed", 0, 6, "B") with { HumanEdits = CallLineEdits.Speaker };
-        var first = Line("first", 10, 16);
-        var second = Line("second", 20, 26);
-        var session = Session(seed, first, second);
-        Assert.True(session.Execute(t => SpeakerCorrection.Apply(t, seed, [first, second])));
-        Assert.All(session.Document.Lines, l => Assert.Equal("B", l.Voice));
-        Assert.Equal(session.Document.Lines, CallTranscriptStore.Load(_directory)!.Lines);
-        Assert.True(session.Undo());
-        Assert.Equal(new[] { "B", "A", "A" }, session.Document.Lines.Select(l => l.Voice));
-        Assert.False(session.CanUndo);
-        Assert.True(session.Redo());
-        Assert.All(session.Document.Lines, l => Assert.Equal("B", l.Voice));
-    }
-
-    [Fact]
     public void LegacyMigrationKeepsBytesAndPersistsUniqueStableIds()
     {
         string path = Path.Combine(_directory, CallSession.TranscriptDataFileName);

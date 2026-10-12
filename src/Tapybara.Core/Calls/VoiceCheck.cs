@@ -52,6 +52,7 @@ public static class VoiceCheck
     /// </remarks>
     public const double MoveLead = 0.15;
     private const double UnknownReferenceLimit = .5;
+    private const double UnknownVoiceSimilarity = .72;
     private static readonly TimeSpan UnknownMinSpeech = MinLine * 2;
 
     /// <summary>
@@ -151,7 +152,7 @@ public static class VoiceCheck
                 || run.Sum(l => (l.End - l.Start).TotalSeconds) < UnknownMinSpeech.TotalSeconds) continue;
             var measuredRun = measured.FirstOrDefault(m => m.Line == run[0]);
             if (measuredRun.Print is null || centres.Values.Any(c => VoiceBook.Similarity(c, measuredRun.Print) >= UnknownReferenceLimit)) continue;
-            var candidate = missing.FirstOrDefault(c => c.Prints.All(p => VoiceBook.Similarity(p, measuredRun.Print) >= SpeakerReanalysis.GroupSimilarity));
+            var candidate = missing.FirstOrDefault(c => c.Prints.All(p => VoiceBook.Similarity(p, measuredRun.Print) >= UnknownVoiceSimilarity));
             if (candidate.Prints is null)
             {
                 string voice = CallVoices.NextFree(reserved); reserved.Add(voice);
@@ -217,7 +218,7 @@ public static class VoiceCheck
                     if (line.Voice is not null && score.Others.Count > 0)
                     {
                         KeyValuePair<string, double> best = score.Others.MaxBy(o => o.Value);
-                        double threshold = existingVoices.Contains(best.Key) ? Sure : SpeakerReanalysis.GroupSimilarity;
+                        double threshold = existingVoices.Contains(best.Key) ? Sure : UnknownVoiceSimilarity;
                         if (best.Value >= threshold && best.Value - score.Own >= MoveLead)
                         {
                             return line with { Voice = best.Key, Fit = existingVoices.Contains(best.Key) ? Round(best.Value) : null };

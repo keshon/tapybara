@@ -29,10 +29,7 @@ public sealed class MixedSpeechTests
         var line = new CallLine(CallChannel.Theirs, TimeSpan.Zero, TimeSpan.FromSeconds(8), "mixed", "A")
             { Id = Guid.NewGuid(), SpeechMix = SpeechMix.Overlap };
         var doc = new CallTranscript { Lines = [line] };
-        Assert.Empty(SpeakerCorrection.Examples(doc));
-        Assert.Throws<ArgumentException>(() => SpeakerCorrection.Find(doc, line, _ => [1, 0]));
-        var report = SpeakerReanalysis.Analyse(doc, _ => throw new InvalidOperationException("must not embed"), _ => null, _ => null);
-        Assert.Empty(report.Groups);
-        Assert.Equal(line, Assert.Single(report.MixedLines));
+        var report = VoiceCheck.Measure(doc.Lines, _ => throw new InvalidOperationException("must not embed"));
+        Assert.Empty(report.Lines);
     }
 }
