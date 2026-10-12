@@ -140,7 +140,17 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Margin="24,20,24,4">
+                    <StackPanel Grid.Row="0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Margin" Value="24,20,24,4" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Visibility, ElementName=Banner}" Value="Collapsed">
+                                        <Setter Property="Margin" Value="24,20,24,12" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
                         <TextBox x:Name="TitleBox"
                                  Style="{StaticResource InlineTitleStyle}"
                                  KeyDown="OnTitleKeyDown"
