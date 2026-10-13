@@ -1,18 +1,17 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Automation;
 using Tapybara.App.Controls;
 using Tapybara.App.Localization;
 using Tapybara.Core.Calls;
-using Tapybara.Core.Export;
 using Tapybara.Core.Diagnostics;
+using Tapybara.Core.Export;
 using Tapybara.Core.Windows;
-
-using TextBox = System.Windows.Controls.TextBox;
-using Orientation = System.Windows.Controls.Orientation;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using Orientation = System.Windows.Controls.Orientation;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace Tapybara.App;
 

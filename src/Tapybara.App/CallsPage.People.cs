@@ -30,7 +30,11 @@ public partial class CallsPage
     private Dictionary<string, VoiceMatch> _suggestions = [];
     private Dictionary<string, VoiceMatch> Suggest()
     {
-        if (NeedsSpeakerCount) return [];
+        if (NeedsSpeakerCount)
+        {
+            return [];
+        }
+
         var result = _transcript is not null && _session is not null
             ? new Dictionary<string, VoiceMatch>(SpeakerNameSuggestions.Find(_session, _transcript)) : new();
         if (!Settings.RememberVoices || _transcript is null || _session is null || NeedsSpeakerCount)
@@ -58,7 +62,9 @@ public partial class CallsPage
         foreach ((string voice, VoiceMatch match) in _suggestions.ToList())
         {
             if (People().FirstOrDefault(p => p.Voices.Contains(voice)) is { } person)
+            {
                 SaveVoiceName(person, match.Name);
+            }
         }
     }
 
@@ -132,7 +138,13 @@ public partial class CallsPage
             retry.Click += (_, _) => RetrySpeakerSeparation();
             VoicesHost.Children.Add(retry);
         }
-        else foreach (CallPerson person in people) VoicesHost.Children.Add(BuildVoiceCard(person, people, busy));
+        else
+        {
+            foreach (CallPerson person in people)
+            {
+                VoicesHost.Children.Add(BuildVoiceCard(person, people, busy));
+            }
+        }
     }
     private readonly HashSet<string> _renaming = [];
     private readonly Dictionary<CallLine, UiButton> _quoteButtons = [];

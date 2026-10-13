@@ -7,16 +7,16 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Tapybara.App.Localization;
 using Tapybara.Core.Editing;
-using Cursors = System.Windows.Input.Cursors;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using ComboBox = System.Windows.Controls.ComboBox;
 using ContextMenu = System.Windows.Controls.ContextMenu;
+using Cursors = System.Windows.Input.Cursors;
 using MenuItem = System.Windows.Controls.MenuItem;
-using Point = System.Windows.Point;
-using Pen = System.Windows.Media.Pen;
-using TextBlock = System.Windows.Controls.TextBlock;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Pen = System.Windows.Media.Pen;
+using Point = System.Windows.Point;
+using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace Tapybara.App.Controls;
 

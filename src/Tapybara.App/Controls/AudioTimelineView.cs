@@ -8,16 +8,15 @@ using System.Windows.Media;
 using Tapybara.App.Localization;
 using Tapybara.Core.Audio;
 using Tapybara.Core.Editing;
-
-using Pen = System.Windows.Media.Pen;
-using Brushes = System.Windows.Media.Brushes;
 using Brush = System.Windows.Media.Brush;
+using Brushes = System.Windows.Media.Brushes;
 using ComboBox = System.Windows.Controls.ComboBox;
 using ContextMenu = System.Windows.Controls.ContextMenu;
-using MenuItem = System.Windows.Controls.MenuItem;
-using Point = System.Windows.Point;
-using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MenuItem = System.Windows.Controls.MenuItem;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Pen = System.Windows.Media.Pen;
+using Point = System.Windows.Point;
 using RadioButton = System.Windows.Controls.RadioButton;
 using TextBlock = System.Windows.Controls.TextBlock;
 

@@ -5,9 +5,9 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Automation;
 using System.Windows.Media;
 using NAudio.CoreAudioApi;
 using Tapybara.App.Localization;
@@ -18,7 +18,6 @@ using Tapybara.Core.Settings;
 using Tapybara.Core.Speech;
 using Tapybara.Core.Windows;
 using Wpf.Ui.Controls;
-
 // Коллизии имён между WinForms, WPF и WPF-UI: часть типов определена во всех
 // трёх, а ImplicitUsings подключает пространства имён WinForms и WPF.
 using Brush = System.Windows.Media.Brush;

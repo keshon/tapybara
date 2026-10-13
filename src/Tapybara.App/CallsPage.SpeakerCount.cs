@@ -11,9 +11,17 @@ public partial class CallsPage
 
     private async void RetrySpeakerSeparation()
     {
-        if (_session is null || _services.SeparateSpeakers is null || _activeEditor?.Flush() == false) return;
+        if (_session is null || _services.SeparateSpeakers is null || _activeEditor?.Flush() == false)
+        {
+            return;
+        }
+
         string directory = _session.Directory;
-        if (_services.LiveState(directory) is not null) return;
+        if (_services.LiveState(directory) is not null)
+        {
+            return;
+        }
+
         var input = new System.Windows.Controls.ComboBox { IsEditable = true, ItemsSource = Enumerable.Range(1, 16).ToList(),
             Text = (_session.SpeakerCountHint ?? _transcript?.ExpectedVoices ?? 0) is > 0 and var count ? count.ToString(L.S.Formatting) : string.Empty,
             Margin = new Thickness(0, 12, 0, 0) };
@@ -31,8 +39,16 @@ public partial class CallsPage
         dialog.PrimaryEnabled = Valid();
         input.AddHandler(System.Windows.Controls.TextBox.TextChangedEvent,
             new TextChangedEventHandler((_, _) => dialog.PrimaryEnabled = Valid()));
-        if (ConfirmWindow.Ask(Window.GetWindow(this), dialog) != ConfirmChoice.Primary || !Valid()) return;
-        if (_services.LiveState(directory) is not null) return;
+        if (ConfirmWindow.Ask(Window.GetWindow(this), dialog) != ConfirmChoice.Primary || !Valid())
+        {
+            return;
+        }
+
+        if (_services.LiveState(directory) is not null)
+        {
+            return;
+        }
+
         bool succeeded = await _services.SeparateSpeakers(directory, int.Parse(input.Text, L.S.Formatting));
         if (!succeeded && !_disposed && _session?.Directory == directory)
         {

@@ -82,7 +82,11 @@ public sealed class CallMediaImportTests : IDisposable
         using (var writer = new WaveFileWriter(source, new WaveFormat(16000, 16, 6)))
         {
             var samples = new float[16000 * 6];
-            for (int frame = 0; frame < 16000; frame++) samples[frame * 6 + 2] = .6f;
+            for (int frame = 0; frame < 16000; frame++)
+            {
+                samples[frame * 6 + 2] = .6f;
+            }
+
             writer.WriteSamples(samples, 0, samples.Length);
         }
         var session = await CallMediaImport.ImportAsync(source, Path.Combine(_root, "calls"));

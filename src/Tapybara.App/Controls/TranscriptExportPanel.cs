@@ -1,11 +1,10 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Automation;
+using System.Windows.Controls;
 using Tapybara.App.Localization;
 using Tapybara.Core.Export;
-
-using ComboBox = System.Windows.Controls.ComboBox;
 using CheckBox = System.Windows.Controls.CheckBox;
+using ComboBox = System.Windows.Controls.ComboBox;
 
 namespace Tapybara.App.Controls;
 

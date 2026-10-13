@@ -98,15 +98,25 @@ public static class VoiceCheck
         foreach (var line in lines.Where(l => l.Channel == CallChannel.Theirs).OrderBy(l => l.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None) continue;
+            if (line.SpeechMix != Tapybara.Core.Speech.SpeechMix.None)
+            {
+                continue;
+            }
+
             var run = runs.LastOrDefault();
             bool canJoin = run is not null && run[^1].Voice == line.Voice
                 && !line.HumanEdits.HasFlag(CallLineEdits.Speaker)
                 && !run[^1].HumanEdits.HasFlag(CallLineEdits.Speaker)
                 && line.Start >= run[^1].End && line.Start - run[^1].End <= TimeSpan.FromMilliseconds(800)
                 && line.End - run[0].Start <= TimeSpan.FromSeconds(12);
-            if (canJoin) run!.Add(line);
-            else runs.Add([line]);
+            if (canJoin)
+            {
+                run!.Add(line);
+            }
+            else
+            {
+                runs.Add([line]);
+            }
         }
         var references = new List<(string Voice, float[] Print)>();
         var trusted = new List<(string Voice, float[] Print)>();
@@ -118,17 +128,32 @@ public static class VoiceCheck
             cancellationToken.ThrowIfCancellationRequested();
             double speechSeconds = run.Sum(l => (l.End - l.Start).TotalSeconds);
             // Short samples may support a review suggestion, never a confidence verdict.
-            if (speechSeconds < (hasConfirmedVoice ? 2.5 : MinLine.TotalSeconds)) continue;
+            if (speechSeconds < (hasConfirmedVoice ? 2.5 : MinLine.TotalSeconds))
+            {
+                continue;
+            }
+
             var sample = run.Count == 1 ? run[0] : run[0] with
                 { End = run[^1].End, Text = string.Join(" ", run.Select(l => l.Text)) };
             if (printOf(sample) is { Length: > 0 } print)
             {
                 string voice = sample.Voice ?? CallVoices.WholeOtherSide;
                 var normalized = VoiceBook.Normalize(print);
-                if (speechSeconds >= MinLine.TotalSeconds) references.Add((voice, normalized));
+                if (speechSeconds >= MinLine.TotalSeconds)
+                {
+                    references.Add((voice, normalized));
+                }
+
                 if (speechSeconds >= MinLine.TotalSeconds && sample.Voice is not null
-                    && sample.HumanEdits.HasFlag(CallLineEdits.Speaker)) trusted.Add((voice, normalized));
-                foreach (var line in run) measured.Add((line, voice, normalized, speechSeconds >= MinLine.TotalSeconds));
+                    && sample.HumanEdits.HasFlag(CallLineEdits.Speaker))
+                {
+                    trusted.Add((voice, normalized));
+                }
+
+                foreach (var line in run)
+                {
+                    measured.Add((line, voice, normalized, speechSeconds >= MinLine.TotalSeconds));
+                }
             }
         }
 
@@ -157,13 +182,23 @@ public static class VoiceCheck
             var matches = trusted.GroupBy(t => t.Voice)
                 .Select(g => (Voice: g.Key, Score: g.Max(t => VoiceBook.Similarity(m.Print, t.Print))))
                 .OrderByDescending(t => t.Score).ToList();
-            if (matches.Count == 0) continue;
+            if (matches.Count == 0)
+            {
+                continue;
+            }
+
             var best = matches[0];
             double alternative = matches.Count > 1 ? matches[1].Score : 0;
             if (referenceCounts.GetValueOrDefault(m.Voice) >= 2 && centres.TryGetValue(m.Voice, out var own))
+            {
                 alternative = Math.Max(alternative, VoiceBook.Similarity(m.Print, own));
+            }
+
             if (best.Voice != m.Voice && best.Score >= VoiceBook.MatchThreshold
-                && best.Score - alternative >= VoiceBook.MatchMargin) suggestions[m.Line] = best.Voice;
+                && best.Score - alternative >= VoiceBook.MatchMargin)
+            {
+                suggestions[m.Line] = best.Voice;
+            }
         }
         return new Report(scores, centres) { Suggestions = suggestions };
     }

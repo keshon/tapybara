@@ -34,8 +34,15 @@ public partial class CallsPage
             TimeSpan from = quote.Start - QuotePadding;
             _playbackFailed = !_player.SetRange(from < TimeSpan.Zero ? TimeSpan.Zero : from, quote.End + QuotePadding, quote.Channel);
             _playingQuote = _playbackFailed ? null : quote;
-            if (_player.IsPlaying) _playbackTimer.Start();
-            else _playbackTimer.Stop();
+            if (_player.IsPlaying)
+            {
+                _playbackTimer.Start();
+            }
+            else
+            {
+                _playbackTimer.Stop();
+            }
+
             FollowPlayback();
             UpdateTransport();
             UpdateQuoteButtons();

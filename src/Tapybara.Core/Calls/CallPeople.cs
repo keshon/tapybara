@@ -83,7 +83,10 @@ public static class CallPeople
             Person(null, isMe: true, mine, -1, transcript, total, l => (l.Channel == CallChannel.Mine && l.Voice is null) || (l.Voice is { } v && mine.Contains(v))),
         };
 
-        if (session.ImportedMedia && mine.Count == 0) people.Clear();
+        if (session.ImportedMedia && mine.Count == 0)
+        {
+            people.Clear();
+        }
 
         if (voices.Count == 0)
         {

@@ -1918,7 +1918,11 @@ public partial class App : Application, IDisposable
     private readonly HashSet<string> _separatingSpeakers = new(StringComparer.OrdinalIgnoreCase);
     private async Task<bool> SeparateSpeakersAsync(string directory, int count)
     {
-        if (!_separatingSpeakers.Add(directory)) return false;
+        if (!_separatingSpeakers.Add(directory))
+        {
+            return false;
+        }
+
         string? result = null;
         try
         {
@@ -1940,7 +1944,11 @@ public partial class App : Application, IDisposable
 
     private async Task RecheckSpeakersAsync(string directory)
     {
-        if (!_recheckingSpeakers.Add(directory)) return;
+        if (!_recheckingSpeakers.Add(directory))
+        {
+            return;
+        }
+
         try
         {
             await RunCallJobAsync(directory,

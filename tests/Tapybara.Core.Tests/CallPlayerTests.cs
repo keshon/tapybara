@@ -56,7 +56,11 @@ public sealed class CallPlayerTests : IDisposable
         Wave(CallSession.SystemFileName, 10);
         using CallPlayer player = Player();
         Assert.True(player.Load(_directory, TimeSpan.FromSeconds(3)));
-        if (playing) Assert.True(player.Resume());
+        if (playing)
+        {
+            Assert.True(player.Resume());
+        }
+
         Assert.True(player.SetRange(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), CallChannel.Theirs));
         Assert.Equal(playing, player.IsPlaying);
         Assert.Equal(TimeSpan.FromSeconds(3), player.Position);

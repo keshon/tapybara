@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using SystemColors = System.Windows.SystemColors;
-using Color = System.Windows.Media.Color;
 using Brush = System.Windows.Media.Brush;
+using Color = System.Windows.Media.Color;
+using SystemColors = System.Windows.SystemColors;
 
 namespace Tapybara.App.Controls;
 

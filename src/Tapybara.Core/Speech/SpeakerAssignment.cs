@@ -16,7 +16,11 @@ public static class SpeakerAssignment
         var coverage = SpeakerCoverage.Measure(start, end, spans);
         int substantial = coverage.Totals.Count(t => t.Duration.TotalSeconds >= .7
             && t.Duration.TotalSeconds >= (end - start).TotalSeconds * .1);
-        if (substantial < 2) return SpeechMix.None;
+        if (substantial < 2)
+        {
+            return SpeechMix.None;
+        }
+
         return coverage.Simultaneous.TotalSeconds >= .3 ? SpeechMix.Overlap : SpeechMix.SpeakerChange;
     }
     /// <summary>

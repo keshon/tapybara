@@ -54,7 +54,10 @@ public static class AudioFile
             _ => new DownmixSampleProvider(reader),
         };
         if (source.WaveFormat.SampleRate != MicrophoneCapture.TargetSampleRate)
+        {
             source = new WdlResamplingSampleProvider(source, MicrophoneCapture.TargetSampleRate);
+        }
+
         using var writer = new WaveFileWriter(outputPath, new WaveFormat(MicrophoneCapture.TargetSampleRate, 16, 1));
         float[] buffer = new float[MicrophoneCapture.TargetSampleRate];
         int read;
@@ -86,12 +89,20 @@ public static class AudioFile
         public int Read(float[] buffer, int offset, int count)
         {
             int channels = source.WaveFormat.Channels;
-            if (_scratch.Length < count * channels) _scratch = new float[count * channels];
+            if (_scratch.Length < count * channels)
+            {
+                _scratch = new float[count * channels];
+            }
+
             int frames = source.Read(_scratch, 0, count * channels) / channels;
             for (int frame = 0; frame < frames; frame++)
             {
                 float sum = 0;
-                for (int channel = 0; channel < channels; channel++) sum += _scratch[frame * channels + channel];
+                for (int channel = 0; channel < channels; channel++)
+                {
+                    sum += _scratch[frame * channels + channel];
+                }
+
                 buffer[offset + frame] = sum / channels;
             }
             return frames;

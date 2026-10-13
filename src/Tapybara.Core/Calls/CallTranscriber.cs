@@ -168,7 +168,11 @@ public sealed class CallTranscriber(
             Stage(progress, CallTranscriptionStage.TranscribingOtherSide, session.ImportedMedia ? 0 : MicrophoneEnds, OtherSideEnds),
             cancellationToken).ConfigureAwait(false);
 
-        if (!session.ImportedMedia) progress?.Report(new(CallTranscriptionStage.FilteringBleed, OtherSideEnds));
+        if (!session.ImportedMedia)
+        {
+            progress?.Report(new(CallTranscriptionStage.FilteringBleed, OtherSideEnds));
+        }
+
         BleedFilter.Result filtered = session.ImportedMedia ? new([], 0, 0)
             : BleedFilter.Apply(micSegments, systemSegments, micEnergy, systemEnergy);
 
@@ -385,7 +389,11 @@ public sealed class CallTranscriber(
     /// </remarks>
     internal static int ExpectedVoices(CallSession session, AppSettings current)
     {
-        if (session.SpeakerCountHint is > 0) return session.SpeakerCountHint.Value;
+        if (session.SpeakerCountHint is > 0)
+        {
+            return session.SpeakerCountHint.Value;
+        }
+
         if (!current.SplitVoices || session.Participants.Count == 1)
         {
             return 0;

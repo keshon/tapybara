@@ -8,8 +8,8 @@ using Tapybara.Core.Calls;
 // добрая половина имён неоднозначна. Псевдонимы, а не полные имена в коде:
 // так видно один раз наверху, из какого мира каждый тип.
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using UiTextBox = Wpf.Ui.Controls.TextBox;
 using TextBlock = System.Windows.Controls.TextBlock;
+using UiTextBox = Wpf.Ui.Controls.TextBox;
 using UserControl = System.Windows.Controls.UserControl;
 
 namespace Tapybara.App;

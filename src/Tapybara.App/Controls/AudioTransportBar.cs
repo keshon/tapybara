@@ -4,10 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Tapybara.App.Localization;
 using Wpf.Ui.Controls;
-
 using Slider = System.Windows.Controls.Slider;
-using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
 using TextBlock = System.Windows.Controls.TextBlock;
+using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
 
 namespace Tapybara.App.Controls;
 

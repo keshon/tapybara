@@ -1,14 +1,13 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Automation;
 using Tapybara.App.Localization;
 using Tapybara.Core.Calls;
 using Wpf.Ui.Controls;
-
+using ComboBox = System.Windows.Controls.ComboBox;
 using ContextMenu = System.Windows.Controls.ContextMenu;
 using MenuItem = System.Windows.Controls.MenuItem;
-using ComboBox = System.Windows.Controls.ComboBox;
 
 namespace Tapybara.App;
 

@@ -3,9 +3,9 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Tapybara.App.Localization;
+using Orientation = System.Windows.Controls.Orientation;
 using UiButton = Wpf.Ui.Controls.Button;
 using UiTextBox = Wpf.Ui.Controls.TextBox;
-using Orientation = System.Windows.Controls.Orientation;
 
 namespace Tapybara.App.Controls;
 

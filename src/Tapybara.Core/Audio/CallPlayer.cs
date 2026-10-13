@@ -61,13 +61,21 @@ public sealed class CallPlayer : IDisposable
     /// <summary>Limit playback without changing whether it is paused or playing.</summary>
     public bool SetRange(TimeSpan from, TimeSpan to, CallChannel? channel = null)
     {
-        if (CallDirectory is null || from < TimeSpan.Zero || to <= from) return false;
+        if (CallDirectory is null || from < TimeSpan.Zero || to <= from)
+        {
+            return false;
+        }
+
         TimeSpan position = Position;
         bool playing = IsPlaying;
         string directory = CallDirectory;
         var begin = position >= from && position < to ? position : from;
         bool result = Open(directory, begin, to, channel, play: playing);
-        if (result) RangeStart = from;
+        if (result)
+        {
+            RangeStart = from;
+        }
+
         return result;
     }
 

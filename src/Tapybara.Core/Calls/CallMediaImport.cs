@@ -9,7 +9,11 @@ public static class CallMediaImport
     public static async Task<CallSession> ImportAsync(string source, string root,
         string? language = null, int? speakerCount = null, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(source)) throw new FileNotFoundException("Media file no longer exists.", source);
+        if (!File.Exists(source))
+        {
+            throw new FileNotFoundException("Media file no longer exists.", source);
+        }
+
         root = Path.GetFullPath(root);
         Directory.CreateDirectory(root);
         string staging = Path.Combine(root, ".import-" + Guid.NewGuid().ToString("N"));
@@ -26,15 +30,27 @@ public static class CallMediaImport
                 await ConvertWithFfmpegAsync(source, output, cancellationToken).ConfigureAwait(false);
             }
             TimeSpan duration;
-            using (var audio = new WaveFileReader(output)) duration = audio.TotalTime;
-            if (duration <= TimeSpan.Zero) throw new IOException("The file contains no audio.");
+            using (var audio = new WaveFileReader(output))
+            {
+                duration = audio.TotalTime;
+            }
+
+            if (duration <= TimeSpan.Zero)
+            {
+                throw new IOException("The file contains no audio.");
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             var now = DateTimeOffset.Now;
             string directory = Path.Combine(root, CallSession.BuildFolderName(now, null) + " import-" + Guid.NewGuid().ToString("N"));
             var session = new CallSession { Directory = staging, StartedAt = now, Duration = duration,
                 Title = Path.GetFileNameWithoutExtension(source), ImportedMedia = true, ImportLanguage = language, SpeakerCountHint = speakerCount };
             CallMeta.Save(session);
-            if (CallMeta.Load(staging) is null) throw new IOException("Could not save imported session.");
+            if (CallMeta.Load(staging) is null)
+            {
+                throw new IOException("Could not save imported session.");
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             Directory.Move(staging, directory);
             return session with { Directory = directory };
@@ -42,7 +58,10 @@ public static class CallMediaImport
         finally
         {
             // This unique staging directory belongs only to this import.
-            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            if (Directory.Exists(staging))
+            {
+                Directory.Delete(staging, recursive: true);
+            }
         }
     }
 
@@ -53,18 +72,28 @@ public static class CallMediaImport
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
         foreach (string arg in new[] { "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", Path.GetFullPath(source),
             "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", output })
+        {
             start.ArgumentList.Add(arg);
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         using var process = Process.Start(start) ?? throw new IOException("Could not start media conversion.");
         using var stop = cancellationToken.Register(() => {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            try { if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
         });
         Task<string> errors = ReadErrorsAsync(process.StandardError);
         await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
         string error = await errors.ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        if (process.ExitCode != 0) throw new IOException("Could not decode media. " + error[..Math.Min(error.Length, 1200)]);
+        if (process.ExitCode != 0)
+        {
+            throw new IOException("Could not decode media. " + error[..Math.Min(error.Length, 1200)]);
+        }
     }
     private static async Task<string> ReadErrorsAsync(StreamReader reader)
     {
@@ -74,7 +103,10 @@ public static class CallMediaImport
         while ((read = await reader.ReadAsync(buffer.AsMemory(), CancellationToken.None).ConfigureAwait(false)) > 0)
         {
             int keep = Math.Min(read, 1200 - result.Length);
-            if (keep > 0) result.Append(buffer, 0, keep);
+            if (keep > 0)
+            {
+                result.Append(buffer, 0, keep);
+            }
         }
         return result.ToString();
     }

@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using Tapybara.Bench;
-using Whisper.net.Logger;
 using Tapybara.Core.Audio;
 using Tapybara.Core.Calls;
 using Tapybara.Core.Settings;
 using Tapybara.Core.Speech;
 using Tapybara.Core.Windows;
+using Whisper.net.Logger;
 
 // Консольный харнесс фазы 0: замерить скорость распознавания на этой машине
 // и сравнить модели на ОДНОМ И ТОМ ЖЕ звуке.

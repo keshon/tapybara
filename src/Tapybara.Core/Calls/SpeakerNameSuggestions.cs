@@ -11,10 +11,17 @@ public static class SpeakerNameSuggestions
         var result = new Dictionary<string, VoiceMatch>();
         foreach (var (voice, print) in transcript.VoicePrints)
         {
-            if (CallSpeakers.NameOf(session, voice) is not null) continue;
+            if (CallSpeakers.NameOf(session, voice) is not null)
+            {
+                continue;
+            }
+
             var scores = named.Select(g => new VoiceMatch(g.Key, g.Max(p => VoiceBook.Similarity(p.Value, print))))
                 .OrderByDescending(m => m.Score).ToList();
-            if (VoiceBook.Pick(scores) is { } match) result[voice] = match;
+            if (VoiceBook.Pick(scores) is { } match)
+            {
+                result[voice] = match;
+            }
         }
         return result;
     }

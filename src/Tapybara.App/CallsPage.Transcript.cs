@@ -175,7 +175,9 @@ public partial class CallsPage
     {
         var menu = new ContextMenu();
         if (HasMixedSpeech(row.Line))
+        {
             menu.Items.Add(new MenuItem { Header = SpeakerText("Mixed speech · split first", "Смешанная речь · сначала разделите"), IsEnabled = false });
+        }
 
         if (_transcript is not null && _session is not null)
         {

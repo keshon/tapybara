@@ -1,6 +1,6 @@
 using System.Windows;
-using Tapybara.Core.Calls;
 using Tapybara.App.Localization;
+using Tapybara.Core.Calls;
 
 namespace Tapybara.App;
 
@@ -30,7 +30,11 @@ public partial class CallsPage
         ImportLanguage.ItemsSource = WhisperLanguages.All.Select(l => new ImportLanguageChoice(l.Code,
             l.Code == WhisperLanguages.AutoCode ? L.S.LanguageAutoDetect : l.ToString())).ToList();
         ImportLanguage.SelectedValue = selected;
-        if (ImportLanguage.SelectedIndex < 0) ImportLanguage.SelectedValue = WhisperLanguages.AutoCode;
+        if (ImportLanguage.SelectedIndex < 0)
+        {
+            ImportLanguage.SelectedValue = WhisperLanguages.AutoCode;
+        }
+
         Controls.ControlSizing.Apply(ImportLanguage);
         ImportSpeakersLabel.Text = SpeakerText("Speakers (optional)", "Говорящие (необязательно)");
         int chosenCount = ImportSpeakers.SelectedValue as int? ?? 0;
@@ -53,7 +57,11 @@ public partial class CallsPage
 
     private void OnNewTranscription(object sender, RoutedEventArgs e)
     {
-        if (_services.ImportMedia is null || _activeEditor?.Flush() == false) return;
+        if (_services.ImportMedia is null || _activeEditor?.Flush() == false)
+        {
+            return;
+        }
+
         if (ImportPane.Visibility != Visibility.Visible && _importCancellation is null)
         {
             ImportLanguage.SelectedValue = Settings.Language;
@@ -78,12 +86,19 @@ public partial class CallsPage
 
     private async void OnBrowseImport(object sender, RoutedEventArgs e)
     {
-        if (_importCancellation is not null) return;
+        if (_importCancellation is not null)
+        {
+            return;
+        }
+
         var picker = new Microsoft.Win32.OpenFileDialog {
             Title = SpeakerText("New transcription", "Новая транскрипция"),
             Filter = SpeakerText("Audio and video", "Аудио и видео") + "|*.wav;*.mp3;*.m4a;*.mp4;*.mkv;*.webm;*.ogg;*.flac;*.aac;*.wma;*.wmv;*.mov;*.avi|" +
                 SpeakerText("All files", "Все файлы") + "|*.*", Multiselect = false };
-        if (picker.ShowDialog(Window.GetWindow(this)) == true) await ImportFileAsync(picker.FileName);
+        if (picker.ShowDialog(Window.GetWindow(this)) == true)
+        {
+            await ImportFileAsync(picker.FileName);
+        }
     }
 
     private void OnImportDragOver(object sender, System.Windows.DragEventArgs e)
@@ -95,9 +110,19 @@ public partial class CallsPage
     private async void OnImportDrop(object sender, System.Windows.DragEventArgs e)
     {
         e.Handled = true;
-        if (_importCancellation is not null) return;
-        if (TryImportFile(e.Data) is { } path) await ImportFileAsync(path);
-        else ImportStatusText.Text = SpeakerText("Choose one audio or video file.", "Выберите один аудио- или видеофайл.");
+        if (_importCancellation is not null)
+        {
+            return;
+        }
+
+        if (TryImportFile(e.Data) is { } path)
+        {
+            await ImportFileAsync(path);
+        }
+        else
+        {
+            ImportStatusText.Text = SpeakerText("Choose one audio or video file.", "Выберите один аудио- или видеофайл.");
+        }
     }
 
     private static string? TryImportFile(System.Windows.IDataObject data) =>
@@ -105,7 +130,11 @@ public partial class CallsPage
 
     private async Task ImportFileAsync(string path)
     {
-        if (_importCancellation is not null || _services.ImportMedia is null) return;
+        if (_importCancellation is not null || _services.ImportMedia is null)
+        {
+            return;
+        }
+
         string language = ImportLanguage.SelectedValue as string ?? Settings.Language;
         int? speakerCount = ImportSpeakers.SelectedValue is int n && n > 0 ? n : null;
         using var cancellation = new CancellationTokenSource();
@@ -115,26 +144,41 @@ public partial class CallsPage
         try
         {
             CallSession session = await _services.ImportMedia(path, language, speakerCount, cancellation.Token);
-            if (_disposed || cancellation.IsCancellationRequested) return;
+            if (_disposed || cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
             ImportPane.Visibility = Visibility.Collapsed;
             Select(session.Directory);
-            if (CallLibrary.Describe(session.Directory) is { } entry) await TranscribeCallAsync(entry);
+            if (CallLibrary.Describe(session.Directory) is { } entry)
+            {
+                await TranscribeCallAsync(entry);
+            }
         }
         catch (OperationCanceledException)
         {
-            if (!_disposed) ImportStatusText.Text = SpeakerText("Import cancelled. Choose another file to start again.", "Импорт отменён. Выберите файл, чтобы начать заново.");
+            if (!_disposed)
+            {
+                ImportStatusText.Text = SpeakerText("Import cancelled. Choose another file to start again.", "Импорт отменён. Выберите файл, чтобы начать заново.");
+            }
         }
         catch (Exception ex) when (ex is System.IO.IOException or System.ComponentModel.Win32Exception or UnauthorizedAccessException)
         {
             if (!_disposed)
+            {
                 ImportStatusText.Text = ex is System.ComponentModel.Win32Exception
                     ? SpeakerText("Windows could not decode this format. For additional formats, install FFmpeg on PATH or place ffmpeg.exe beside Tapybara.exe.",
                         "Windows не поддерживает этот формат. Для дополнительных форматов добавьте FFmpeg в PATH или положите ffmpeg.exe рядом с Tapybara.exe.") : ex.Message;
+            }
         }
         finally
         {
             _importCancellation = null;
-            if (!_disposed) UpdateImportButton();
+            if (!_disposed)
+            {
+                UpdateImportButton();
+            }
         }
     }
 }

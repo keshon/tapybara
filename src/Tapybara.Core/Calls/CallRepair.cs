@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
-using Tapybara.Core.Diagnostics;
 using Tapybara.Core.Audio;
+using Tapybara.Core.Diagnostics;
 
 namespace Tapybara.Core.Calls;
 

@@ -14,9 +14,11 @@ public static class SpeakerSeparation
     {
         var result = transcript with { SpeakerIntervals = spans, ExpectedVoices = Math.Max(0, expected), VoicePrints = new Dictionary<string, float[]>() };
         if (NeedsCount(result))
+        {
             return result with { VoicesSplit = false, VoicesChecked = false,
                 Lines = transcript.Lines.Select(l => l.Channel == CallChannel.Theirs && !l.HumanEdits.HasFlag(CallLineEdits.Speaker)
                     ? l with { Voice = null, Fit = null, SuggestedVoice = null, SpeechMix = SpeechMix.None } : l).ToList() };
+        }
 
         var assigned = CallVoices.Assign(transcript.Lines, spans);
         var identities = transcript.Lines.Where(l => l.HumanEdits.HasFlag(CallLineEdits.Speaker) && l.Voice is not null

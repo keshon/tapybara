@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Input;
+using System.Windows.Media;
 using Tapybara.App.Localization;
 using Wpf.Ui.Controls;
 using Button = System.Windows.Controls.Button;

@@ -1,6 +1,6 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Automation;
+using System.Windows.Controls;
 
 namespace Tapybara.App.Controls;
 

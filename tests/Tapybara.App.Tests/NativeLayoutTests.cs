@@ -1,9 +1,9 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Markup;
 using System.Xml.Linq;
 using Tapybara.App.Controls;
 using Tapybara.Core.Calls;
