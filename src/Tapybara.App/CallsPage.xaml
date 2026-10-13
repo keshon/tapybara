@@ -7,6 +7,16 @@
              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
              FontFamily="{StaticResource AppFontFamily}"
              FontSize="{StaticResource AppFontSize}">
+    <UserControl.Resources>
+        <Style x:Key="CoveredWorkspacePanel" TargetType="Border" BasedOn="{StaticResource Panel}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Visibility, ElementName=ImportPane}" Value="Visible">
+                    <Setter Property="Opacity" Value="0" />
+                    <Setter Property="IsHitTestVisible" Value="False" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <!--
         Звонки — страница главного окна.
 
@@ -51,9 +61,12 @@
                 </components:SectionHeader.ActionContent>
             </components:SectionHeader>
 
-            <components:SearchFilterBar x:Name="LibrarySearch"
-                        Grid.Row="1"
-                        Margin="0,0,0,8" />
+            <components:SearchFilterBar x:Name="LibrarySearch" Grid.Row="1" Margin="0,0,0,8">
+                <components:SearchFilterBar.ActionContent>
+                    <ui:Button x:Name="NewTranscriptionButton" Click="OnNewTranscription"
+                               Margin="8,0,0,0" Icon="{ui:SymbolIcon Add24}" />
+                </components:SearchFilterBar.ActionContent>
+            </components:SearchFilterBar>
 
             <ListBox x:Name="CallList" Margin="0"
                      Grid.Row="2"
@@ -123,7 +136,7 @@
 
         <!-- звонок -->
         <GridSplitter x:Name="LibrarySplitter" Grid.Column="1" Style="{StaticResource PanelSplitter}" />
-        <Border Grid.Column="2" Style="{StaticResource Panel}">
+        <Border Grid.Column="2" Style="{StaticResource CoveredWorkspacePanel}">
             <Grid>
                 <TextBlock x:Name="NothingSelected"
                            Style="{StaticResource TextBodySecondary}"
@@ -393,11 +406,82 @@
         <!-- голоса -->
         <Border x:Name="VoicesPane"
                 Grid.Column="4"
-                Style="{StaticResource Panel}">
+                Style="{StaticResource CoveredWorkspacePanel}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,20,16,16">
                 <StackPanel x:Name="VoicesHost" />
             </ScrollViewer>
         </Border>
-        <GridSplitter x:Name="PeopleSplitter" Grid.Column="3" Style="{StaticResource PanelSplitter}" />
+        <Border x:Name="ImportPane" Grid.Column="2" Grid.ColumnSpan="3" Panel.ZIndex="10"
+                Style="{StaticResource Panel}" Visibility="Collapsed">
+            <Grid Margin="24">
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                <Grid>
+                    <TextBlock x:Name="ImportTitle" Style="{StaticResource TextTitle}" VerticalAlignment="Center" />
+                    <ui:Button x:Name="CloseImportButton" HorizontalAlignment="Right" Click="OnCloseImport"
+                               Icon="{ui:SymbolIcon Dismiss24}" components:ControlSizing.IconOnly="True" />
+                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              VerticalContentAlignment="Center" HorizontalContentAlignment="Stretch">
+                    <StackPanel MaxWidth="620" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="0,32,0,24">
+                        <Grid Height="260" AllowDrop="True" PreviewDragOver="OnImportDragOver" Drop="OnImportDrop">
+                            <ui:Button x:Name="BrowseImportButton" Click="OnBrowseImport" HorizontalContentAlignment="Stretch"
+                                       VerticalContentAlignment="Center" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                       Appearance="Transparent" Padding="24" CornerRadius="{x:Static app:Tokens.CardRadius}">
+                                <ui:Button.Template>
+                                    <ControlTemplate TargetType="ui:Button">
+                                        <Grid>
+                                            <Rectangle x:Name="DropOutline" Fill="Transparent" Stroke="{DynamicResource CardStrokeColorDefaultBrush}"
+                                                       StrokeThickness="1" StrokeDashArray="4,3"
+                                                       RadiusX="{Binding CornerRadius.TopLeft, RelativeSource={RelativeSource TemplatedParent}}"
+                                                       RadiusY="{Binding CornerRadius.TopLeft, RelativeSource={RelativeSource TemplatedParent}}" />
+                                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="DropOutline" Property="Stroke" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                <Setter TargetName="DropOutline" Property="Stroke" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ui:Button.Template>
+                                <StackPanel>
+                                    <ui:SymbolIcon Symbol="FolderOpen24" FontSize="40" HorizontalAlignment="Center" Margin="0,0,0,24" />
+                                    <TextBlock x:Name="ImportDropTitle" Style="{StaticResource TextTitle}" TextAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="ImportDropHint" Style="{StaticResource TextBodySecondary}" TextAlignment="Center" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </ui:Button>
+                        </Grid>
+                        <WrapPanel Margin="0,24,0,0">
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock x:Name="ImportLanguageLabel" Style="{StaticResource TextCaption}" Margin="0,0,0,8" />
+                                <ComboBox x:Name="ImportLanguage" Width="260" HorizontalAlignment="Left" DisplayMemberPath="Label" SelectedValuePath="Code" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock x:Name="ImportSpeakersLabel" Style="{StaticResource TextCaption}" Margin="0,0,0,8" />
+                                <ComboBox x:Name="ImportSpeakers" Width="180" HorizontalAlignment="Left" DisplayMemberPath="Label" SelectedValuePath="Count" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <TextBlock x:Name="ImportStatusText" Style="{StaticResource TextBodySecondary}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                        <ProgressBar x:Name="ImportProgress" IsIndeterminate="True" Height="4" Margin="0,12,0,0" Visibility="Collapsed" />
+                        <ui:Button x:Name="CancelImportButton" HorizontalAlignment="Left" Click="OnCancelImport" Margin="0,16,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+        <GridSplitter x:Name="PeopleSplitter" Grid.Column="3">
+            <GridSplitter.Style>
+                <Style TargetType="GridSplitter" BasedOn="{StaticResource PanelSplitter}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Visibility, ElementName=ImportPane}" Value="Visible">
+                            <Setter Property="Opacity" Value="0" />
+                            <Setter Property="IsHitTestVisible" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </GridSplitter.Style>
+        </GridSplitter>
     </Grid>
 </UserControl>

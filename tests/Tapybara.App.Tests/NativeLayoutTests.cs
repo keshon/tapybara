@@ -60,7 +60,7 @@ public sealed class NativeLayoutTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         root.Attribute(x + "Class")!.Remove();
         foreach (var attribute in root.DescendantsAndSelf().Attributes().Where(a => new[]
-        { "TextChanged", "Click", "Checked", "Unchecked", "SelectionChanged", "ContextMenuOpening", "Loaded", "GotKeyboardFocus", "KeyDown", "LostKeyboardFocus", "DocumentMenuOpening", "TimingShiftRequested", "SeekRequested", "LockedPlayRequested", "FreePlayRequested", "MenuRequested" }.Contains(a.Name.LocalName)).ToArray())
+        { "PreviewDragOver", "Drop", "TextChanged", "Click", "Checked", "Unchecked", "SelectionChanged", "ContextMenuOpening", "Loaded", "GotKeyboardFocus", "KeyDown", "LostKeyboardFocus", "DocumentMenuOpening", "TimingShiftRequested", "SeekRequested", "LockedPlayRequested", "FreePlayRequested", "MenuRequested" }.Contains(a.Name.LocalName)).ToArray())
         { attribute.Remove(); }
         foreach (var element in root.DescendantsAndSelf())
         {
@@ -139,6 +139,32 @@ public sealed class NativeLayoutTests
         Assert.Equal(Visibility.Collapsed, ((Grid)pill.Content).Children.OfType<TextBlock>().Last().Visibility);
         rail.Measure(new Size(320, 80)); rail.Arrange(new Rect(0, 0, 320, 80)); rail.UpdateLayout();
         Assert.Equal(Visibility.Visible, ((Grid)pill.Content).Children.OfType<TextBlock>().Last().Visibility);
+    });
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    public void ImportWorkspaceKeepsDropZoneAndLanguageInsidePanel(string theme) => OnSta(() =>
+    {
+        UserControl page = Page(theme);
+        var pane = (Border)page.FindName("ImportPane");
+        pane.Visibility = Visibility.Visible;
+        ((TextBlock)page.FindName("ImportTitle")).Text = "New transcription";
+        ((TextBlock)page.FindName("ImportDropTitle")).Text = "Drop audio or video here";
+        ((TextBlock)page.FindName("ImportDropHint")).Text = "or click to browse your files";
+        ((TextBlock)page.FindName("ImportLanguageLabel")).Text = "Recognition language";
+        var language = (ComboBox)page.FindName("ImportLanguage");
+        language.Items.Add(new { Code = "ru", Label = "Russian (ru)" }); language.SelectedIndex = 0;
+        ControlSizing.Apply(language);
+        Render(page, 1600, 850, "import-" + theme.ToLowerInvariant());
+        var browse = (Wpf.Ui.Controls.Button)page.FindName("BrowseImportButton");
+        var location = browse.TranslatePoint(new Point(), pane);
+        Assert.InRange(browse.ActualWidth, 400, 620);
+        Assert.True(location.X >= 0 && location.Y >= 0);
+        Assert.True(location.X + browse.ActualWidth <= pane.ActualWidth);
+        var languageLocation = language.TranslatePoint(new Point(), pane);
+        Assert.True(languageLocation.Y >= location.Y + browse.ActualHeight);
+        Assert.True(languageLocation.Y + language.ActualHeight <= pane.ActualHeight);
     });
 
     [Theory]
@@ -458,6 +484,24 @@ public sealed class NativeLayoutTests
     });
 
     [Fact]
+    public void ExcerptLockIsPermanentAndReflectsPlaybackRange() => OnSta(() =>
+    {
+        var transport = new AudioTransportBar { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
+        transport.SetState(TimeSpan.Zero, TimeSpan.FromMinutes(5), false, true);
+        var commands = transport.Children.OfType<StackPanel>().Single();
+        var toggle = commands.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
+            .Single(button => button.Content is Wpf.Ui.Controls.SymbolIcon icon && icon.Symbol == Wpf.Ui.Controls.SymbolRegular.LockOpen24);
+        Assert.Equal(Visibility.Visible, toggle.Visibility);
+        Assert.False(toggle.IsChecked);
+        transport.SetState(TimeSpan.Zero, TimeSpan.FromMinutes(5), false, true, (TimeSpan.Zero, TimeSpan.FromSeconds(4)));
+        Assert.True(toggle.IsChecked);
+        Assert.Equal(Wpf.Ui.Controls.SymbolRegular.LockClosed24, ((Wpf.Ui.Controls.SymbolIcon)toggle.Content).Symbol);
+        transport.SetState(TimeSpan.Zero, TimeSpan.FromMinutes(5), false, true);
+        Assert.False(toggle.IsChecked);
+        Assert.Equal(Visibility.Visible, toggle.Visibility);
+    });
+
+    [Fact]
     public void TimerDigitsDoNotMoveTheTransportSlider() => OnSta(() =>
     {
         var transport = new AudioTransportBar { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()) };
@@ -507,7 +551,8 @@ public sealed class NativeLayoutTests
         transport.SetState(TimeSpan.Zero, TimeSpan.FromMinutes(20), false, true,
             (TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20)));
         Render(page, 1160, 460, "loop-theme-" + theme.ToLowerInvariant());
-        var loop = transport.Children.OfType<StackPanel>().Single().Children.OfType<System.Windows.Controls.Primitives.ToggleButton>().Single();
+        var loop = transport.Children.OfType<StackPanel>().Single().Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
+            .Single(button => button.Content is Wpf.Ui.Controls.SymbolIcon icon && icon.Symbol == Wpf.Ui.Controls.SymbolRegular.ArrowRepeatAll24);
         var icon = (Wpf.Ui.Controls.SymbolIcon)loop.Content;
         Assert.Equal(((SolidColorBrush)transport.FindResource("TextFillColorPrimaryBrush")).Color, ((SolidColorBrush)loop.Foreground).Color);
         Assert.Equal(((SolidColorBrush)loop.Foreground).Color, ((SolidColorBrush)icon.Foreground).Color);

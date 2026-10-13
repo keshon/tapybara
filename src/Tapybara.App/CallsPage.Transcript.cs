@@ -180,7 +180,7 @@ public partial class CallsPage
         if (_transcript is not null && _session is not null)
         {
             menu.Items.Add(new MenuItem { Header = L.S.LineSaidBy, IsEnabled = false });
-            AddSaidBy(menu, row.Line, reject: false);
+            AddSaidBy(menu, row.Line);
             menu.Items.Add(new Separator());
         }
 

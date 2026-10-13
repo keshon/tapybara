@@ -25,6 +25,36 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
+    public void BackgroundSuggestionsKeepUndoAndBatchAssignmentsUndoTogether()
+    {
+        var first = Line("first", 0, 6);
+        var second = Line("second", 10, 16);
+        var session = Session(first, second);
+        Assert.True(session.Execute(t => TranscriptEdit.EditLine(t, first, "edited")));
+        var refreshed = session.Document with { Lines = session.Document.Lines
+            .Select(l => l with { SuggestedVoice = "B" }).ToList() };
+        var saved = CallTranscriptStore.TrySave(_directory, session.Document.Revision, refreshed)!;
+        session.Synchronize(saved);
+        Assert.True(session.CanUndo);
+        Assert.True(session.Execute(t => CallVoices.Reassign(CallVoices.Reassign(t, first, "B"), second, "B")));
+        Assert.All(session.Document.Lines, l => Assert.Equal("B", l.Voice));
+        Assert.True(session.Undo());
+        Assert.All(session.Document.Lines, l => Assert.Equal("A", l.Voice));
+        Assert.Equal("edited", session.Document.Lines[0].Text);
+        Assert.True(session.Undo());
+        Assert.Equal("first", session.Document.Lines[0].Text);
+    }
+
+    [Fact]
+    public void TimingChangesDiscardPreviousAudioSuggestion()
+    {
+        var line = Line("speech") with { SuggestedVoice = "B" };
+        var doc = new CallTranscript { Lines = [line] };
+        Assert.Null(CallDocumentCommands.SetTiming(doc, line.Id, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(9))
+            .Lines[0].SuggestedVoice);
+    }
+
+    [Fact]
     public void RenamingPersonAcrossMultipleVoicesPreservesCorrectionsAndUndoesTheName()
     {
         CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow,

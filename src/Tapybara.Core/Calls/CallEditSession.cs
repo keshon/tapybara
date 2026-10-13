@@ -94,5 +94,5 @@ public sealed class CallEditSession(string directory, CallTranscript document)
     }
 
     private static bool SameEdits(CallTranscript left, CallTranscript right) => left.EditedByHand == right.EditedByHand
-        && left.Lines.Select(l => l with { Fit = null }).SequenceEqual(right.Lines.Select(l => l with { Fit = null }));
+        && left.Lines.Select(l => l with { Fit = null, SuggestedVoice = null }).SequenceEqual(right.Lines.Select(l => l with { Fit = null, SuggestedVoice = null }));
 }

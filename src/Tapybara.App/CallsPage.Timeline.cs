@@ -142,7 +142,7 @@ public partial class CallsPage
     {
         try
         {
-            var results = await Task.WhenAll(ReadWaveformAsync(entry.Session.MicPath, cancellation.Token),
+            var results = await Task.WhenAll(entry.Session.ImportedMedia ? Task.FromResult((WaveformEnvelope.Empty, false)) : ReadWaveformAsync(entry.Session.MicPath, cancellation.Token),
                 ReadWaveformAsync(entry.Session.SystemPath, cancellation.Token));
             if (_disposed || cancellation.IsCancellationRequested || epoch != _waveformEpoch
                 || !string.Equals(_timelineDirectory, entry.Directory, StringComparison.OrdinalIgnoreCase)) { return; }
@@ -179,6 +179,7 @@ public partial class CallsPage
             new(L.S.TimelineMicrophone, VoicePalette.Me, [], _microphoneWave, Status(_microphoneWave, _microphoneFailed), CallChannel.Mine),
             new(L.S.TimelineSystem, VoicePalette.For(0), [], _systemWave, Status(_systemWave, _systemFailed), CallChannel.Theirs),
         ];
+        if (_session?.ImportedMedia == true) sources = sources[1..];
         List<TimelineLane> speakers = [.. _lines.GroupBy(row => row.Speaker, StringComparer.OrdinalIgnoreCase).Select(group =>
             new TimelineLane(group.Key, group.First().SpeakerBrush, [.. group.Select(row =>
             {

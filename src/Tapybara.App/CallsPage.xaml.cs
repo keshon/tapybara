@@ -178,6 +178,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         {
             _libraryCancellation.Dispose();
         }
+        _importCancellation?.Cancel();
         _activeEditor?.Flush();
         _services.Live.Changed -= UpdateRecordButton;
         _refresh.Stop();
@@ -198,6 +199,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         TimelineToggle.ToolTip = L.S.TimelineTitle;
         System.Windows.Automation.AutomationProperties.SetName(TimelineToggle, L.S.TimelineTitle);
         ListTitle.Text = L.S.SectionCalls;
+        UpdateImportButton();
         LibrarySplitter.ToolTip = L.S.CallsResizeLibrary;
         PeopleSplitter.ToolTip = L.S.CallsResizePeople;
         System.Windows.Automation.AutomationProperties.SetName(LibrarySplitter, L.S.CallsResizeLibrary);
@@ -584,6 +586,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
         }
         SaveNote();
         SaveTitle();
+        if (ImportPane.Visibility == Visibility.Visible)
+        {
+            _importCancellation?.Cancel();
+            ImportPane.Visibility = Visibility.Collapsed;
+        }
         if (CallList.SelectedItem is CallRow)
         {
             _requestedDirectory = null;
@@ -629,7 +636,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             return;
         }
 
-        string stamp = entry.Directory + Stamp(entry) + _services.LivePercent(entry.Directory);
+        string stamp = entry.Directory + Stamp(entry) + _services.LivePercent(entry.Directory)
+            + _services.IsRecheckingSpeakers(entry.Directory) + _services.IsSeparatingSpeakers(entry.Directory);
         if (!force && stamp == _detailStamp)
         {
             return;
@@ -662,7 +670,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         // Звонок распознан до сверки реплик с голосами — сверяем один раз, в
         // фоне. Без этого старые звонки так и показывали бы чужие цитаты.
-        if (_transcript is { VoicesChecked: false }
+        if (_transcript is { VoicesChecked: false } && !NeedsSpeakerCount
             && entry.State is CallState.Ready or CallState.NeedsNames
             && _transcript.Lines.Any(l => l.Channel == CallChannel.Theirs)
             && _verifyAsked.Add(entry.Directory))
@@ -713,7 +721,9 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private void ShowBanner(CallEntry entry)
     {
         BannerProgress.Visibility = Visibility.Collapsed;
+        BannerProgress.IsIndeterminate = false;
         BannerButton.Visibility = Visibility.Collapsed;
+        BannerButton.IsEnabled = true;
         _bannerAction = null;
         Banner.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
         BannerIcon.Symbol = SymbolRegular.Info24;
@@ -727,7 +737,11 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
             case CallState.Transcribing:
                 int percent = _services.LivePercent(entry.Directory) ?? 0;
-                text = string.Format(L.S.Formatting, L.S.BannerTranscribing, percent);
+                bool rechecking = _services.IsRecheckingSpeakers(entry.Directory);
+                bool separating = _services.IsSeparatingSpeakers(entry.Directory);
+                text = separating ? SpeakerText("Separating speakers…", "Разделяю говорящих…") : rechecking ? SpeakerText("Rechecking speaker assignments…", "Перепроверяю говорящих…")
+                    : string.Format(L.S.Formatting, L.S.BannerTranscribing, percent);
+                BannerProgress.IsIndeterminate = rechecking || separating;
                 BannerProgress.Value = percent;
                 BannerProgress.Visibility = Visibility.Visible;
 
@@ -745,6 +759,12 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
             case CallState.Damaged:
                 text = L.S.BannerDamaged;
                 Banner.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "SystemFillColorCriticalBackgroundBrush");
+                break;
+
+            case CallState.Ready or CallState.NeedsNames when NeedsSpeakerCount:
+                text = SpeakerText("Speaker separation needs a speaker count. The transcript is ready.", "Для разделения нужно число говорящих. Текст готов.");
+                ShowBannerButton(SpeakerText("Set speaker count…", "Указать число говорящих…"), RetrySpeakerSeparation);
+                BannerButton.IsEnabled = _services.CanSeparateSpeakers();
                 break;
 
             case CallState.NeedsNames when _session is not null && _suggestions.Count > 0:

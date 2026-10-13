@@ -42,20 +42,6 @@ public static class VoiceCheck
     public const double Sure = 0.6;
 
     /// <summary>
-    /// На сколько реплика должна быть ближе к другому голосу, чтобы переехать к нему сама.
-    /// </summary>
-    /// <remarks>
-    /// Переезд без спроса — только при явном перевесе. На звонке, верно
-    /// разделённом на три голоса, такая реплика нашлась одна: 0,41 к своему
-    /// голосу и 0,76 к другому. Спорные случаи остаются сомнением, которое
-    /// видит человек, а не решением, которое за него принято.
-    /// </remarks>
-    public const double MoveLead = 0.15;
-    private const double UnknownReferenceLimit = .5;
-    private const double UnknownVoiceSimilarity = .72;
-    private static readonly TimeSpan UnknownMinSpeech = MinLine * 2;
-
-    /// <summary>
     /// Со скольки сомнительных реплик считать, что голосов больше, чем нашли.
     /// </summary>
     /// <remarks>
@@ -80,7 +66,10 @@ public static class VoiceCheck
     }
 
     /// <summary>Итог замера: реплики и центры голосов.</summary>
-    public sealed record Report(IReadOnlyList<LineScore> Lines, IReadOnlyDictionary<string, float[]> Centres);
+    public sealed record Report(IReadOnlyList<LineScore> Lines, IReadOnlyDictionary<string, float[]> Centres)
+    {
+        public IReadOnlyDictionary<CallLine, string> Suggestions { get; init; } = new Dictionary<CallLine, string>();
+    }
 
     /// <summary>Звук одной реплики.</summary>
     public static float[] Slice(float[] audio, CallLine line, int sampleRate = 16_000)
@@ -104,7 +93,7 @@ public static class VoiceCheck
         ArgumentNullException.ThrowIfNull(lines);
         ArgumentNullException.ThrowIfNull(printOf);
 
-        var measured = new List<(CallLine Line, string Voice, float[] Print)>();
+        var measured = new List<(CallLine Line, string Voice, float[] Print, bool ForConfidence)>();
         var runs = new List<List<CallLine>>();
         foreach (var line in lines.Where(l => l.Channel == CallChannel.Theirs).OrderBy(l => l.Start))
         {
@@ -120,18 +109,26 @@ public static class VoiceCheck
             else runs.Add([line]);
         }
         var references = new List<(string Voice, float[] Print)>();
+        var trusted = new List<(string Voice, float[] Print)>();
+        bool hasConfirmedVoice = lines.Any(l => l.Voice is not null
+            && l.HumanEdits.HasFlag(CallLineEdits.Speaker) && l.SpeechMix == Tapybara.Core.Speech.SpeechMix.None
+            && l.End - l.Start >= MinLine);
         foreach (var run in runs)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (run.Sum(l => (l.End - l.Start).TotalSeconds) < MinLine.TotalSeconds) continue;
+            double speechSeconds = run.Sum(l => (l.End - l.Start).TotalSeconds);
+            // Short samples may support a review suggestion, never a confidence verdict.
+            if (speechSeconds < (hasConfirmedVoice ? 2.5 : MinLine.TotalSeconds)) continue;
             var sample = run.Count == 1 ? run[0] : run[0] with
                 { End = run[^1].End, Text = string.Join(" ", run.Select(l => l.Text)) };
             if (printOf(sample) is { Length: > 0 } print)
             {
                 string voice = sample.Voice ?? CallVoices.WholeOtherSide;
                 var normalized = VoiceBook.Normalize(print);
-                references.Add((voice, normalized));
-                foreach (var line in run) measured.Add((line, voice, normalized));
+                if (speechSeconds >= MinLine.TotalSeconds) references.Add((voice, normalized));
+                if (speechSeconds >= MinLine.TotalSeconds && sample.Voice is not null
+                    && sample.HumanEdits.HasFlag(CallLineEdits.Speaker)) trusted.Add((voice, normalized));
+                foreach (var line in run) measured.Add((line, voice, normalized, speechSeconds >= MinLine.TotalSeconds));
             }
         }
 
@@ -141,48 +138,43 @@ public static class VoiceCheck
             .GroupBy(m => m.Voice)
             .ToDictionary(g => g.Key, g => Centre([.. g.Select(m => m.Print)]));
 
-        // Sustained speech unlike every usable reference must not be forced into an existing identity.
-        // These are unnamed acoustic candidates, not a claim about the number or names of people.
-        var missing = new List<(string Voice, List<float[]> Prints)>();
-        var reserved = lines.Where(l => l.Voice is not null).Select(l => l.Voice!).Distinct().ToList();
-        foreach (var run in runs)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (run.Any(l => l.HumanEdits.HasFlag(CallLineEdits.Speaker))
-                || run.Sum(l => (l.End - l.Start).TotalSeconds) < UnknownMinSpeech.TotalSeconds) continue;
-            var measuredRun = measured.FirstOrDefault(m => m.Line == run[0]);
-            if (measuredRun.Print is null || centres.Values.Any(c => VoiceBook.Similarity(c, measuredRun.Print) >= UnknownReferenceLimit)) continue;
-            var candidate = missing.FirstOrDefault(c => c.Prints.All(p => VoiceBook.Similarity(p, measuredRun.Print) >= UnknownVoiceSimilarity));
-            if (candidate.Prints is null)
-            {
-                string voice = CallVoices.NextFree(reserved); reserved.Add(voice);
-                candidate = (voice, []); missing.Add(candidate);
-            }
-            candidate.Prints.Add(measuredRun.Print);
-        }
-        foreach (var candidate in missing) centres[candidate.Voice] = Centre(candidate.Prints);
+        var referenceCounts = references.GroupBy(m => m.Voice).ToDictionary(g => g.Key, g => g.Count());
 
         List<LineScore> scores =
         [
-            .. measured.Select(m => new LineScore(
+            // A lone window must not validate itself as a perfect voice match.
+            .. measured.Where(m => referenceCounts.GetValueOrDefault(m.Voice) >= 2 && m.ForConfidence).Select(m => new LineScore(
                 m.Line,
                 m.Voice,
                 VoiceBook.Similarity(m.Print, centres[m.Voice]),
                 centres.Where(c => c.Key != m.Voice).ToDictionary(c => c.Key, c => VoiceBook.Similarity(m.Print, c.Value)))),
         ];
 
-        return new Report(scores, centres);
+        var suggestions = new Dictionary<CallLine, string>();
+        foreach (var m in measured.Where(m => !m.Line.HumanEdits.HasFlag(CallLineEdits.Speaker)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var matches = trusted.GroupBy(t => t.Voice)
+                .Select(g => (Voice: g.Key, Score: g.Max(t => VoiceBook.Similarity(m.Print, t.Print))))
+                .OrderByDescending(t => t.Score).ToList();
+            if (matches.Count == 0) continue;
+            var best = matches[0];
+            double alternative = matches.Count > 1 ? matches[1].Score : 0;
+            if (referenceCounts.GetValueOrDefault(m.Voice) >= 2 && centres.TryGetValue(m.Voice, out var own))
+                alternative = Math.Max(alternative, VoiceBook.Similarity(m.Print, own));
+            if (best.Voice != m.Voice && best.Score >= VoiceBook.MatchThreshold
+                && best.Score - alternative >= VoiceBook.MatchMargin) suggestions[m.Line] = best.Voice;
+        }
+        return new Report(scores, centres) { Suggestions = suggestions };
     }
 
     /// <summary>
-    /// Проверить реплики собеседников: отметить сомнительные, явно чужие — переселить.
+    /// Проверить реплики собеседников и отметить сомнительные без смены подписей.
     /// </summary>
     /// <param name="transcript">Транскрипт с разметкой голосов (или без неё — весь чужой канал один голос).</param>
     /// <param name="printOf">Слепок реплики.</param>
     /// <remarks>
-    /// Переселяются реплики только между уже найденными голосами. Если
-    /// голосов не разделяли, переселять некуда, и сомнение — повод
-    /// предложить разделение (<see cref="MoreVoicesLikely"/>).
+    /// Проверка не меняет личности: непохожие реплики остаются под сомнением.
     /// </remarks>
     public static CallTranscript Check(
         CallTranscript transcript,
@@ -192,7 +184,6 @@ public static class VoiceCheck
         ArgumentNullException.ThrowIfNull(transcript);
 
         Report report = Measure(transcript.Lines, printOf, cancellationToken);
-        var existingVoices = transcript.Lines.Select(l => l.Voice ?? CallVoices.WholeOtherSide).ToHashSet();
         // Реплики — записи и сравниваются по значению: две одинаковые
         // (тот же текст в ту же секунду) сошлись бы в один ключ.
         Dictionary<CallLine, LineScore> scores = report.Lines
@@ -212,20 +203,10 @@ public static class VoiceCheck
                     }
                     if (!scores.TryGetValue(line, out LineScore? score))
                     {
-                        return line.Fit is null ? line : line with { Fit = null };
+                        return line with { Fit = null, SuggestedVoice = report.Suggestions.GetValueOrDefault(line) };
                     }
 
-                    if (line.Voice is not null && score.Others.Count > 0)
-                    {
-                        KeyValuePair<string, double> best = score.Others.MaxBy(o => o.Value);
-                        double threshold = existingVoices.Contains(best.Key) ? Sure : UnknownVoiceSimilarity;
-                        if (best.Value >= threshold && best.Value - score.Own >= MoveLead)
-                        {
-                            return line with { Voice = best.Key, Fit = existingVoices.Contains(best.Key) ? Round(best.Value) : null };
-                        }
-                    }
-
-                    return line with { Fit = Round(score.Own) };
+                    return line with { Fit = Round(score.Own), SuggestedVoice = report.Suggestions.GetValueOrDefault(line) };
                 }),
             ],
         };

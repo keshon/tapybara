@@ -33,6 +33,14 @@ Local voice dictation and call transcription for Windows. Dictate into the appli
 
 Speaker detection and phrase timing can need manual correction, especially with overlapping speech. Estimated timing is marked with `~`. The speaker timeline shows transcript activity; it does not isolate individual voices from the recording.
 
+## Import media
+
+Choose **+ (New transcription)** beside the Calls filter button to open the import workspace, then drop an audio/video file or click to browse. Tapybara keeps its own audio copy and opens the result in the same transcript editor. Import and transcription can be cancelled separately. Choose a recognition language in the import workspace; it defaults to Settings and is saved with that session. Imported media has no assumed microphone owner. An optional speaker count includes everyone heard in the file.
+
+Windows codecs handle common formats. For formats Windows cannot decode, install FFmpeg on PATH or place `ffmpeg.exe` beside `Tapybara.exe`.
+
+If automatic speaker separation produces excessive groups, the transcript stays usable and the app asks for a speaker count. Use **People → … → Redo speaker detection…** to retry without retranscribing the text. Named sample identities and manually assigned phrases are retained. Similar unnamed groups may suggest an existing name; accepting the same name combines them into one person. After correcting a sample, use **Find similar speech…** on that person’s card, then **Review matches** to listen and apply selected suggestions. Speaking percentages show the share of speech, not recognition confidence. The playback lock switches between an excerpt and the whole call.
+
 ## Install
 
 Download a Windows x64 package from the [latest release](https://github.com/keshon/tapybara/releases/latest):

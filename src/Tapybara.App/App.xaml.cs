@@ -1837,20 +1837,22 @@ public partial class App : Application, IDisposable
             LiveCallState,
             LiveCallPercent,
             TranscribeCallAsync,
-            ReconcileCallAsync,
-            ResplitCallAsync,
             VerifyCallAsync,
             RefreshCallPrintsAsync,
             RenderCall,
             DeleteCall,
             CancelCallWork,
             () => _ = ToggleCallRecordingAsync(),
-            CanSplitVoices,
-            FetchModel,
             _voiceBook,
             _live) {
-                RecheckSpeakers = directory => RunCallJobAsync(directory,
-                    (transcriber, _, token) => transcriber.RecheckAsync(directory, token), announce: false) },
+                ImportMedia = (path, language, count, token) => CallMediaImport.ImportAsync(path, CallsDirectory(), language, count, token),
+                SeparateSpeakers = SeparateSpeakersAsync,
+                IsSeparatingSpeakers = directory => _separatingSpeakers.Contains(directory),
+                CanSeparateSpeakers = () => _settings.Current.SplitVoices
+                    && ModelLocator.Resolve(_settings.Current.VoiceSegmentationModelFileName, _settings.Current.ModelsDirectory) is not null
+                    && ModelLocator.Resolve(_settings.Current.VoiceEmbeddingModelFileName, _settings.Current.ModelsDirectory) is not null,
+                RecheckSpeakers = RecheckSpeakersAsync,
+                IsRecheckingSpeakers = directory => _recheckingSpeakers.Contains(directory) },
             _journal,
             () => OpenSettings(SettingsSection.General),
             () => _ = ToggleAsync(),
@@ -1913,18 +1915,53 @@ public partial class App : Application, IDisposable
             announce: false).ConfigureAwait(true);
     }
 
+    private readonly HashSet<string> _separatingSpeakers = new(StringComparer.OrdinalIgnoreCase);
+    private async Task<bool> SeparateSpeakersAsync(string directory, int count)
+    {
+        if (!_separatingSpeakers.Add(directory)) return false;
+        string? result = null;
+        try
+        {
+            await RunCallJobAsync(directory, async (transcriber, progress, token) => {
+                _mainWindow?.RefreshCalls();
+                result = await transcriber.ResplitAsync(directory, count, progress, token);
+                return result;
+            }, announce: false);
+            return result is not null;
+        }
+        finally
+        {
+            _separatingSpeakers.Remove(directory);
+            _mainWindow?.RefreshCalls();
+        }
+    }
+
+    private readonly HashSet<string> _recheckingSpeakers = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task RecheckSpeakersAsync(string directory)
+    {
+        if (!_recheckingSpeakers.Add(directory)) return;
+        try
+        {
+            await RunCallJobAsync(directory,
+                (transcriber, _, token) =>
+                {
+                    _mainWindow?.RefreshCalls();
+                    return transcriber.RecheckAsync(directory, token);
+                }, announce: false);
+        }
+        finally
+        {
+            _recheckingSpeakers.Remove(directory);
+            _mainWindow?.RefreshCalls();
+        }
+    }
+
     /// <summary>Снять слепки голосов заново после того, как человек переселил реплики.</summary>
     private Task RefreshCallPrintsAsync(string directory) =>
         RunCallJobAsync(
             directory,
             (transcriber, progress, token) => transcriber.RefreshPrintsAsync(directory, progress, token),
-            announce: false);
-
-    /// <summary>Разделить голоса звонка заново, по уже распознанному.</summary>
-    private Task ResplitCallAsync(string directory, int voices) =>
-        RunCallJobAsync(
-            directory,
-            (transcriber, progress, token) => transcriber.ResplitAsync(directory, voices, progress, token),
             announce: false);
 
     /// <summary>
@@ -1952,22 +1989,11 @@ public partial class App : Application, IDisposable
         }
     }
 
-    /// <summary>Есть ли чем разделять голоса: включено и обе модели на месте.</summary>
-    private bool CanSplitVoices()
-    {
-        AppSettings settings = _settings.Current;
-        return settings.SplitVoices
-               && ModelLocator.Resolve(settings.VoiceSegmentationModelFileName, settings.ModelsDirectory) is not null
-               && ModelLocator.Resolve(settings.VoiceEmbeddingModelFileName, settings.ModelsDirectory) is not null;
-    }
-
     /// <summary>Сколько процентов распознано у звонка, если он распознаётся сейчас.</summary>
     private int? LiveCallPercent(string directory) =>
         string.Equals(_transcribingCallDirectory, directory, StringComparison.OrdinalIgnoreCase)
             ? _callProgress?.Percent
             : null;
-
-    private void OpenSettings() => OpenSettings(SettingsSection.General);
 
     /// <summary>Скачать недостающую модель этого типа — из любого места приложения.</summary>
     private void FetchModel(ModelKind kind)
@@ -1975,6 +2001,8 @@ public partial class App : Application, IDisposable
         OpenSettings(SettingsSection.Models);
         _settingsWindow?.FetchModel(kind);
     }
+
+    private void OpenSettings() => OpenSettings(SettingsSection.General);
 
     private void OpenSettings(SettingsSection section)
     {

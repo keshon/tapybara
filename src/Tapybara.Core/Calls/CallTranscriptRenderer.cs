@@ -65,6 +65,7 @@ public static class CallSpeakers
     public static bool NeedsNames(CallSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
+        if (session.SpeakerAnalysisNeedsCount) return true;
 
         return session.Voices.Count > 1 && session.Voices.Any(v => NameOf(session, v) is null);
     }

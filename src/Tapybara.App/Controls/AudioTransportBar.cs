@@ -18,13 +18,12 @@ public sealed class AudioTransportBar : Grid
     private readonly Wpf.Ui.Controls.Button _play = new() { Icon = new SymbolIcon { Symbol = SymbolRegular.Play24 } };
     private readonly Wpf.Ui.Controls.Button _stop = new() { Icon = new SymbolIcon { Symbol = SymbolRegular.Stop24 } };
     private readonly Wpf.Ui.Controls.Button _rewind = new() { Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowCounterclockwise24 } };
-    private readonly Wpf.Ui.Controls.Button _range = new();
+    private readonly ToggleButton _range = new();
     private readonly Wpf.Ui.Controls.Button _forward = new() { Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowClockwise24 } };
     private readonly ContentControl _tools = new();
     private readonly StackPanel _buttons = new() { Orientation = System.Windows.Controls.Orientation.Horizontal };
     private (TimeSpan Start, TimeSpan End)? _excerpt;
     public UIElement? Tools { get => _tools.Content as UIElement; set => _tools.Content = value; }
-    private readonly TextBlock _rangeText = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _clock = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ToggleButton _follow = new() { IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
@@ -39,7 +38,7 @@ public sealed class AudioTransportBar : Grid
     public event Action? StopRequested;
     public event Action? RewindRequested;
     public event Action? ForwardRequested;
-    public event Action? WholeCallRequested;
+    public event Action<bool>? RangeLockRequested;
     public event Action<TimeSpan>? SeekRequested;
     public event Action? FollowRequested;
     public bool Follow { get => _follow.IsChecked == true; set => _follow.IsChecked = value; }
@@ -82,12 +81,11 @@ public sealed class AudioTransportBar : Grid
         _follow.Margin = new Thickness(Tokens.Space1, 0, 0, 0);
         SetColumn(_follow, 4);
         Children.Add(_follow);
+        _range.SetResourceReference(StyleProperty, "IconToggleButton");
         ControlSizing.Apply(_range, iconOnly: true);
-        _range.Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss24, FontSize = 16 };
-        _range.Margin = new Thickness(Tokens.Space1, 0, 0, 0);
-        SetColumn(_range, 5);
-        Children.Add(_range);
-        _range.Visibility = _status.Visibility = Visibility.Collapsed;
+        _range.Margin = new Thickness(0, 0, Tokens.Space1, 0);
+        _buttons.Children.Add(_range);
+        _status.Visibility = Visibility.Collapsed;
         SetRow(_status, 2);
         SetColumnSpan(_status, 6);
         Children.Add(_status);
@@ -96,7 +94,7 @@ public sealed class AudioTransportBar : Grid
         _stop.Click += (_, _) => StopRequested?.Invoke();
         _rewind.Click += (_, _) => RewindRequested?.Invoke();
         _forward.Click += (_, _) => ForwardRequested?.Invoke();
-        _range.Click += (_, _) => WholeCallRequested?.Invoke();
+        _range.Click += (_, _) => RangeLockRequested?.Invoke(_range.IsChecked == true);
         _follow.Checked += (_, _) => FollowRequested?.Invoke();
         _seek.PreviewMouseLeftButtonDown += (_, _) => _scrubbing = true;
         _seek.PreviewMouseLeftButtonUp += (_, _) => CommitScrub();
@@ -151,9 +149,10 @@ public sealed class AudioTransportBar : Grid
             _excerpt = range;
             _loop.IsEnabled = available && range is not null;
             UpdateClock(TimeSpan.FromSeconds(_seek.Value));
-            _range.Visibility = range is null ? Visibility.Collapsed : Visibility.Visible;
-            if (range is { } span) { _rangeText.Text = L.S.PlaybackRange + " " + Stamp(span.Start) + "–" + Stamp(span.End); }
-            _range.ToolTip = _rangeText.Text + " · " + L.S.PlaybackWholeCall;
+            _range.IsEnabled = available;
+            _range.IsChecked = range is not null;
+            UpdateRangeLock();
+
             _status.Text = status ?? string.Empty;
             _status.Visibility = string.IsNullOrEmpty(status) ? Visibility.Collapsed : Visibility.Visible;
             if (changed) { ApplyLanguage(); }
@@ -179,23 +178,41 @@ public sealed class AudioTransportBar : Grid
             new System.Windows.Data.Binding(nameof(System.Windows.Controls.Control.Foreground)) { Source = _loop });
         _loop.ToolTip = L.S.PlaybackLoopHelp;
         AutomationProperties.SetName(_loop, L.S.PlaybackLoop);
-        _range.ToolTip = L.S.PlaybackWholeCall;
+        UpdateRangeLock();
         AutomationProperties.SetName(_follow, L.S.PlaybackFollow);
         AutomationProperties.SetName(_forward, L.S.PlaybackForward);
         AutomationProperties.SetName(_play, (string)_play.ToolTip);
         AutomationProperties.SetName(_stop, L.S.PlaybackStop);
         AutomationProperties.SetName(_rewind, L.S.PlaybackRewind);
         AutomationProperties.SetName(_seek, L.S.PlaybackSeek);
-        AutomationProperties.SetName(_range, L.S.PlaybackWholeCall);
+
         AutomationProperties.SetName(_clock, L.S.PlaybackPosition);
+    }
+
+    private void UpdateRangeLock()
+    {
+        bool locked = _range.IsChecked == true;
+        if (_range.Content is not SymbolIcon icon)
+        {
+            icon = new SymbolIcon { FontSize = 16 };
+            icon.SetBinding(SymbolIcon.ForegroundProperty,
+                new System.Windows.Data.Binding(nameof(System.Windows.Controls.Control.Foreground)) { Source = _range });
+            _range.Content = icon;
+        }
+        icon.Symbol = locked ? SymbolRegular.LockClosed24 : SymbolRegular.LockOpen24;
+        bool ru = L.S.Formatting.TwoLetterISOLanguageName == "ru";
+        _range.ToolTip = locked
+            ? (ru ? "Ограничение фрагментом включено · переключить на весь звонок" : "Excerpt lock on · switch to whole call")
+            : (ru ? "Ограничение фрагментом выключено · ограничить текущей репликой" : "Excerpt lock off · restrict to current phrase");
+        AutomationProperties.SetName(_range, (string)_range.ToolTip);
     }
 
     private void ArrangeRail()
     {
-        double required = Math.Max(_buttons.DesiredSize.Width, 5 * (Tokens.ControlHeight + Tokens.Space1))
+        double required = Math.Max(_buttons.DesiredSize.Width, 6 * (Tokens.ControlHeight + Tokens.Space1))
             + _clock.Width + Tokens.Space1 + Tokens.Space2
             + _tools.DesiredSize.Width + _follow.DesiredSize.Width
-            + (_range.Visibility == Visibility.Visible ? Tokens.ControlHeight + Tokens.Space1 : 0) + 120;
+            + 120;
         bool compact = ActualWidth > 0 && ActualWidth < required;
         SetRow(_buttons, compact ? 1 : 0);
         SetRow(_clock, compact ? 1 : 0);

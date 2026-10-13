@@ -48,6 +48,27 @@ public sealed class CallPlayerTests : IDisposable
         public void Dispose() => Disposed = true;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RangeLockPreservesPlaybackStateAndUnlockRestoresWholeCall(bool playing)
+    {
+        Wave(CallSession.SystemFileName, 10);
+        using CallPlayer player = Player();
+        Assert.True(player.Load(_directory, TimeSpan.FromSeconds(3)));
+        if (playing) Assert.True(player.Resume());
+        Assert.True(player.SetRange(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), CallChannel.Theirs));
+        Assert.Equal(playing, player.IsPlaying);
+        Assert.Equal(TimeSpan.FromSeconds(3), player.Position);
+        Assert.Equal(TimeSpan.FromSeconds(2), player.RangeStart);
+        Assert.Equal(TimeSpan.FromSeconds(5), player.RangeEnd);
+        Assert.True(player.HasRange);
+        Assert.True(player.Seek(player.Position, wholeCall: true));
+        Assert.False(player.HasRange);
+        Assert.Equal(playing, player.IsPlaying);
+        Assert.Null(player.Channel);
+    }
+
     [Fact]
     public void NaturalRangeCompletionCanRestartButExplicitStopIsDistinct()
     {

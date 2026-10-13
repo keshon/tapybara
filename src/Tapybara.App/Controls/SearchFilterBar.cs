@@ -13,6 +13,8 @@ public sealed class SearchFilterBar : StackPanel
     public ContentControl Filters { get; } = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, Tokens.Space2, 0, 0) };
     private readonly Wpf.Ui.Controls.Button _toggle = new() { Icon = new SymbolIcon { Symbol = SymbolRegular.Filter24, FontSize = 16 }, Margin = new Thickness(Tokens.Space2, 0, 0, 0) };
     private readonly WrapPanel _chips = new() { Margin = new Thickness(0, Tokens.Space2, 0, 0) };
+    private readonly Border _actions = new();
+    public UIElement? ActionContent { get => _actions.Child; set => _actions.Child = value; }
     private int _count;
 
     public SearchFilterBar()
@@ -22,6 +24,9 @@ public sealed class SearchFilterBar : StackPanel
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition());
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(_actions, 2);
+        row.Children.Add(_actions);
         row.Children.Add(Search);
         Grid.SetColumn(_toggle, 1);
         row.Children.Add(_toggle);

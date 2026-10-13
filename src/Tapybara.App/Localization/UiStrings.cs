@@ -453,9 +453,7 @@ public sealed record UiStrings
     public required string TrayUpdateReady { get; init; }
     public required string FieldPortableInstalled { get; init; }
     public required string AboutRuntimeNotLoaded { get; init; }
-    public required string VoiceNotThis { get; init; }
     public required string VoiceSomeoneElse { get; init; }
-    public required string VoiceSomeoneElseSplit { get; init; }
     public required string VoicesMoreTitle { get; init; }
     public required string VoicesMoreHint { get; init; }
     public required string VoicesSplitInto { get; init; }
@@ -468,7 +466,6 @@ public sealed record UiStrings
     public required string SizeUnknown { get; init; }
     public required string QuoteFormat { get; init; }
     public required string ButtonGetModel { get; init; }
-    public required string VoiceSomeoneElseGetModel { get; init; }
     public required string VoicesResplitCount { get; init; }
     public required string VoicesResplitGo { get; init; }
     public required string ModelsMissingList { get; init; }
@@ -975,7 +972,7 @@ public sealed record UiStrings
         UnitSeconds = "{0} s",
         UnitMinutes = "{0} min",
         UnitHoursMinutes = "{0} h {1} min",
-        CallsEmpty = "No recordings yet. Start one from the tray menu, and it will appear here.",
+        CallsEmpty = "No recordings yet. Record a call or choose New transcription to import media.",
         CallsNothingSelected = "Pick a recording on the left.",
         CallsOpenFolder = "Folder",
         CallsTranscribe = "Transcribe",
@@ -1176,9 +1173,7 @@ public sealed record UiStrings
         TrayUpdateReady = "Restart to update to {0}",
         FieldPortableInstalled = "Not available in the installed version: an update replaces the program folder, and anything kept beside the program would go with it. For a portable copy, use the zip from the releases page.",
         AboutRuntimeNotLoaded = "not loaded yet",
-        VoiceNotThis = "Not this person",
         VoiceSomeoneElse = "Someone else",
-        VoiceSomeoneElseSplit = "Someone else — split the voices",
         VoicesMoreTitle = "Some speaker assignments need review",
         VoicesMoreHint = "About {0} of speech has uncertain speaker assignments. This does not tell us how many people were speaking.",
         VoicesSplitInto = "Split into {0} voices",
@@ -1191,7 +1186,6 @@ public sealed record UiStrings
         SizeUnknown = "?",
         QuoteFormat = "“{0}”",
         ButtonGetModel = "Get the model",
-        VoiceSomeoneElseGetModel = "Someone else — get the model to split voices…",
         VoicesResplitCount = "Voices to look for",
         VoicesResplitGo = "Split again",
         ModelsMissingList = "Not installed yet: {0}.",
@@ -1550,7 +1544,7 @@ public sealed record UiStrings
         UnitSeconds = "{0} с",
         UnitMinutes = "{0} мин",
         UnitHoursMinutes = "{0} ч {1} мин",
-        CallsEmpty = "Записей пока нет. Начните запись из меню в трее — она появится здесь.",
+        CallsEmpty = "Записей пока нет. Запишите звонок или импортируйте медиа через «Новая транскрипция».",
         CallsNothingSelected = "Выберите запись слева.",
         CallsOpenFolder = "Папка",
         CallsTranscribe = "Распознать",
@@ -1751,9 +1745,7 @@ public sealed record UiStrings
         TrayUpdateReady = "Перезапустить и обновить до {0}",
         FieldPortableInstalled = "Недоступно в установленной версии: обновление заменяет папку программы, и всё, что лежит рядом с ней, пропало бы. Для портативной копии возьмите zip со страницы релизов.",
         AboutRuntimeNotLoaded = "ещё не загружен",
-        VoiceNotThis = "Не этот человек",
         VoiceSomeoneElse = "Кто-то другой",
-        VoiceSomeoneElseSplit = "Кто-то другой — разделить голоса",
         VoicesMoreTitle = "Нужно проверить подписи говорящих",
         VoicesMoreHint = "Около {0} речи с сомнительными подписями. Это не определяет число участников.",
         VoicesSplitInto = "Разделить заново — голосов: {0}",
@@ -1766,7 +1758,6 @@ public sealed record UiStrings
         SizeUnknown = "?",
         QuoteFormat = "«{0}»",
         ButtonGetModel = "Скачать модель",
-        VoiceSomeoneElseGetModel = "Кто-то другой — скачать модель для разделения…",
         VoicesResplitCount = "Сколько голосов искать",
         VoicesResplitGo = "Разделить заново",
         ModelsMissingList = "Ещё не скачано: {0}.",

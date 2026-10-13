@@ -23,7 +23,23 @@ public partial class CallsPage
         Transport.SeekRequested += SeekPlayback;
         Transport.RewindRequested += () => SeekPlayback(_player.Position - TimeSpan.FromSeconds(5));
         Transport.ForwardRequested += () => SeekPlayback(_player.Position + TimeSpan.FromSeconds(5));
-        Transport.WholeCallRequested += () => SeekPlayback(_player.Position);
+        Transport.RangeLockRequested += locked =>
+        {
+            if (!locked) { SeekPlayback(_player.Position); return; }
+            var quote = _lines.FirstOrDefault(r => CallPlaybackActivity.IsActive(r.Line, _player.Position, _player.Channel))?.Line
+                ?? _lines.LastOrDefault(r => r.Line.Start <= _player.Position)?.Line
+                ?? _lines.FirstOrDefault()?.Line;
+            if (quote is null) { UpdateTransport(); return; }
+            Timeline.ClearRange();
+            TimeSpan from = quote.Start - QuotePadding;
+            _playbackFailed = !_player.SetRange(from < TimeSpan.Zero ? TimeSpan.Zero : from, quote.End + QuotePadding, quote.Channel);
+            _playingQuote = _playbackFailed ? null : quote;
+            if (_player.IsPlaying) _playbackTimer.Start();
+            else _playbackTimer.Stop();
+            FollowPlayback();
+            UpdateTransport();
+            UpdateQuoteButtons();
+        };
         Transport.FollowRequested += () => FollowPlayback(force: true);
         LineList.PreviewMouseWheel += (_, _) => Controls.SmoothScroll.Cancel(LineList);
     }

@@ -26,14 +26,51 @@ public sealed class VoiceCheckTests
     private static float[]? ByText(CallLine line) => Print(line.Text[0] - '0', line.Text.Length > 1 && line.Text[1] != ' ' ? line.Text[1] - '0' : -1, 0.3f);
 
     [Fact]
-    public void SustainedUnrepresentedVoiceBecomesUnnamedRatherThanForcedIntoAnExistingVoice()
+    public void ConfirmedSampleSuggestsOtherPhrasesWithoutChangingTheirAssignments()
+    {
+        var anchor = Line(0, "0 confirmed", "Me") with { HumanEdits = CallLineEdits.Speaker };
+        var wrong = Line(15, "0 wrong", "B", 2.68);
+        var tiny = Line(30, "0 tiny", "B", .5);
+        var mixed = Line(40, "0 mixed", "B") with { SpeechMix = Tapybara.Core.Speech.SpeechMix.Overlap };
+        var result = VoiceCheck.Check(new CallTranscript { Lines = [anchor, wrong, tiny, mixed,
+            Line(60, "1 reference", "B"), Line(80, "1 reference", "B"), Line(100, "1 reference", "B")] }, ByText);
+        Assert.Equal("Me", result.Lines[1].SuggestedVoice);
+        Assert.Equal("B", result.Lines[1].Voice);
+        Assert.Null(result.Lines[1].Fit);
+        Assert.Null(result.Lines[2].SuggestedVoice);
+        Assert.Null(result.Lines[3].SuggestedVoice);
+        Assert.Equal(anchor, result.Lines[0]);
+        Assert.Null(CallVoices.Reassign(result, result.Lines[1], "Me").Lines[1].SuggestedVoice);
+    }
+
+    [Fact]
+    public void AmbiguousConfirmedVoicesDoNotProduceSuggestion()
+    {
+        var result = VoiceCheck.Check(new CallTranscript { Lines = [
+            Line(0, "0 confirmed", "A") with { HumanEdits = CallLineEdits.Speaker },
+            Line(20, "0 confirmed", "C") with { HumanEdits = CallLineEdits.Speaker },
+            Line(40, "0 wrong", "B")] }, ByText);
+        Assert.Null(result.Lines[2].SuggestedVoice);
+    }
+
+    [Fact]
+    public void OneSpeechRunCannotValidateItselfAsPerfectConfidence()
+    {
+        var transcript = new CallTranscript { Lines = [Line(0, "0 isolated", "A")] };
+        var result = VoiceCheck.Check(transcript, ByText);
+        Assert.Equal("A", result.Lines[0].Voice);
+        Assert.Null(result.Lines[0].Fit);
+    }
+
+    [Fact]
+    public void SustainedUnrepresentedVoiceIsFlaggedWithoutInventingAnIdentity()
     {
         var lines = new[] { Line(0, "0 a", "A"), Line(15, "1 b", "B"),
             Line(39.32, "2 first", "B", 4.12), Line(43.44, "2 second", "B", 2.06),
             Line(45.74, "2 third", "B", 1.26), Line(47, "2 fourth", "B", 2.74),
             Line(70, "1 b", "B"), Line(90, "1 b", "B") };
         var checkedOne = VoiceCheck.Check(new CallTranscript { Lines = lines }, ByText);
-        Assert.All(checkedOne.Lines.Skip(2).Take(4), l => { Assert.Equal("C", l.Voice); Assert.Null(l.Fit); });
+        Assert.All(checkedOne.Lines.Skip(2).Take(4), l => { Assert.Equal("B", l.Voice); Assert.True(l.IsDoubtful); });
         Assert.Equal("B", checkedOne.Lines[1].Voice);
     }
 
@@ -46,7 +83,7 @@ public sealed class VoiceCheckTests
             Line(70, "1 reference", "B"), Line(90, "1 reference", "B") };
         var document = new CallTranscript { Lines = lines };
         var checkedOne = VoiceCheck.Check(document, ByText);
-        Assert.All(checkedOne.Lines.Skip(2).Take(4), l => Assert.Equal("A", l.Voice));
+        Assert.All(checkedOne.Lines.Skip(2).Take(4), l => { Assert.Equal("B", l.Voice); Assert.True(l.IsDoubtful); });
         Assert.Equal(lines.Select(l => (l.Text, l.Start, l.End)), checkedOne.Lines.Select(l => (l.Text, l.Start, l.End)));
     }
 
@@ -79,7 +116,7 @@ public sealed class VoiceCheckTests
     /// Реплика, явно звучащая как другой найденный голос, переезжает к нему сама.
     /// </summary>
     [Fact]
-    public void Check_MovesALineThatClearlySoundsLikeAnotherVoice()
+    public void Check_FlagsALineThatClearlySoundsLikeAnotherVoiceWithoutMovingIt()
     {
         var transcript = new CallTranscript
         {
@@ -94,8 +131,8 @@ public sealed class VoiceCheckTests
         CallTranscript checkedOne = VoiceCheck.Check(transcript, ByText);
 
         CallLine stray = checkedOne.Lines.Single(l => l.Text == "1 stray");
-        Assert.Equal("B", stray.Voice);
-        Assert.False(stray.IsDoubtful);
+        Assert.Equal("A", stray.Voice);
+        Assert.True(stray.IsDoubtful);
     }
 
     /// <summary>

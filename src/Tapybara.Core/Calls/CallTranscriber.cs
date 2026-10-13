@@ -134,7 +134,7 @@ public sealed class CallTranscriber(
         long? startingRevision = CallTranscriptStore.Load(session.Directory)?.Revision;
         AppSettings current = settings();
 
-        if (!File.Exists(session.MicPath) || !File.Exists(session.SystemPath))
+        if ((!session.ImportedMedia && !File.Exists(session.MicPath)) || !File.Exists(session.SystemPath))
         {
             throw new FileNotFoundException(
                 "В папке звонка нет дорожек mic.wav и system.wav.", session.MicPath);
@@ -150,7 +150,7 @@ public sealed class CallTranscriber(
         // часовых канала в памяти — это около гигабайта в куче больших
         // объектов ради нескольких десятков средних значений, которые
         // прекрасно считаются по огибающей.
-        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy) = await ProcessChannelAsync(
+        (IReadOnlyList<TranscriptSegment> micSegments, EnergyEnvelope micEnergy) = session.ImportedMedia ? (Array.Empty<TranscriptSegment>(), EnergyEnvelope.Empty) : await ProcessChannelAsync(
             session.MicPath,
             // Свой канал распознаём заданным языком: что говорит владелец
             // микрофона, известно заранее.
@@ -163,13 +163,14 @@ public sealed class CallTranscriber(
             session.SystemPath,
             // Чужой канал — определением языка. Навязанный не тому каналу язык
             // не «слегка ухудшает» распознавание, а превращает речь в бессмыслицу.
-            current.OtherSideLanguage,
+            session.ImportedMedia ? session.ImportLanguage ?? current.Language : current.OtherSideLanguage,
             current,
-            Stage(progress, CallTranscriptionStage.TranscribingOtherSide, MicrophoneEnds, OtherSideEnds),
+            Stage(progress, CallTranscriptionStage.TranscribingOtherSide, session.ImportedMedia ? 0 : MicrophoneEnds, OtherSideEnds),
             cancellationToken).ConfigureAwait(false);
 
-        progress?.Report(new(CallTranscriptionStage.FilteringBleed, OtherSideEnds));
-        BleedFilter.Result filtered = BleedFilter.Apply(micSegments, systemSegments, micEnergy, systemEnergy);
+        if (!session.ImportedMedia) progress?.Report(new(CallTranscriptionStage.FilteringBleed, OtherSideEnds));
+        BleedFilter.Result filtered = session.ImportedMedia ? new([], 0, 0)
+            : BleedFilter.Apply(micSegments, systemSegments, micEnergy, systemEnergy);
 
         List<CallLine> lines =
         [
@@ -242,7 +243,7 @@ public sealed class CallTranscriber(
         AppSettings current = settings();
         CallTranscript split = await SplitAsync(
             session,
-            transcript,
+            SpeakerSeparation.AnchorNames(transcript, session.VoiceNames),
             expectedVoices > 0 ? expectedVoices : -1,
             current,
             progress,
@@ -252,7 +253,7 @@ public sealed class CallTranscriber(
         split = await WithPrintsAsync(session, split, current, cancellationToken).ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
-        string? path = Commit(() => Store(callDirectory, split, current, transcript.Revision), cancellationToken);
+        string? path = Commit(() => Keep(callDirectory, split), cancellationToken);
         if (path is null)
         {
             return null;
@@ -282,7 +283,7 @@ public sealed class CallTranscriber(
     private async Task<string?> VerifyCoreAsync(string callDirectory, bool force, CancellationToken cancellationToken)
     {
         if (CallMeta.Load(callDirectory) is not { } session
-            || CallTranscriptStore.Load(callDirectory) is not { } transcript || (!force && transcript.VoicesChecked)
+            || CallTranscriptStore.Load(callDirectory) is not { } transcript || SpeakerSeparation.NeedsCount(transcript) || (!force && transcript.VoicesChecked)
             || voiceprints?.Invoke() is null)
         {
             return null;
@@ -384,6 +385,7 @@ public sealed class CallTranscriber(
     /// </remarks>
     internal static int ExpectedVoices(CallSession session, AppSettings current)
     {
+        if (session.SpeakerCountHint is > 0) return session.SpeakerCountHint.Value;
         if (!current.SplitVoices || session.Participants.Count == 1)
         {
             return 0;
@@ -428,13 +430,7 @@ public sealed class CallTranscriber(
             () => splitter.Split(audio, expected > 0 ? expected : 0, percent, cancellationToken),
             cancellationToken).ConfigureAwait(false);
 
-        return transcript with
-        {
-            Lines = CallVoices.Assign(transcript.Lines, spans),
-            VoicesSplit = true,
-            SpeakerIntervals = spans,
-            ExpectedVoices = Math.Max(expected, 0),
-        };
+        return SpeakerSeparation.Apply(transcript, spans, expected);
     }
 
     /// <summary>
@@ -451,7 +447,7 @@ public sealed class CallTranscriber(
         AppSettings current,
         CancellationToken cancellationToken)
     {
-        if (voiceprints?.Invoke() is not { } extractor
+        if (SpeakerSeparation.NeedsCount(transcript) || voiceprints?.Invoke() is not { } extractor
             || !transcript.Lines.Any(l => l.Channel == CallChannel.Theirs))
         {
             return transcript;
@@ -463,7 +459,7 @@ public sealed class CallTranscriber(
                 () =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    float[] audio = ReadOtherSide(session, current);
+                    float[] audio = ReadOtherSide(session, current, cancellationToken);
                     if (audio.Length == 0)
                     {
                         return transcript;
@@ -495,9 +491,9 @@ public sealed class CallTranscriber(
     }
 
     /// <summary>Чужой канал целиком — нормализованный, если так настроено.</summary>
-    private static float[] ReadOtherSide(CallSession session, AppSettings current)
+    private static float[] ReadOtherSide(CallSession session, AppSettings current, CancellationToken cancellationToken)
     {
-        float[] samples = AudioFile.ReadMono16k(session.SystemPath);
+        float[] samples = AudioFile.ReadMono16k(session.SystemPath, cancellationToken);
         return current.NormalizeAudio && samples.Length > 0 ? AudioNormalizer.Normalize(samples) : samples;
     }
 
@@ -512,7 +508,8 @@ public sealed class CallTranscriber(
     private string? Keep(string callDirectory, CallTranscript transcript)
     {
         CallTranscript? saved = CallTranscriptStore.TrySave(callDirectory, transcript.Revision, transcript,
-            saved => CallMeta.Update(callDirectory, s => s with { Voices = saved.Voices }));
+            saved => CallMeta.Update(callDirectory, s => s with { Voices = saved.Voices, SpeakerAnalysisNeedsCount = SpeakerSeparation.NeedsCount(saved),
+                SpeakerCountHint = saved.ExpectedVoices > 0 ? saved.ExpectedVoices : s.SpeakerCountHint }));
         if (saved is null)
         {
             return null;
@@ -534,7 +531,7 @@ public sealed class CallTranscriber(
         AppSettings current,
         CancellationToken cancellationToken)
     {
-        if (!current.RememberVoices || voiceprints?.Invoke() is not { } extractor)
+        if (SpeakerSeparation.NeedsCount(transcript) || !current.RememberVoices || voiceprints?.Invoke() is not { } extractor)
         {
             return transcript;
         }
@@ -544,7 +541,7 @@ public sealed class CallTranscriber(
             IReadOnlyDictionary<string, float[]> prints = await Task.Run(
                 () =>
                 {
-                    float[] samples = AudioFile.ReadMono16k(session.SystemPath);
+                    float[] samples = AudioFile.ReadMono16k(session.SystemPath, cancellationToken);
                     float[] audio = current.NormalizeAudio ? AudioNormalizer.Normalize(samples) : samples;
                     return CallVoices.Prints(audio, transcript, speech =>
                     {
@@ -581,6 +578,7 @@ public sealed class CallTranscriber(
             CallMeta.Update(callDirectory, s => s with
             {
                 Voices = saved.Voices,
+                SpeakerAnalysisNeedsCount = SpeakerSeparation.NeedsCount(saved),
                 VoiceNames = s.VoiceNames.Where(p => saved.Lines.Any(l => l.Voice == p.Key
                     && l.HumanEdits.HasFlag(CallLineEdits.Speaker))).ToDictionary(),
             })) is null)

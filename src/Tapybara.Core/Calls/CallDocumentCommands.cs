@@ -23,7 +23,7 @@ public static class CallDocumentCommands
             Text = line.Text[..caret].TrimEnd(), End = at, TimingEstimated = true,
             SpeechMix = Tapybara.Core.Speech.SpeechMix.None,
             HumanEdits = line.HumanEdits | CallLineEdits.Structure | CallLineEdits.Text | CallLineEdits.Timing,
-            Fit = null,
+            Fit = null, SuggestedVoice = null,
         };
         CallLine second = first with
         {
@@ -54,7 +54,7 @@ public static class CallDocumentCommands
         CallLine Piece(string text, TimeSpan begin, TimeSpan end) => line with
         {
             Id = Guid.NewGuid(), OriginId = line.OriginId ?? line.Id,
-            Text = text, Start = begin, End = end, Fit = null,
+            Text = text, Start = begin, End = end, Fit = null, SuggestedVoice = null,
             SpeechMix = Tapybara.Core.Speech.SpeechMix.None,
             TimingEstimated = line.TimingEstimated,
             HumanEdits = line.HumanEdits | CallLineEdits.Structure | CallLineEdits.Text | CallLineEdits.Timing,
@@ -94,7 +94,7 @@ public static class CallDocumentCommands
             Start = first.Start < second.Start ? first.Start : second.Start,
             End = first.End > second.End ? first.End : second.End,
             HumanEdits = first.HumanEdits | second.HumanEdits | CallLineEdits.Structure | CallLineEdits.Text | CallLineEdits.Timing,
-            TimingEstimated = first.TimingEstimated || second.TimingEstimated, Fit = null,
+            TimingEstimated = first.TimingEstimated || second.TimingEstimated, Fit = null, SuggestedVoice = null,
         };
         CallTranscript updated = Replace(document, firstId, [merged]);
         return updated with
@@ -130,7 +130,7 @@ public static class CallDocumentCommands
         CallLine line = Find(document, id);
         return Replace(document, id, [line with
         {
-            Start = from, End = to, TimingEstimated = false, Fit = null,
+            Start = from, End = to, TimingEstimated = false, Fit = null, SuggestedVoice = null,
             HumanEdits = line.HumanEdits | CallLineEdits.Timing,
         }]);
     }

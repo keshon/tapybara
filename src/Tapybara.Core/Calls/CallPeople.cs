@@ -83,6 +83,8 @@ public static class CallPeople
             Person(null, isMe: true, mine, -1, transcript, total, l => (l.Channel == CallChannel.Mine && l.Voice is null) || (l.Voice is { } v && mine.Contains(v))),
         };
 
+        if (session.ImportedMedia && mine.Count == 0) people.Clear();
+
         if (voices.Count == 0)
         {
             // Голоса не разделялись: вся чужая дорожка — один человек.
@@ -153,7 +155,7 @@ public static class CallPeople
             color,
             TimeSpan.FromSeconds(seconds),
             total > 0 ? seconds / total : 0,
-            isMe ? [] : CallVoices.QuotesOf(own));
+            isMe && !own.Any(l => l.Channel == CallChannel.Theirs) ? [] : CallVoices.QuotesOf(own));
     }
 
     private static double Seconds(CallLine line) => Math.Max(0, (line.End - line.Start).TotalSeconds);

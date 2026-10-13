@@ -16,13 +16,12 @@ public static class AudioFile
         cancellationToken.ThrowIfCancellationRequested();
         using var reader = new AudioFileReader(path);
 
-        // Больше двух каналов StereoToMonoSampleProvider не понимает — там
-        // берём первый канал, как и при живом захвате.
+        // Все каналы участвуют в моно-сигнале, включая центральный канал видео.
         ISampleProvider source = reader.WaveFormat.Channels switch
         {
             1 => reader,
             2 => new StereoToMonoSampleProvider(reader) { LeftVolume = 0.5f, RightVolume = 0.5f },
-            _ => new MultiplexingSampleProvider([reader], 1),
+            _ => new DownmixSampleProvider(reader),
         };
 
         if (source.WaveFormat.SampleRate != MicrophoneCapture.TargetSampleRate)
@@ -43,6 +42,30 @@ public static class AudioFile
         return [.. samples];
     }
 
+    /// <summary>Convert media using Windows codecs without loading the whole recording into memory.</summary>
+    public static void ConvertToWav16k(string sourcePath, string outputPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var reader = new AudioFileReader(sourcePath);
+        ISampleProvider source = reader.WaveFormat.Channels switch
+        {
+            1 => reader,
+            2 => new StereoToMonoSampleProvider(reader) { LeftVolume = .5f, RightVolume = .5f },
+            _ => new DownmixSampleProvider(reader),
+        };
+        if (source.WaveFormat.SampleRate != MicrophoneCapture.TargetSampleRate)
+            source = new WdlResamplingSampleProvider(source, MicrophoneCapture.TargetSampleRate);
+        using var writer = new WaveFileWriter(outputPath, new WaveFormat(MicrophoneCapture.TargetSampleRate, 16, 1));
+        float[] buffer = new float[MicrophoneCapture.TargetSampleRate];
+        int read;
+        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            writer.WriteSamples(buffer, 0, read);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
     /// <summary>Сохранить запись в WAV 16 кГц моно, 16 бит — чтобы её можно было послушать.</summary>
     public static void WriteWav16k(string path, ReadOnlySpan<float> samples)
     {
@@ -56,4 +79,23 @@ public static class AudioFile
             writer.WriteSample(Math.Clamp(sample, -1f, 1f));
         }
     }
+    private sealed class DownmixSampleProvider(ISampleProvider source) : ISampleProvider
+    {
+        public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(source.WaveFormat.SampleRate, 1);
+        private float[] _scratch = [];
+        public int Read(float[] buffer, int offset, int count)
+        {
+            int channels = source.WaveFormat.Channels;
+            if (_scratch.Length < count * channels) _scratch = new float[count * channels];
+            int frames = source.Read(_scratch, 0, count * channels) / channels;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                float sum = 0;
+                for (int channel = 0; channel < channels; channel++) sum += _scratch[frame * channels + channel];
+                buffer[offset + frame] = sum / channels;
+            }
+            return frames;
+        }
+    }
+
 }

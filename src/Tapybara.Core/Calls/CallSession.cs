@@ -36,6 +36,13 @@ public sealed record CallSession
 
     public TimeSpan Duration { get; init; }
 
+    public bool ImportedMedia { get; init; }
+
+    public string? ImportLanguage { get; init; }
+
+    public int? SpeakerCountHint { get; init; }
+    public bool SpeakerAnalysisNeedsCount { get; init; }
+
     /// <summary>Участники разговора, кроме владельца микрофона.</summary>
     /// <remarks>
     /// Читается распознаванием: один собеседник — диаризация не нужна вовсе,

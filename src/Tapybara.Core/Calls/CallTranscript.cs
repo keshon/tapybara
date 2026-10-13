@@ -42,6 +42,9 @@ public sealed record CallLine(
     public Guid Id { get; init; }
     public SpeechMix SpeechMix { get; init; }
 
+    /// <summary>Reviewable match to a human-confirmed voice; never an assignment.</summary>
+    public string? SuggestedVoice { get; init; }
+
     /// <summary>Ключ исходной реплики для вручную выделенных фрагментов.</summary>
     public Guid? OriginId { get; init; }
 
@@ -653,7 +656,7 @@ public static class CallVoices
             // Голос назначил человек — это вернее любого замера, и сомнение
             // с реплики снимается.
             Lines = [.. transcript.Lines.Select(l => l.IsSameAs(line)
-                ? l with { Voice = voice, Fit = null, HumanEdits = l.HumanEdits | CallLineEdits.Speaker }
+                ? l with { Voice = voice, Fit = null, SuggestedVoice = null, HumanEdits = l.HumanEdits | CallLineEdits.Speaker }
                 : l)],
             EditedByHand = true,
         };

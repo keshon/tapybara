@@ -16,7 +16,8 @@ public static class AnchoredMenu
         // Выбираем сторону один раз по окончательному размеру. Custom callback
         // повторно выбирал кандидата после раскладки Popup и переносил меню наверх.
         menu.FontFamily = System.Windows.Documents.TextElement.GetFontFamily(anchor);
-        menu.FontSize = System.Windows.Documents.TextElement.GetFontSize(anchor);
+        // Caption-sized launchers must not shrink the menu text.
+        menu.FontSize = Math.Max(Tokens.Body, System.Windows.Documents.TextElement.GetFontSize(anchor));
         Point bottom = anchor.PointToScreen(new Point(0, anchor.ActualHeight));
         var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)bottom.X, (int)bottom.Y));
         var transform = PresentationSource.FromVisual(anchor)?.CompositionTarget?.TransformToDevice ?? System.Windows.Media.Matrix.Identity;

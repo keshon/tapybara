@@ -184,6 +184,15 @@ public partial class CallsPage
 
     private void OnDocumentKey(object sender, KeyEventArgs e)
     {
+        if (ImportPane.Visibility == Visibility.Visible)
+        {
+            if (e.Key == Key.Escape && !ImportLanguage.IsDropDownOpen)
+            {
+                OnCloseImport(sender, e);
+                e.Handled = true;
+            }
+            return;
+        }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key is Key.F or Key.H && _transcript is not null)
         {
             e.Handled = true;
