@@ -200,7 +200,7 @@ public static class CallMeta
     /// <summary>
     /// Прочитать мету с диска, поправить и записать под одним замком.
     /// </summary>
-    /// <returns>Записанное, или <c>null</c>, если меты нет.</returns>
+    /// <returns>Записанное, или <c>null</c>, если меты нет либо сохранить её не удалось.</returns>
     /// <remarks>
     /// Мету правят несколько сторон сразу: окно после звонка (участники),
     /// окно записей (имена голосов), распознавание в фоне (найденные голоса).
@@ -219,27 +219,28 @@ public static class CallMeta
             }
 
             CallSession updated = change(current) with { Directory = callDirectory };
-            Write(updated);
-            return updated;
+            return Write(updated) ? updated : null;
         }
     }
 
     /// <summary>Одна запись меты за раз во всём приложении, см. <see cref="Update"/>.</summary>
     private static readonly System.Threading.Lock Gate = new();
 
-    private static void Write(CallSession session)
+    private static bool Write(CallSession session)
     {
         try
         {
             System.IO.Directory.CreateDirectory(session.Directory);
 
             Storage.RecoverableFile.WriteAllText(session.MetaPath, JsonSerializer.Serialize(session, Options));
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Мета — это удобство, а звук уже на диске. Ронять из-за неё
             // запись разговора было бы обменом ценного на служебное.
             Diagnostics.AppLog.Error("Не удалось сохранить мету звонка.", ex);
+            return false;
         }
     }
 

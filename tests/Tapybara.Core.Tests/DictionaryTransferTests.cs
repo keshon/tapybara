@@ -65,6 +65,22 @@ public sealed class DictionaryTransferTests : IDisposable
         Assert.Throws<InvalidDataException>(() => DictionaryTransfer.Parse(json));
     }
 
+    [Theory]
+    [InlineData("\"Replacements\":null")]
+    [InlineData("\"People\":null")]
+    [InlineData("\"Voices\":null")]
+    [InlineData("\"Replacements\":{\"heard\":null}")]
+    [InlineData("\"People\":[null]")]
+    [InlineData("\"Voices\":{\"Person\":null}")]
+    [InlineData("\"Voices\":{\"Person\":{\"Prints\":null}}")]
+    [InlineData("\"Voices\":{\"Person\":{\"Prints\":[null]}}")]
+    [InlineData("\"Version\":2")]
+    public void ParseRejectsInvalidShapeBeforeMerging(string property)
+    {
+        string json = "{\"Format\":\"tapybara-dictionary\"," + property + "}";
+        Assert.Throws<InvalidDataException>(() => DictionaryTransfer.Parse(json));
+    }
+
     [Fact]
     public void Merge_AddsNew_FileWinsOnConflict_AndKeepsLocalOnes()
     {

@@ -25,6 +25,35 @@ public sealed class CallEditorTests : IDisposable
     }
 
     [Fact]
+    public void FailedMetadataWriteRollsBackAssignmentAndDoesNotRecordSuccess()
+    {
+        CallMeta.Save(new CallSession { Directory = _directory, StartedAt = DateTimeOffset.UtcNow,
+            VoiceNames = new Dictionary<string, string> { ["A"] = "Original" } });
+        var line = Line("speech");
+        var session = Session(line);
+        using (var blocked = File.Open(Path.Combine(_directory, CallSession.MetaFileName), FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.False(session.Execute(t => CallVoices.Reassign(t, line, "B"), meta => meta with
+                { VoiceNames = new Dictionary<string, string>(meta.VoiceNames) { ["B"] = "Corrected" } }));
+            Assert.Null(CallMeta.Update(_directory, meta => meta with { Title = "cannot save" }));
+        }
+        Assert.Equal("A", CallTranscriptStore.Load(_directory)!.Lines[0].Voice);
+        Assert.False(CallMeta.Load(_directory)!.VoiceNames.ContainsKey("B"));
+        Assert.Equal("A", session.Document.Lines[0].Voice);
+        Assert.False(session.CanUndo);
+        Assert.True(session.Execute(t => CallVoices.Reassign(t, line, "B"), meta => meta with
+            { VoiceNames = new Dictionary<string, string>(meta.VoiceNames) { ["B"] = "Corrected" } }));
+        using (var blocked = File.Open(Path.Combine(_directory, CallSession.MetaFileName), FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.False(session.Undo());
+        }
+        Assert.Equal("B", CallTranscriptStore.Load(_directory)!.Lines[0].Voice);
+        Assert.True(session.CanUndo);
+        Assert.True(session.Undo());
+        Assert.Equal("A", session.Document.Lines[0].Voice);
+    }
+
+    [Fact]
     public void BackgroundSuggestionsKeepUndoAndBatchAssignmentsUndoTogether()
     {
         var first = Line("first", 0, 6);

@@ -126,6 +126,15 @@ public static class DictionaryTransfer
             throw new InvalidDataException("Это не файл словаря Tapybara.");
         }
 
+        if (file.Version != 1 || file.Replacements is null || file.People is null || file.Voices is null
+            || file.Replacements.Values.Any(value => value is null)
+            || file.People.Any(name => name is null)
+            || file.Voices.Values.Any(voice => voice is null || voice.Prints is null
+                || voice.Prints.Any(print => print is null || print.Any(value => !float.IsFinite(value)))))
+        {
+            throw new InvalidDataException("Файл словаря испорчен или его версия не поддерживается.");
+        }
+
         return file;
     }
 

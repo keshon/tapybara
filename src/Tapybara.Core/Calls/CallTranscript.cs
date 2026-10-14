@@ -283,7 +283,7 @@ public static class CallTranscriptStore
 
     /// <summary>Применить команду к ожидаемой ревизии, не затирая более свежие данные.</summary>
     public static CallTranscript? TryUpdate(string callDirectory, long expectedRevision, Func<CallTranscript, CallTranscript> change,
-        Action<CallTranscript>? committed = null)
+        Action<CallTranscript>? committed = null, Func<CallTranscript, bool>? persistMetadata = null)
     {
         lock (Gate)
         {
@@ -293,6 +293,13 @@ public static class CallTranscriptStore
                 return null;
             }
             CallTranscript saved = WriteChanged(callDirectory, current, change(current));
+            if (persistMetadata?.Invoke(saved) == false)
+            {
+                // Возвращаем прежний документ под тем же замком: другой редактор
+                // не успеет изменить его между неудачной записью меты и откатом.
+                Write(callDirectory, current);
+                return null;
+            }
             committed?.Invoke(saved);
             return saved;
         }

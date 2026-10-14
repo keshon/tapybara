@@ -334,6 +334,9 @@ public sealed record UiStrings
     public required string DictionaryFileFailed { get; init; }
     public required string DictionaryNotADictionary { get; init; }
     public required string DictionarySearch { get; init; }
+    public required string DictionaryVariantsHeading { get; init; }
+    public required string DictionaryCorrectHeading { get; init; }
+
     public required string DictionaryAnotherVariant { get; init; }
     public required string DictionaryNoMatches { get; init; }
     public required string CardHeading { get; init; }
@@ -1034,8 +1037,8 @@ public sealed record UiStrings
         DictationCopy = "Copy",
         DictationDelete = "Delete",
         DictationWords = "{0} words",
-        DictionaryIntro = "What to do with the words the model keeps mishearing. Changes apply to new dictations and transcripts.",
-        DictionaryReplacementsHint = "On the left, how the model hears it — one word can have several variants, press Enter after each. On the right, how it should be. Punctuation works too, like C# or .NET.",
+        DictionaryIntro = "Correct recurring recognition mistakes. Changes apply to new dictations and transcripts.",
+        DictionaryReplacementsHint = "Enter adds a variant. Replacements match whole words and phrases.",
         DictionaryPeople = "People",
         DictionaryPeopleHint = "Offered as chips after a call and when naming voices, most recent first. Renaming here does not change past transcripts.",
         DictionaryPeopleEmpty = "Names appear here after your first call.",
@@ -1055,6 +1058,9 @@ public sealed record UiStrings
         DictionaryFileFailed = "Could not use the file: {0}",
         DictionaryNotADictionary = "This is not a Tapybara dictionary file.",
         DictionarySearch = "Search replacements",
+        DictionaryVariantsHeading = "Misheard variants · Enter to add",
+        DictionaryCorrectHeading = "Correct text",
+
         DictionaryAnotherVariant = "another…",
         DictionaryNoMatches = "Nothing found.",
         CardHeading = "Call recorded · {0}",
@@ -1228,7 +1234,7 @@ public sealed record UiStrings
         EditTiming = "Edit line timing…",
         EditAddSpeech = "Add missing speech…",
         EditEstimated = "Estimated timing — adjust audio boundaries",
-        EditConflict = "The transcript changed. Your action was not applied; review the current version.",
+        EditConflict = "The edit was not saved. Check the current transcript and retry.",
         EditFrom = "Start (mm:ss.fff)",
         EditTo = "End (mm:ss.fff)",
         EditApply = "Apply",
@@ -1606,8 +1612,8 @@ public sealed record UiStrings
         DictationCopy = "Копировать",
         DictationDelete = "Удалить",
         DictationWords = "слов: {0}",
-        DictionaryIntro = "Что делать со словами, которые модель слышит не так. Правки действуют на новые диктовки и распознавания.",
-        DictionaryReplacementsHint = "Слева — как модель слышит; у одного слова может быть несколько вариантов, Enter после каждого. Справа — как должно быть. Работает и для названий со знаками — C# или .NET.",
+        DictionaryIntro = "Исправляйте повторяющиеся ошибки распознавания. Правки действуют на новые диктовки и транскрипты.",
+        DictionaryReplacementsHint = "Enter добавляет вариант. Замены работают с целыми словами и фразами.",
         DictionaryPeople = "Люди",
         DictionaryPeopleHint = "Предлагаются чипами после звонка и при именовании голосов, свежие — первыми. Переименование здесь не меняет прошлые транскрипты.",
         DictionaryPeopleEmpty = "Имена появятся здесь после первого звонка.",
@@ -1627,6 +1633,9 @@ public sealed record UiStrings
         DictionaryFileFailed = "Не удалось работать с файлом: {0}",
         DictionaryNotADictionary = "Это не файл словаря Tapybara.",
         DictionarySearch = "Поиск по заменам",
+        DictionaryVariantsHeading = "Ошибочные варианты · Enter для добавления",
+        DictionaryCorrectHeading = "Правильный текст",
+
         DictionaryAnotherVariant = "ещё…",
         DictionaryNoMatches = "Ничего не найдено.",
         CardHeading = "Звонок записан · {0}",
@@ -1800,7 +1809,7 @@ public sealed record UiStrings
         EditTiming = "Изменить границы реплики…",
         EditAddSpeech = "Добавить пропущенную речь…",
         EditEstimated = "Время приблизительное — уточните границы аудио",
-        EditConflict = "Транскрипт изменился. Действие не применено; проверьте актуальную версию.",
+        EditConflict = "Правка не сохранена. Проверьте актуальный транскрипт и повторите действие.",
         EditFrom = "Начало (мм:сс.fff)",
         EditTo = "Конец (мм:сс.fff)",
         EditApply = "Применить",

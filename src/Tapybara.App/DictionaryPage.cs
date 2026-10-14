@@ -48,15 +48,6 @@ namespace Tapybara.App;
 /// </remarks>
 public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDisposable
 {
-    /// <summary>
-    /// Со скольких строк замен показывать поиск.
-    /// </summary>
-    /// <remarks>
-    /// Пока замен горстка, поле поиска — лишний элемент над тремя строками.
-    /// Восемь — примерно столько помещается в карточку без прокрутки.
-    /// </remarks>
-    private const int SearchFrom = 8;
-
     private readonly SettingsHost _settings;
     private readonly VoiceBook _voices;
     private readonly Func<string> _callsDirectory;
@@ -103,7 +94,7 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
         _search = new TextBox
         {
-            Width = 260,
+            MinWidth = 160,
             Icon = new SymbolIcon { Symbol = SymbolRegular.Search24 },
             HorizontalAlignment = HorizontalAlignment.Right,
         };
@@ -207,16 +198,36 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             row.NewVariant.Focus();
         };
 
-        System.Windows.Controls.Button applyToCalls = Ui.Link(L.S.DictionaryApplyToCalls);
-        applyToCalls.VerticalAlignment = VerticalAlignment.Center;
-        applyToCalls.Margin = new Thickness(Tokens.Space4, 0, 0, 0);
-        applyToCalls.Click += async (_, _) => await ApplyToPastCallsAsync();
-
-        var toolbar = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
-        toolbar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { add, applyToCalls } });
-        toolbar.Children.Add(_search);
-
-        _root.Children.Add(Card(new StackPanel { Children = { toolbar, _replacements, _noMatches } }));
+        var more = new Button { Icon = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24 }, ToolTip = L.S.CallsMore };
+        System.Windows.Automation.AutomationProperties.SetName(more, L.S.CallsMore);
+        more.Click += (_, _) => Controls.AnchoredMenu.Open(Ui.Menu(more,
+            (L.S.DictionaryImport, SymbolRegular.ArrowDownload24, Import),
+            (L.S.DictionaryExport, SymbolRegular.ArrowUpload24, Export),
+            (L.S.DictionaryApplyToCalls, SymbolRegular.History24, () => _ = ApplyToPastCallsAsync())), more);
+        Controls.ControlSizing.Apply(add);
+        Controls.ControlSizing.Apply(more, iconOnly: true);
+        more.Margin = new Thickness(Tokens.Space2, 0, 0, 0);
+        Controls.ControlSizing.Apply(_search);
+        var toolbar = new Grid { Margin = new Thickness(0, Tokens.Space2, 0, Tokens.Space4) };
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition());
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolbar.Children.Add(add);
+        _search.Margin = new Thickness(Tokens.Space4, 0, 0, 0);
+        _search.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Grid.SetColumn(_search, 1); toolbar.Children.Add(_search);
+        Grid.SetColumn(more, 2); toolbar.Children.Add(more);
+        _root.Children.Add(toolbar);
+        var labels = new Grid { Margin = new Thickness(Tokens.Space4, 0, Tokens.Space4, Tokens.Space2) };
+        labels.ColumnDefinitions.Add(new ColumnDefinition());
+        labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+        labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+        labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Tokens.ControlHeight + Tokens.Space2) });
+        labels.Children.Add(Ui.Caption(L.S.DictionaryVariantsHeading));
+        var targetLabel = Ui.Caption(L.S.DictionaryCorrectHeading);
+        Grid.SetColumn(targetLabel, 2); labels.Children.Add(targetLabel);
+        _root.Children.Add(labels);
+        _root.Children.Add(Card(new StackPanel { Children = { _replacements, _noMatches } }));
         ApplyFilter();
 
         // --- подсказка
@@ -245,24 +256,12 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         _root.Children.Add(Card(_people));
     }
 
-    /// <summary>Заголовок страницы и перенос словаря в файл и из файла.</summary>
-    private Grid Header()
+    /// <summary>Заголовок страницы.</summary>
+    private static Grid Header()
     {
         var header = new Grid();
         header.Children.Add(Ui.Title(L.S.NavDictionary));
 
-        var import = new Button { Content = L.S.DictionaryImport, Margin = new Thickness(0, 0, Tokens.Space2, 0) };
-        import.Click += (_, _) => Import();
-        var export = new Button { Content = L.S.DictionaryExport };
-        export.Click += (_, _) => Export();
-
-        header.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { import, export },
-        });
         return header;
     }
 
@@ -352,7 +351,12 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
 
     private ReplacementRow AddReplacementRow(IReadOnlyList<string> heard, string correct, bool atTop)
     {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space2) };
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var divider = new Border { BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 0, 0, Tokens.Space3) };
+        divider.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+        Grid.SetColumnSpan(divider, 4); grid.Children.Add(divider);
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
@@ -390,11 +394,15 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         Grid.SetColumn(arrow, 1);
         Grid.SetColumn(to, 2);
         Grid.SetColumn(remove, 3);
-        grid.Children.Add(variants);
-        grid.Children.Add(arrow);
-        grid.Children.Add(to);
-        grid.Children.Add(remove);
-
+        foreach (FrameworkElement element in new FrameworkElement[] { variants, arrow, to, remove })
+        {
+            Grid.SetRow(element, 1); grid.Children.Add(element);
+        }
+        Controls.ControlSizing.Apply(to);
+        Controls.ControlSizing.Apply(newVariant);
+        Controls.ControlSizing.Apply(remove, iconOnly: true);
+        to.VerticalAlignment = VerticalAlignment.Top;
+        remove.VerticalAlignment = VerticalAlignment.Top;
         var row = new ReplacementRow { Root = grid, Variants = variants, NewVariant = newVariant, Correct = to };
         foreach (string h in heard)
         {
@@ -402,7 +410,6 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
         }
 
         UpdateVariantPlaceholder(row);
-
         newVariant.KeyDown += (_, e) => OnNewVariantKey(row, e);
         newVariant.LostFocus += (_, _) => CommitNewVariant(row);
         to.LostFocus += (_, _) => SaveReplacements();
@@ -425,6 +432,10 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
             _rows.Add(row);
         }
 
+        if (atTop)
+        {
+            ApplyFilter();
+        }
         return row;
     }
 
@@ -554,13 +565,14 @@ public sealed class DictionaryPage : System.Windows.Controls.UserControl, IDispo
     private void ApplyFilter()
     {
         string query = _search.Text.Trim();
-        _search.Visibility = _rows.Count >= SearchFrom || query.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _search.Visibility = Visibility.Visible;
 
         int shown = 0;
         foreach (ReplacementRow row in _rows)
         {
             bool match = row.Matches(query);
             row.Root.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+            row.Root.Children.OfType<Border>().First().Visibility = shown == 0 ? Visibility.Collapsed : Visibility.Visible;
             shown += match ? 1 : 0;
         }
 

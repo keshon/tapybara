@@ -26,10 +26,16 @@ public sealed class CallEditSession(string directory, CallTranscript document)
         CallTranscript before = Document;
         IReadOnlyDictionary<string, string> beforeNames = CallMeta.Load(directory)?.VoiceNames ?? new Dictionary<string, string>();
         IReadOnlyDictionary<string, string> afterNames = beforeNames;
-        CallTranscript? updated = CallTranscriptStore.TryUpdate(directory, before.Revision, command, saved =>
+        CallTranscript? updated = CallTranscriptStore.TryUpdate(directory, before.Revision, command, persistMetadata: saved =>
         {
+            if (CallMeta.Load(directory) is null && metadataChange is null)
+            {
+                return true;
+            }
+
             CallSession? meta = CallMeta.Update(directory, current => (metadataChange?.Invoke(current) ?? current) with { Voices = saved.Voices });
             afterNames = meta?.VoiceNames ?? beforeNames;
+            return meta is not null;
         });
         if (updated is null)
         {
@@ -56,9 +62,14 @@ public sealed class CallEditSession(string directory, CallTranscript document)
             Lines = snapshot.Transcript.Lines,
             EditedByHand = snapshot.Transcript.EditedByHand,
             VoicePrints = new Dictionary<string, float[]>(),
-        }, saved =>
+        }, persistMetadata: saved =>
         {
-            CallMeta.Update(directory, meta =>
+            if (CallMeta.Load(directory) is null && snapshot.ChangedNames.Count == 0)
+            {
+                return true;
+            }
+
+            return CallMeta.Update(directory, meta =>
             {
                 var names = new Dictionary<string, string>(meta.VoiceNames);
                 foreach (string key in snapshot.ChangedNames)
@@ -73,7 +84,7 @@ public sealed class CallEditSession(string directory, CallTranscript document)
                     }
                 }
                 return meta with { Voices = saved.Voices, VoiceNames = names };
-            });
+            }) is not null;
         });
         if (updated is null)
         {
@@ -86,10 +97,13 @@ public sealed class CallEditSession(string directory, CallTranscript document)
 
     private void ReloadAfterConflict()
     {
-        _history.Clear();
         if (CallTranscriptStore.Load(directory) is { } current)
         {
-            Document = current;
+            Synchronize(current);
+        }
+        else
+        {
+            _history.Clear();
         }
     }
 
