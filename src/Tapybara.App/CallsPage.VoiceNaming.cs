@@ -221,35 +221,99 @@ public partial class CallsPage
             candidates.Count == 0 ? SpeakerText("No reliable matches found. Short or mixed phrases may need manual correction.",
                 "Надёжных совпадений не найдено. Короткие или смешанные реплики может потребоваться исправить вручную.")
                 : SpeakerText("Listen, then select the phrases spoken by ", "Послушайте и выберите реплики: ") + name,
-            SpeakerText("Apply selected", "Применить выбранные"), L.S.ButtonCancel) { PrimaryEnabled = false };
+            SpeakerText("Reassign selected", "Переназначить выбранные"), L.S.ButtonCancel)
+        { PrimaryEnabled = false, Width = 620 };
         var selections = new List<(CallLine Line, CheckBox Check)>();
+        var previousButtons = new Dictionary<CallLine, Wpf.Ui.Controls.Button>();
         var rows = new StackPanel();
+        var count = Ui.Caption("");
+        count.Margin = new Thickness(0, 0, 0, Tokens.Space3);
+        rows.Children.Add(count);
+        void UpdateSelection()
+        {
+            int selectedCount = selections.Count(s => s.Check.IsChecked == true);
+            count.Text = SpeakerText($"{selectedCount} of {candidates.Count} selected · Unselected phrases stay unchanged",
+                $"Выбрано {selectedCount} из {candidates.Count} · Остальные реплики останутся без изменений");
+            dialog.PrimaryEnabled = selectedCount > 0;
+        }
+
         foreach (var line in candidates)
         {
-            var row = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-            var check = new CheckBox { Content = CallTranscriptRenderer.Stamp(line.Start) + " · " + name };
-            selections.Add((line, check));
-            check.Checked += (_, _) => dialog.PrimaryEnabled = true;
-            check.Unchecked += (_, _) => dialog.PrimaryEnabled = selections.Any(s => s.Check.IsChecked == true);
-            row.Children.Add(check);
+            var row = new StackPanel();
+            var header = new Grid { Margin = new Thickness(0, 0, 0, Tokens.Space3) };
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition());
+            string stamp = CallTranscriptRenderer.Stamp(line.Start);
             var play = new Wpf.Ui.Controls.Button {
                 Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Play16 },
-                ToolTip = SpeakerText("Play phrase", "Послушать реплику"), Margin = new Thickness(0, 6, 0, 6) };
+                ToolTip = SpeakerText("Play phrase", "Послушать реплику") + " · " + stamp,
+                Margin = new Thickness(0, 0, Tokens.Space3, 0) };
             Controls.ControlSizing.Apply(play, iconOnly: true);
             play.CornerRadius = new CornerRadius(play.Height / 2);
             System.Windows.Automation.AutomationProperties.SetName(play, play.ToolTip.ToString());
             play.Click += (_, _) => PlayQuote(line);
+            if (_quoteButtons.TryGetValue(line, out var previous))
+            {
+                previousButtons[line] = previous;
+            }
+
             _quoteButtons[line] = play;
-            row.Children.Add(play);
-            row.Children.Add(new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap });
-            rows.Children.Add(row);
+            header.Children.Add(play);
+            string currentSpeaker = CallSpeakers.Label(line, _session, _transcript.Voices.Count,
+                Settings.EffectiveMyName, OtherSideLabel(Settings), L.S.TranscriptVoice);
+            var metadata = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            metadata.Children.Add(Ui.BodyStrong(stamp));
+            metadata.Children.Add(Ui.Caption(SpeakerText("Currently: ", "Сейчас: ") + currentSpeaker));
+            Grid.SetColumn(metadata, 1);
+            header.Children.Add(metadata);
+            row.Children.Add(header);
+            var phrase = Ui.Body(line.Text);
+            phrase.TextWrapping = TextWrapping.Wrap;
+            phrase.Margin = new Thickness(0, 0, 0, Tokens.Space3);
+            row.Children.Add(phrase);
+            var check = new CheckBox {
+                Content = new TextBlock {
+                    Text = SpeakerText("Assign to ", "Назначить: ") + name,
+                    TextWrapping = TextWrapping.Wrap },
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+                Padding = new Thickness(0) };
+            System.Windows.Automation.AutomationProperties.SetName(check,
+                SpeakerText("Assign phrase at ", "Назначить реплику в ") + stamp + SpeakerText(" to ", ": ") + name);
+            selections.Add((line, check));
+            check.Checked += (_, _) => UpdateSelection();
+            check.Unchecked += (_, _) => UpdateSelection();
+            row.Children.Add(check);
+            var card = Ui.Card(row);
+            card.Margin = new Thickness(0, 0, 0, Tokens.Space3);
+            rows.Children.Add(card);
         }
-        dialog.AddContent(new ScrollViewer { Content = rows, MaxHeight = 400,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-        var choice = ConfirmWindow.Ask(Window.GetWindow(this), dialog);
-        foreach (var line in candidates)
+
+        UpdateSelection();
+        if (candidates.Count > 0)
         {
-            _quoteButtons.Remove(line);
+            dialog.AddContent(rows);
+        }
+
+        ConfirmChoice choice;
+        try
+        {
+            choice = ConfirmWindow.Ask(Window.GetWindow(this), dialog);
+        }
+        finally
+        {
+            foreach (var line in candidates)
+            {
+                if (previousButtons.TryGetValue(line, out var previous))
+                {
+                    _quoteButtons[line] = previous;
+                }
+                else
+                {
+                    _quoteButtons.Remove(line);
+                }
+            }
+
+            UpdateQuoteButtons();
         }
 
         if (choice != ConfirmChoice.Primary || _session?.Directory != directory)
