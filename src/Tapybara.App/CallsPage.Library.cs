@@ -22,6 +22,7 @@ public partial class CallsPage
     private DatePicker _dateTo => _dates.To;
     private bool _updatingFilters;
     private bool _reviewVisible;
+    private readonly HashSet<string> _duplicatingCalls = new(StringComparer.OrdinalIgnoreCase);
 
     private void InitializeLibraryFilters()
     {
@@ -242,6 +243,8 @@ public partial class CallsPage
             menu.Items.Add(item);
         }
         Add(L.S.CallsRename, () => RenameCall(entry));
+        Add(L.S.CallsDuplicate, () => _ = DuplicateCallAsync(entry),
+            entry.State is not (CallState.Recording or CallState.Transcribing) && !_duplicatingCalls.Contains(entry.Directory));
         Add(L.S.CallsExport, () => OpenExport(entry), entry.HasTranscriptData || System.IO.File.Exists(entry.Session.TranscriptPath));
         Add(L.S.CallsOpenFolder, () => Open(entry.Directory));
         Add(L.S.CallsOpenTranscriptFile, () => Open(entry.Session.TranscriptPath), System.IO.File.Exists(entry.Session.TranscriptPath));
@@ -256,6 +259,34 @@ public partial class CallsPage
         menu.Items.Add(new Separator());
         Add(L.S.CallReviewDelete, () => DeleteCall(entry), entry.State != CallState.Recording);
         return menu;
+    }
+
+    private async Task DuplicateCallAsync(CallEntry entry)
+    {
+        if (_services.LiveState(entry.Directory) is CallState.Recording or CallState.Transcribing
+            || _activeEditor?.Flush() == false || !_duplicatingCalls.Add(entry.Directory))
+        {
+            return;
+        }
+        try
+        {
+            string title = TitleOf(entry.Session) + L.S.CallsCopySuffix;
+            CallSession copy = await CallSessionCopy.DuplicateAsync(entry.Directory, _services.CallsDirectory(), title);
+            if (!_disposed) { Select(copy.Directory); }
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            Tapybara.Core.Diagnostics.AppLog.Error("Could not duplicate session.", ex);
+            if (!_disposed)
+            {
+                ConfirmWindow.Ask(Window.GetWindow(this), new ConfirmWindow(L.S.CallsDuplicateFailed,
+                    ex.Message, L.S.ButtonClose, L.S.ButtonCancel));
+            }
+        }
+        finally
+        {
+            _duplicatingCalls.Remove(entry.Directory);
+        }
     }
 
     private void RenameCall(CallEntry entry)

@@ -375,6 +375,9 @@ public sealed record UiStrings
     public required string LibrarySearchHelp { get; init; }
     public required string CallsExport { get; init; }
     public required string CallsRename { get; init; }
+    public required string CallsDuplicate { get; init; }
+    public required string CallsCopySuffix { get; init; }
+    public required string CallsDuplicateFailed { get; init; }
     public required string CallsReview { get; init; }
     public required string TimelineSelectRange { get; init; }
     public required string TimelinePlayRange { get; init; }
@@ -1099,6 +1102,9 @@ public sealed record UiStrings
         LibrarySearchHelp = "Search recording titles, people and transcript text",
         CallsExport = "Export",
         CallsRename = "Rename…",
+        CallsDuplicate = "Duplicate session",
+        CallsCopySuffix = " (copy)",
+        CallsDuplicateFailed = "Could not duplicate session",
         CallsReview = "People / Review",
         TimelineSelectRange = "Select range…",
         TimelinePlayRange = "Play selection",
@@ -1674,6 +1680,9 @@ public sealed record UiStrings
         LibrarySearchHelp = "Поиск по названиям записей, участникам и тексту транскрипта",
         CallsExport = "Экспорт",
         CallsRename = "Переименовать…",
+        CallsDuplicate = "Создать копию звонка",
+        CallsCopySuffix = " (копия)",
+        CallsDuplicateFailed = "Не удалось скопировать звонок",
         CallsReview = "Участники / Проверка",
         TimelineSelectRange = "Выделить диапазон…",
         TimelinePlayRange = "Прослушать выделение",

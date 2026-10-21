@@ -12,6 +12,7 @@ namespace Tapybara.App;
 public sealed class TranscriptLineRow : INotifyPropertyChanged
 {
     private bool _isCurrent;
+    private bool _isSearchHit;
     private bool _isPlaying;
     private bool _isExcerptPlaying;
 
@@ -87,6 +88,17 @@ public sealed class TranscriptLineRow : INotifyPropertyChanged
                 _isExcerptPlaying = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExcerptPlaying)));
             }
+        }
+    }
+
+    public bool IsSearchHit
+    {
+        get => _isSearchHit;
+        set
+        {
+            if (_isSearchHit == value) { return; }
+            _isSearchHit = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSearchHit)));
         }
     }
 

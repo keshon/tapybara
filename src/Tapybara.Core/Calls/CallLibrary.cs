@@ -122,6 +122,8 @@ public static class CallLibrary
     public static CallEntry? Describe(string directory, CallState? liveState = null)
     {
         string folder = Path.GetFileName(directory);
+        // Import and copy staging folders are published only after their final atomic move.
+        if (folder.StartsWith('.')) { return null; }
 
         // Мета — источник правды, но её может не быть: приложение могли убить
         // между созданием папки и первой записью меты. Тогда всё, что мы знаем

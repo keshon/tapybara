@@ -616,7 +616,7 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     }
 
     /// <summary>Показать звонок. Без <paramref name="force"/> — только если что-то поменялось.</summary>
-    private void ShowDetail(CallEntry? entry, bool force = false)
+    private void ShowDetail(CallEntry? entry, bool force = false, CallLine? readingLine = null)
     {
         DetailPane.Visibility = entry is null ? Visibility.Collapsed : Visibility.Visible;
         NothingSelected.Visibility = entry is null ? Visibility.Visible : Visibility.Collapsed;
@@ -712,8 +712,8 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
 
         _suggestions = _reviewVisible ? Suggest() : [];
         ShowBanner(entry);
-        ShowTranscript(entry);
-        RefreshDocumentSearch();
+        ShowTranscript(entry, preserveViewport: sameCall, readingLine);
+        RefreshDocumentSearch(reveal: !sameCall);
         UpdateTimeline(entry);
         ShowVoices();
     }
@@ -895,14 +895,14 @@ public partial class CallsPage : System.Windows.Controls.UserControl, IDisposabl
     private readonly HashSet<string> _verifyAsked = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Перечитать звонок после правки — список, транскрипт и голоса.</summary>
-    private void RefreshAfterEdit()
+    private void RefreshAfterEdit(CallLine? readingLine = null)
     {
         Reload(keepSelection: true);
         if (_current is not null)
         {
             // Переоткрываем по свежей записи из списка: состояние («назовите
             // голоса» → «готово») вычисляется там.
-            ShowDetail(_current, force: true);
+            ShowDetail(_current, force: true, readingLine);
         }
     }
 

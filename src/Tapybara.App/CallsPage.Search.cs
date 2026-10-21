@@ -21,7 +21,7 @@ public partial class CallsPage
         DocumentSearch.QueryChanged += () => RefreshDocumentSearch(reset: true);
         DocumentSearch.NavigateRequested += NavigateSearch;
         DocumentSearch.ReplaceRequested += ReplaceSearch;
-        DocumentSearch.CloseRequested += () => { _searchHighlight.Clear(); DocumentSearch.Visibility = Visibility.Collapsed; LineList.Focus(); };
+        DocumentSearch.CloseRequested += () => { ClearSearchHighlight(); DocumentSearch.Visibility = Visibility.Collapsed; LineList.Focus(); };
     }
     private void OnFindClick(object sender, RoutedEventArgs e) => OpenDocumentSearch(replace: true);
     private void OpenDocumentSearch(bool replace)
@@ -34,7 +34,7 @@ public partial class CallsPage
         DocumentSearch.Open(replace, selection);
         RefreshDocumentSearch(reset: true);
     }
-    private void RefreshDocumentSearch(bool reset = false)
+    private void RefreshDocumentSearch(bool reset = false, bool reveal = true)
     {
         FindButton.IsEnabled = _transcript is not null;
         if (DocumentSearch.Visibility != Visibility.Visible) { return; }
@@ -44,27 +44,32 @@ public partial class CallsPage
         _searchHitIndex = previous is null ? -1 : _searchHits.ToList().FindIndex(hit => hit.Id == previous.Id && hit.Start == previous.Start);
         if (_searchHitIndex < 0 && _searchHits.Count > 0) { _searchHitIndex = 0; }
         DocumentSearch.SetMatches(_searchHitIndex, _searchHits.Count);
-        SelectSearchHit();
+        SelectSearchHit(reveal);
     }
     private void NavigateSearch(int direction)
     {
         if (_activeEditor?.Flush() == false) { return; }
-        RefreshDocumentSearch();
+        RefreshDocumentSearch(reveal: false);
         if (_searchHits.Count == 0) { return; }
         _searchHitIndex = (_searchHitIndex + direction + _searchHits.Count) % _searchHits.Count;
         DocumentSearch.SetMatches(_searchHitIndex, _searchHits.Count);
         SelectSearchHit();
     }
-    private void SelectSearchHit()
+    private void ClearSearchHighlight()
     {
         _searchHighlight.Clear();
+        foreach (TranscriptLineRow line in _lines) { line.IsSearchHit = false; }
+    }
+    private void SelectSearchHit(bool reveal = true)
+    {
+        ClearSearchHighlight();
         if (_searchHitIndex < 0 || _searchHitIndex >= _searchHits.Count) { return; }
         SearchHit hit = _searchHits[_searchHitIndex];
         TranscriptLineRow? row = _lines.FirstOrDefault(r => r.Line.Id == hit.Id);
         if (row is null) { return; }
         LineList.SelectedItem = row;
-        LineList.ScrollIntoView(row);
-        LineList.UpdateLayout();
+        row.IsSearchHit = true;
+        if (reveal) { ListViewport.Position(LineList, row); }
         if (LineList.ItemContainerGenerator.ContainerFromItem(row) is DependencyObject container)
         {
             InlineTextEditor? editor = FindEditor(container);

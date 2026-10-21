@@ -11,24 +11,16 @@ public static class SmoothScroll
     private static readonly DependencyProperty OffsetProperty = DependencyProperty.RegisterAttached("Offset", typeof(double), typeof(SmoothScroll),
         new PropertyMetadata(0.0, (target, args) => ((ScrollViewer)target).ScrollToVerticalOffset((double)args.NewValue)));
 
-    private static ScrollViewer? Viewer(DependencyObject parent)
-    {
-        if (parent is ScrollViewer viewer) { return viewer; }
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-        { if (Viewer(VisualTreeHelper.GetChild(parent, i)) is { } child) { return child; } }
-        return null;
-    }
-
     public static void Cancel(System.Windows.Controls.ListBox list)
     {
-        if (Viewer(list) is not { } viewer) { return; }
+        if (ListViewport.Viewer(list) is not { } viewer) { return; }
         viewer.SetValue(OffsetProperty, viewer.VerticalOffset);
         viewer.BeginAnimation(OffsetProperty, null);
     }
 
     public static void Reveal(System.Windows.Controls.ListBox list, object item)
     {
-        if (Viewer(list) is not { } viewer) { list.ScrollIntoView(item); return; }
+        if (ListViewport.Viewer(list) is not { } viewer) { list.ScrollIntoView(item); return; }
         Cancel(list);
         double origin = viewer.VerticalOffset;
         FrameworkElement? container = list.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;

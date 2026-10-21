@@ -17,7 +17,7 @@ namespace Tapybara.App;
 /// <summary>Транскрипт: строки реплик, их цвета и меню «кто сказал».</summary>
 public partial class CallsPage
 {
-    private void ShowTranscript(CallEntry entry)
+    private void ShowTranscript(CallEntry entry, bool preserveViewport, CallLine? readingLine)
     {
         bool legacy = _transcript is null && File.Exists(entry.Session.TranscriptPath);
         LegacyScroll.Visibility = legacy ? Visibility.Visible : Visibility.Collapsed;
@@ -31,7 +31,7 @@ public partial class CallsPage
         }
 
         LegacyText.Text = string.Empty;
-        RebuildLines();
+        RebuildLines(preserveViewport, readingLine);
     }
 
     /// <summary>Разложить реплики в строки окна.</summary>
@@ -40,12 +40,15 @@ public partial class CallsPage
     /// режет речь на куски по несколько секунд, и подпись на каждом превращала
     /// монолог в столбик одинаковых имён.
     /// </remarks>
-    private void RebuildLines()
+    private void RebuildLines(bool preserveViewport, CallLine? readingLine)
     {
         if (_activeEditor?.IsKeyboardFocusWithin == true || _activeEditor?.HasDraftChanges == true)
         {
             return;
         }
+        Controls.ListViewport.Anchor? anchor = preserveViewport
+            ? Controls.ListViewport.Capture(LineList, container => FindEditor(container),
+                readingLine is null ? null : _lines.FirstOrDefault(row => row.Line.IsSameAs(readingLine))) : null;
         TimeSpan? current = _lines.FirstOrDefault(l => l.IsCurrent)?.Line.Start;
         _lines.Clear();
 
@@ -85,6 +88,12 @@ public partial class CallsPage
             });
 
             previous = speaker;
+        }
+
+        if (anchor?.Item is TranscriptLineRow oldRow
+            && _lines.FirstOrDefault(row => row.Line.IsSameAs(oldRow.Line)) is { } replacement)
+        {
+            Controls.ListViewport.Position(LineList, replacement, anchor.Top, container => FindEditor(container));
         }
     }
 
@@ -127,7 +136,7 @@ public partial class CallsPage
             return;
         }
         _activeEditor = null;
-        RefreshAfterEdit();
+        RefreshAfterEdit(line);
 
         // Слепок голоса снят и с этой реплики — снять заново без неё, иначе
         // чужой голос остался бы в подсказках и лёг бы в книгу голосов.

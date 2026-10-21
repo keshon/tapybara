@@ -76,7 +76,7 @@ public sealed class NativeLayoutTests
             new XElement(root.Name.Namespace + "Grid.Resources", Resources(theme)), root);
         return ((Grid)XamlReader.Parse(wrapper.ToString())).Children.OfType<UserControl>().Single();
     }
-    private static void Render(FrameworkElement element, int width, int height, string name)
+    private static void Render(FrameworkElement element, int width, int height, string name, Action? check = null)
     {
         Visual root = element;
         while (VisualTreeHelper.GetParent(root) is Visual parent) { root = parent; }
@@ -92,6 +92,7 @@ public sealed class NativeLayoutTests
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
         timer.Start(); System.Windows.Threading.Dispatcher.PushFrame(frame);
+        check?.Invoke();
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(element);
         if (Environment.GetEnvironmentVariable("TAPYBARA_RENDER_LAYOUTS") == "1")
@@ -607,6 +608,83 @@ public sealed class NativeLayoutTests
         timeline.FitView();
         Render(timeline, 640, 180, "timeline-fit");
         Assert.NotNull(hit.Invoke(surface, [new Point(96, 40)]));
+    });
+
+    private static TranscriptLineRow NavigationRow(int index, bool heading) => new()
+    {
+        Line = new CallLine(CallChannel.Theirs, TimeSpan.FromSeconds(index * 5), TimeSpan.FromSeconds(index * 5 + 4),
+            index % 3 == 0 ? "A longer phrase that wraps onto several lines when the transcript viewport is narrow." : "Short phrase.", "A")
+            { Id = Guid.NewGuid() },
+        Stamp = $"0:{index:D2}", Speaker = "Кирилл", SpeakerBrush = Brushes.Teal, SpeakerForeground = Brushes.Black,
+        SpeakerFontStyle = FontStyles.Normal, SpeakerVisibility = heading ? Visibility.Visible : Visibility.Collapsed,
+        PlayHint = "Play",
+    };
+
+    private static ListBox NavigationList(System.Collections.IEnumerable rows)
+    {
+        var page = Page("Light", "CallsPage");
+        var source = (ListBox)page.FindName("LineList");
+        var list = new ListBox { Resources = (ResourceDictionary)XamlReader.Parse(Resources("Light").ToString()),
+            ItemTemplate = source.ItemTemplate, ItemContainerStyle = source.ItemContainerStyle,
+            ItemsSource = rows, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        VirtualizingPanel.SetScrollUnit(list, ScrollUnit.Pixel);
+        return list;
+    }
+
+    [Fact]
+    public void TranscriptSearchPositionsMatchAtTopAndClampsAtEnd() => OnSta(() =>
+    {
+        var rows = Enumerable.Range(0, 90).Select(i => NavigationRow(i, i % 4 == 0)).ToArray();
+        var list = NavigationList(rows);
+        Render(list, 560, 320, "search-active-match", () =>
+        {
+            rows[45].IsSearchHit = true;
+            ListViewport.Position(list, rows[45]);
+
+            var viewer = Visuals(list).OfType<ScrollViewer>().First();
+            var container = Assert.IsAssignableFrom<FrameworkElement>(list.ItemContainerGenerator.ContainerFromItem(rows[45]));
+            Assert.InRange(container.TranslatePoint(new Point(), viewer).Y, -.5, .5);
+            var fill = Visuals(container).OfType<Border>().Single(border => border.Name == "SearchFill");
+            Assert.Equal(Visibility.Visible, fill.Visibility);
+            Assert.NotNull(fill.Background);
+            rows[45].IsSearchHit = false;
+            Assert.Equal(Visibility.Collapsed, fill.Visibility);
+            ListViewport.Position(list, rows[^1]);
+
+            Assert.InRange(Math.Abs(viewer.ScrollableHeight - viewer.VerticalOffset), 0, 1);
+            container = Assert.IsAssignableFrom<FrameworkElement>(list.ItemContainerGenerator.ContainerFromItem(rows[^1]));
+            Assert.InRange(container.TranslatePoint(new Point(), viewer).Y, 0, viewer.ViewportHeight);
+            rows[45].IsSearchHit = true;
+            ListViewport.Position(list, rows[45]);
+        });
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TranscriptRebuildKeepsPhrasePositionWhenSpeakerHeadingsChange(bool preferEditedPhrase) => OnSta(() =>
+    {
+        var rows = new System.Collections.ObjectModel.ObservableCollection<TranscriptLineRow>(
+            Enumerable.Range(0, 90).Select(i => NavigationRow(i, i % 4 == 0)));
+        var list = NavigationList(rows);
+        Render(list, 560, 320, "anchor-after", () =>
+        {
+            FrameworkElement? Content(FrameworkElement container) => Visuals(container).OfType<InlineTextEditor>().FirstOrDefault();
+            ListViewport.Position(list, rows[45], -9, Content);
+            var anchor = Assert.IsType<ListViewport.Anchor>(ListViewport.Capture(list, Content, preferEditedPhrase ? rows[47] : null));
+            var previous = Assert.IsType<TranscriptLineRow>(anchor.Item);
+            int index = rows.IndexOf(previous);
+            var replacement = NavigationRow(index, previous.SpeakerVisibility != Visibility.Visible);
+            rows.Clear();
+            foreach (int i in Enumerable.Range(0, 90)) { rows.Add(i == index ? replacement : NavigationRow(i, i % 2 == 0)); }
+            ListViewport.Position(list, replacement, anchor.Top, Content);
+
+            var viewer = Visuals(list).OfType<ScrollViewer>().First();
+            var container = Assert.IsAssignableFrom<FrameworkElement>(list.ItemContainerGenerator.ContainerFromItem(replacement));
+            double after = Content(container)!.TranslatePoint(new Point(), viewer).Y;
+            Assert.InRange(Math.Abs(after - anchor.Top), 0, .5);
+        });
     });
 
     [Fact]

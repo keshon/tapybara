@@ -299,6 +299,9 @@
                                             Margin="{Binding Spacing}"
                                             Background="Transparent">
                                         <Grid>
+                                            <Border x:Name="SearchFill" CornerRadius="{x:Static app:Tokens.ControlRadius}"
+                                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                                    Opacity="0.12" Visibility="Collapsed" IsHitTestVisible="False" />
                                             <!-- Активные интервалы обозначены полосой; без выдуманного выравнивания слов. -->
                                             <Border x:Name="NowBar"
                                                     Width="3"
@@ -365,6 +368,9 @@
                                             <Setter TargetName="LineFill" Property="Background"
                                                     Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                                         </Trigger>
+                                        <DataTrigger Binding="{Binding IsSearchHit}" Value="True">
+                                            <Setter TargetName="SearchFill" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                             <Setter TargetName="NowBar" Property="Visibility" Value="Visible" />
                                         </DataTrigger>
